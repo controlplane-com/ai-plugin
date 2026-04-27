@@ -1,0 +1,44 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Logs and runtime output
+*.log
+logs/
+tmp/
+temp/
+
+# Dependencies and build output
+node_modules/
+dist/
+build/
+coverage/
+.cache/
+.turbo/
+.next/
+out/
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Control Plane local artifacts
+*-bootstrap.json
+*.bak.yaml
+*.bak.yml

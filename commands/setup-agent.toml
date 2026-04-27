@@ -1,0 +1,12 @@
+description = "Deploy a wormhole agent for secure connectivity between workloads and private network resources"
+
+prompt = """
+Deploy a wormhole agent for private network connectivity on Control Plane: {{args}}
+
+Use the cpln-agent-setup agent to:
+1. Evaluate if PrivateLink or Private Service Connect can be used instead
+2. Create an agent resource and generate the bootstrap config
+3. Guide deployment to the target environment (Kubernetes, Docker, AWS, Azure, GCP)
+4. Configure identity network resources for workload routing
+5. Verify the agent tunnel is active and reachable
+"""

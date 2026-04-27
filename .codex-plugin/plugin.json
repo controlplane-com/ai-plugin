@@ -1,0 +1,49 @@
+{
+  "name": "cpln",
+  "version": "1.0.0",
+  "description": "Control Plane — hybrid multi-cloud platform. Skills, agents, and guardrails for deploying workloads, managing secrets, configuring networking, troubleshooting, and migrating from Kubernetes across AWS, GCP, Azure, and private clouds.",
+  "author": {
+    "name": "Control Plane",
+    "email": "support@controlplane.com",
+    "url": "https://controlplane.com"
+  },
+  "homepage": "https://docs.controlplane.com/mcp/ai-plugin",
+  "repository": "https://github.com/controlplane-com/ai-plugin",
+  "license": "MIT",
+  "keywords": [
+    "controlplane",
+    "cpln",
+    "multi-cloud",
+    "kubernetes",
+    "workloads",
+    "deploy",
+    "containers",
+    "networking",
+    "secrets",
+    "autoscaling"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "apps": "./.app.json",
+  "interface": {
+    "displayName": "Control Plane",
+    "shortDescription": "Multi-cloud container platform with 80+ MCP tools",
+    "longDescription": "Deploy and manage containerized workloads across AWS, GCP, Azure, and private clouds. 23 domain skills, 8 guided agents, 8 guardrail rules, and a pre-configured MCP Server with 80+ tools for live infrastructure management.",
+    "developerName": "Control Plane",
+    "category": "Developer Tools",
+    "capabilities": ["Read", "Write"],
+    "websiteURL": "https://controlplane.com",
+    "privacyPolicyURL": "https://controlplane.com/privacy",
+    "termsOfServiceURL": "https://controlplane.com/terms",
+    "defaultPrompt": [
+      "Deploy a workload to Control Plane with autoscaling and firewall rules.",
+      "Troubleshoot why my workload is not starting.",
+      "Set up secret access for my API workload.",
+      "Migrate my Kubernetes deployment to Control Plane."
+    ],
+    "brandColor": "#1563FF",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/logo.svg",
+    "screenshots": []
+  }
+}

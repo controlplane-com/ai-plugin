@@ -1,0 +1,13 @@
+description = "Configure a custom domain for Control Plane workloads with DNS validation, TLS certificates, and routing"
+
+prompt = """
+Configure a custom domain for Control Plane workloads: {{args}}
+
+Use the cpln-domain-configurator agent to:
+1. Determine CNAME vs NS mode based on routing needs (apex domains must use CNAME)
+2. Guide domain ownership verification via TXT record
+3. Create the domain in Control Plane with the correct manifest
+4. Generate the required DNS records (CNAME or NS) for the provider
+5. Validate TLS certificate provisioning
+6. Troubleshoot DNS, certificate, and routing issues if they arise
+"""

@@ -1,0 +1,20 @@
+{
+  "name": "controlplane",
+  "interface": {
+    "displayName": "Control Plane Plugins"
+  },
+  "plugins": [
+    {
+      "name": "cpln",
+      "source": {
+        "source": "local",
+        "path": "./../../"
+      },
+      "policy": {
+        "installation": "INSTALLED_BY_DEFAULT",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

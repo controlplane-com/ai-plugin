@@ -1,0 +1,13 @@
+description = "Set up a stateful workload with persistent storage on Control Plane (volumeset + workload + mount)"
+
+prompt = """
+Set up a stateful workload with persistent storage on Control Plane: {{args}}
+
+Use the cpln-stateful-workload-setup agent to:
+1. Determine filesystem type (ext4, xfs, or shared) based on use case
+2. Redirect to template-catalog for common databases
+3. Create the volumeset with appropriate settings
+4. Create a stateful workload (or any type for shared filesystem)
+5. Mount the volume to the workload
+6. Configure snapshot schedule for backups
+"""

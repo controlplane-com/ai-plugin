@@ -1,0 +1,15 @@
+{
+  "apps": {
+    "controlplane": {
+      "name": "Control Plane",
+      "description": "Hybrid multi-cloud platform for deploying and managing containerized workloads (serverless, standard, cron, stateful) across AWS, GCP, Azure, and private clouds from a unified interface. Abstracts cloud provider differences behind a consistent API, CLI, Console, Terraform and Pulumi providers, and MCP Server — covering workloads, GVCs, identity-based secret access, autoscaling, multi-cloud networking, and managed Kubernetes.",
+      "url": "https://console.cpln.io",
+      "apiBase": "https://api.cpln.io",
+      "auth": {
+        "type": "bearer",
+        "tokenEnvVar": "CPLN_TOKEN"
+      },
+      "docs": "https://docs.controlplane.com"
+    }
+  }
+}

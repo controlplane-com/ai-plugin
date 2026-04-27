@@ -1,0 +1,13 @@
+description = "Set up access control for an org — groups, service accounts, and policies with correct permissions"
+
+prompt = """
+Set up access control for a Control Plane org: {{args}}
+
+Use the cpln-access-control-setup agent to:
+1. Identify the access goal (team access, CI/CD, custom policy)
+2. Create or select a group or service account
+3. Determine target resources (all, specific, or tag-based)
+4. Discover valid permissions for the target resource kind
+5. Create the policy with correct bindings
+6. Verify the access configuration
+"""

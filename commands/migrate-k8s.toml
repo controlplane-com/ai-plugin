@@ -1,0 +1,13 @@
+description = "Migrate Kubernetes manifests, Docker Compose projects, or Helm charts to Control Plane"
+
+prompt = """
+Migrate to Control Plane from Kubernetes, Docker Compose, or Helm: {{args}}
+
+Use the cpln-k8s-migrator agent to:
+1. Analyze source manifests and identify resource types
+2. Run the appropriate conversion tool (cpln convert, cpln stack, or cpln helm)
+3. Validate workload type detection (cron > stateful > standard)
+4. Check for known conversion issues (port inference, secret mapping, PVC sizing)
+5. Review converted manifests for Control Plane best practices
+6. Apply with correct dependency ordering
+"""

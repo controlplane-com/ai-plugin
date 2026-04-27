@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "input=$(cat); cmd=$(echo \"$input\" | jq -r '.tool_input.command // empty'); if echo \"$cmd\" | grep -qE 'cpln\\s+secret\\s+create\\b' && ! echo \"$cmd\" | grep -qE 'cpln\\s+secret\\s+create-'; then echo 'BLOCK: Use type-specific secret commands (cpln secret create-opaque, create-aws, create-tls, etc.). Generic cpln secret create does not exist.' >&2; exit 1; fi"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "input=$(cat); cmd=$(echo \"$input\" | jq -r '.tool_input.command // empty'); if echo \"$cmd\" | grep -qE 'cpln\\s+apply' && ! echo \"$cmd\" | grep -qE '--file|--f\\b|-f\\b'; then echo 'BLOCK: cpln apply requires --file flag. Usage: cpln apply --file manifest.yaml' >&2; exit 1; fi"
+          }
+        ]
+      }
+    ]
+  }
+}

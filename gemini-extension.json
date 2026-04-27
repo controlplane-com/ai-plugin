@@ -1,0 +1,22 @@
+{
+  "name": "cpln",
+  "version": "1.0.0",
+  "description": "Control Plane — hybrid multi-cloud platform. Skills, agents, and guardrails for deploying workloads, managing secrets, configuring networking, troubleshooting, and migrating from Kubernetes across AWS, GCP, Azure, and private clouds.",
+  "settings": [
+    {
+      "name": "Control Plane Token",
+      "description": "Service account token for the Control Plane MCP Server. Create one at https://docs.controlplane.com/guides/create-service-account",
+      "envVar": "CPLN_TOKEN",
+      "sensitive": true
+    }
+  ],
+  "mcpServers": {
+    "cpln": {
+      "httpUrl": "https://mcp.cpln.io/mcp",
+      "headers": {
+        "Authorization": "Bearer ${CPLN_TOKEN}"
+      }
+    }
+  },
+  "contextFileName": "GEMINI.md"
+}

@@ -1,0 +1,12 @@
+description = "Set up credential-free cloud access (AWS, GCP, Azure, or NATS NGS) for a Control Plane workload"
+
+prompt = """
+Set up credential-free cloud access for a Control Plane workload: {{args}}
+
+Use the cpln-cloud-identity-setup agent to:
+1. Guide through cloud-provider-side IAM setup (role, service account, or connector)
+2. Register the cloud account in Control Plane
+3. Create an identity with cloud access for the specified provider (AWS, GCP, Azure, or NGS)
+4. Link the identity to the workload
+5. Verify cloud resource access from within the workload
+"""

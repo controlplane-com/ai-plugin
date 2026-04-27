@@ -1,0 +1,39 @@
+{
+  "name": "controlplane",
+  "owner": {
+    "name": "Control Plane",
+    "email": "support@controlplane.com"
+  },
+  "plugins": [
+    {
+      "name": "cpln",
+      "source": {
+        "source": "github",
+        "repo": "controlplane-com/ai-plugin"
+      },
+      "description": "Control Plane AI workflows, skills, guardrails, and MCP configuration.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Control Plane",
+        "email": "support@controlplane.com",
+        "url": "https://controlplane.com"
+      },
+      "homepage": "https://docs.controlplane.com/mcp/ai-plugin",
+      "repository": "https://github.com/controlplane-com/ai-plugin",
+      "license": "MIT",
+      "category": "Developer Tools",
+      "keywords": [
+        "controlplane",
+        "cpln",
+        "multi-cloud",
+        "kubernetes",
+        "workloads",
+        "deploy",
+        "containers",
+        "networking",
+        "secrets",
+        "autoscaling"
+      ]
+    }
+  ]
+}

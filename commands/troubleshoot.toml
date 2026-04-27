@@ -1,0 +1,11 @@
+description = "Diagnose and fix a Control Plane workload that is unhealthy or not working correctly"
+
+prompt = """
+Diagnose and fix the Control Plane workload: {{args}}
+
+Use the cpln-workload-troubleshooter agent workflow:
+1. Fetch workload status, events, and deployment history
+2. Check for common failure patterns (OOMKilled, image pull errors, secret access failures, port mismatches, firewall blocks, health check failures, resource limits, container restrictions)
+3. Present diagnosis with exact fix commands
+4. Offer to apply the fix
+"""
