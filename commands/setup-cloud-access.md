@@ -1,7 +1,7 @@
 ---
 name: setup-cloud-access
 description: Set up credential-free cloud access (AWS, GCP, Azure, or NATS NGS) for a Control Plane workload via Universal Cloud Identity
-argument-hint: [aws|gcp|azure|ngs] --workload [workload-name] [--gvc gvc-name]
+argument-hint: "[aws|gcp|azure|ngs] --workload [workload-name] [--gvc gvc-name]"
 version: 1.0.0
 ---
 

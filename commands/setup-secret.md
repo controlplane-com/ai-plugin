@@ -1,7 +1,7 @@
 ---
 name: setup-secret
 description: Set up complete secret access for a Control Plane workload (identity + policy + injection)
-argument-hint: [workload] needs [secret] [--gvc gvc-name]
+argument-hint: "[workload] needs [secret] [--gvc gvc-name]"
 version: 1.0.0
 ---
 

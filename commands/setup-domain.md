@@ -1,7 +1,7 @@
 ---
 name: setup-domain
 description: Configure a custom domain for Control Plane workloads with DNS validation, TLS certificates, and routing
-argument-hint: [domain] [--gvc gvc-name] [--mode cname|ns]
+argument-hint: "[domain] [--gvc gvc-name] [--mode cname|ns]"
 version: 1.0.0
 ---
 

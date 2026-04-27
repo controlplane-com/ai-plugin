@@ -1,11 +1,8 @@
 {
   "mcpServers": {
     "cpln": {
-      "type": "http",
       "url": "https://mcp.cpln.io/mcp",
-      "headers": {
-        "Authorization": "Bearer ${CPLN_TOKEN}"
-      }
+      "bearer_token_env_var": "CPLN_TOKEN"
     }
   }
 }
