@@ -38,6 +38,9 @@ Thumbs.db
 .idea/
 .vscode/
 
+# Claude Code local session data (hooks are distributed via .claude-plugin/plugin.json)
+.claude/
+
 # Control Plane local artifacts
 *-bootstrap.json
 *.bak.yaml
