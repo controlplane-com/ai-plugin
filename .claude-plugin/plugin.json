@@ -22,5 +22,6 @@
     "secrets",
     "autoscaling"
   ],
-  "mcpServers": "./.claude-mcp.json"
+  "mcpServers": "./.claude-mcp.json",
+  "hooks": "./hooks/hooks.json"
 }

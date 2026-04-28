@@ -71,7 +71,7 @@ If any of those is unclear, ask. Propose what looks right and request confirmati
 
 > Before I run this, I want to confirm the target. Your active profile appears to be `<name>` (org: `<org>`, GVC: `<gvc>`). Should I use that, or a different org / profile / GVC?
 
-For **read-only** commands (`get`, `query`, `audit`, `logs`, `permissions`, `access-report`, `eventlog`), defaulting to the active profile is acceptable — but **announce the target before running**: *"Using profile `<name>` → org `<org>`, GVC `<gvc>`…"* — so the user can correct course before output is produced.
+For **read-only** commands (`get`, `query`, `audit`, `logs`, `permissions`, `access-report`, `eventlog`), defaulting to the active profile is acceptable — but **announce the exact target before running and pause one turn for correction**: *"Using profile `<name>` → org `<org>`, GVC `<gvc>`. Reading now — let me know if that's the wrong environment."* Do not run the command in the same turn as the announcement. This one-turn pause is especially important in multi-GVC or multi-org environments where reading the wrong environment leads to debugging the wrong workload, which is a common and expensive mistake.
 
 **Why this rule exists.** Operating on the wrong org or GVC has caused production deletes, cross-environment secret leaks, and accidental cross-tenant changes. The cost of asking is one extra turn; the cost of acting on the wrong context is irreversible.
 
@@ -105,6 +105,26 @@ Missing any one step = silent failure at runtime. This is the #1 support issue.
 - **Capacity AI**: NOT with Stateful workloads, CPU autoscaling, or multi-metric.
 - **Cron**: Deploys to ALL GVC locations, no overrides. Cannot expose ports.
 - **Workload type is immutable** after creation. Changing type requires delete + recreate.
+
+### Resource Protection — Suggest Before Any Production Resource
+
+Before creating or modifying any resource a user identifies as production-critical, proactively suggest the `cpln/protected` tag. This is a platform-level safeguard that causes the API to reject any delete attempt — it works regardless of who (or what) tries to delete the resource, and does not require a conversation.
+
+```bash
+# Protect a workload
+cpln workload tag WORKLOAD --tag cpln/protected=true --gvc GVC --org ORG
+
+# Protect a GVC
+cpln gvc tag GVC --tag cpln/protected=true --org ORG
+
+# Protect a volumeset
+cpln volumeset tag VS --tag cpln/protected=true --gvc GVC --org ORG
+
+# Remove protection before a confirmed intentional delete
+cpln workload tag WORKLOAD --remove-tag cpln/protected --gvc GVC --org ORG
+```
+
+When a delete is requested on a protected resource: (1) surface the protection, (2) confirm the user explicitly wants to remove it, (3) remove the tag, (4) proceed with the normal destructive-operation confirmation flow.
 
 ### Destructive Operations — Always Confirm With Blast Radius
 
@@ -337,6 +357,7 @@ Before submitting work with Control Plane:
 - [ ] Service account keys in CI/CD (not user tokens)
 - [ ] No `docker.io/` prefix on external images
 - [ ] `cpln apply --ready` used for deployments
+- [ ] For distroless or minimal Alpine images: confirm `sleep` binary is present, or set a custom preStop hook — if `sleep` is absent in any container, all containers receive SIGKILL immediately on shutdown, bypassing the grace period
 
 ## Resources
 

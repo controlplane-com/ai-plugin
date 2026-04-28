@@ -319,7 +319,7 @@ Full `spec.rolloutOptions` configuration:
 
 ### Critical Warnings
 
-- If `sleep` is not available in **any** container, ALL containers receive SIGKILL immediately
+- If `sleep` is not available in **any** container, ALL containers receive SIGKILL immediately — the entire grace period is skipped. This silently affects distroless images, scratch-based images, and some minimal Alpine builds. Verify with `cpln workload exec WORKLOAD --gvc GVC -- which sleep` before relying on the grace period. If `sleep` is absent, either add it to the image or configure an explicit preStop hook that does not depend on it.
 - If a custom preStop hook throws an error in **any** container, ALL containers receive SIGKILL immediately
 
 ### Custom PreStop Hook

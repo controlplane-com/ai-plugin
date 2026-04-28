@@ -146,6 +146,16 @@ This approach requires manual work to parameterize the converted output, but giv
 
 ## Docker Compose Migration (`cpln stack`)
 
+> **Firewall default mismatch — read before writing native manifests.**
+> `cpln stack` defaults external outbound to **open** for all services that expose ports. Native Control Plane workload manifests default external outbound to **blocked**. If you are writing CPLN manifests by hand (rather than using `cpln stack` directly), you must add explicit outbound rules for every external API, database, or service your workload calls — otherwise it silently cannot reach anything outside the platform. This is the most common failure mode for manual Docker Compose migrations.
+>
+> ```yaml
+> firewallConfig:
+>   external:
+>     outboundAllowCIDR:
+>       - 0.0.0.0/0   # or restrict to specific CIDRs/hostnames
+> ```
+
 ### Key Differences
 
 1. **Service URLs must be rewritten**: `http://service-name:port` → `http://workload-name.GVC_NAME.cpln.local:port`

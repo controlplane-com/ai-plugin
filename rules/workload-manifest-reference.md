@@ -118,6 +118,7 @@ Probe types: exactly one of `exec`, `grpc`, `tcpSocket`, `httpGet` (xor constrai
 
 | Error | Fix |
 |:---|:---|
+| `spec.containers[N].resources` present | Remove it — Control Plane does not use Kubernetes-style `resources.requests/limits`. Set `cpu` and `memory` directly on the container object: `cpu: 50m`, `memory: 128Mi`. This returns a 400 with `"resources" is not allowed`. |
 | Memory-to-CPU ratio exceeded | 1024Mi memory needs at least 128m CPU (ratio 8:1) |
 | GPU with Capacity AI | Disable Capacity AI when using GPU |
 | Concurrency on standard/stateful | Use rps, cpu, memory, latency, or keda instead |

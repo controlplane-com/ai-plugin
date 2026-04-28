@@ -170,7 +170,19 @@ spec:
 
 ### Event-Driven KEDA (Standard, Redis Queue)
 
+**Prerequisite:** KEDA must be enabled on the GVC before any workload can use `metric: keda`. Applying a workload with `metric: keda` to a GVC without KEDA enabled will silently not scale — no error event, the workload just ignores queue depth.
+
 ```yaml
+# Step 1: Enable KEDA on the GVC (one-time setup)
+kind: gvc
+name: my-gvc
+spec:
+  keda:
+    enabled: true
+```
+
+```yaml
+# Step 2: Configure the workload
 kind: workload
 name: queue-processor
 spec:

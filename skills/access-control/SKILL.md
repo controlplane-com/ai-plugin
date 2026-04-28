@@ -113,7 +113,7 @@ bindings:
 ```
 
 **Constraints:**
-- Each binding's permissions must be **sorted alphabetically and unique** (validation rule).
+- Each binding's permissions must be **unique**. The API auto-sorts them alphabetically — you don't need to sort manually.
 - A policy can have up to **50 bindings**, each with up to **200 principal links**.
 - The same principal can appear in multiple bindings (different permission sets).
 
@@ -278,6 +278,7 @@ bindings:
 ## Gotchas
 
 - **Policies fail silently when wrong.** A typo in `targetKind`, a missing principal link, or an invalid permission name produces a policy that exists but grants nothing. Always verify with `cpln policy access-report POLICY_NAME` after creation.
+- **Permission ordering doesn't matter — the API auto-sorts.** You do not need to sort permissions alphabetically in your manifests; the platform sorts them on write. Duplicate permissions in the same binding will cause a validation error.
 - **Built-in policies cannot be modified or deleted.** Origins `builtin` are read-only; create your own with `default` origin.
 - **`reveal` (not `read`) is the permission for accessing secret values.** This is the most common permission-name mistake.
 - **Identity links are GVC-scoped.** Use `//gvc/GVC/identity/NAME`, not `//identity/NAME`.

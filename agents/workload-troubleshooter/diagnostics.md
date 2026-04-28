@@ -73,6 +73,8 @@ cpln policy add-binding my-secret-policy --permission reveal --identity //gvc/MY
 
 **Or use `mcp__cpln__create_policy`** — creates the policy with bindings in one call. Params: `name` (required), `targetKind` (required), `targetLinks` (optional), `addPermissions` (optional array of permission strings), `addIdentities` (optional array of identity links), `org` (uses session context if set, required otherwise).
 
+**If `cpln apply` fails on a policy manifest with a validation error and the YAML looks correct:** check that `targetKind` is a valid resource kind, all `principalLinks` use full resource paths (`//gvc/GVC/identity/NAME`), and `permissions` values are valid for the target kind. The API auto-sorts permissions alphabetically — ordering is not a cause of validation errors.
+
 ## C. Port Mismatch
 
 **Symptoms**: Workload shows healthy but returns 502/503, or traffic doesn't reach the container.

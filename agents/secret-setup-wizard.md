@@ -126,7 +126,7 @@ Use `cpln://secret/NAME` to reference the full secret, or `cpln://secret/NAME.KE
 
 | Secret Type | Available Keys | Example |
 |:---|:---|:---|
-| opaque | `payload` (decoded if base64 runtime decode enabled), or omit key for raw JSON with `payload` + `encoding` | `cpln://secret/my-api-key.payload` |
+| opaque | `payload` — **see encoding warning below** | `cpln://secret/my-api-key.payload` |
 | dictionary | user-defined keys | `cpln://secret/db-config.DB_HOST` |
 | userpass | `username`, `password` | `cpln://secret/creds.password` |
 | tls | `key`, `cert`, `chain` | `cpln://secret/my-tls.cert` |
@@ -136,6 +136,8 @@ Use `cpln://secret/NAME` to reference the full secret, or `cpln://secret/NAME.KE
 | azure-sdk | `subscriptionId`, `tenantId`, `clientId`, `clientSecret` | `cpln://secret/my-azure.clientId` |
 | nats-account | `accountId`, `privateKey` | `cpln://secret/my-nats.accountId` |
 | any type | omit key for full secret as JSON | `cpln://secret/my-secret` |
+
+**Opaque `.payload` encoding warning:** If the secret was created with base64 encoding (common when storing binary content — certs, keys, binary tokens — via the console or API), the `.payload` reference returns the base64-encoded string, not the decoded value. The workload receives it as a base64 string and typically fails with a cryptographic or parse error. To get the decoded value at runtime, the secret must have runtime decoding enabled (`encoding: base64` + runtime decode on the secret spec), or use the full secret reference (`cpln://secret/NAME`) and decode in application code. For plaintext secrets (API keys, connection strings, passwords), `.payload` works as expected. **Before injecting an opaque secret as `.payload`, ask the user: was this secret created with base64 encoding?**
 
 **As volume mount:** Export the workload, add a volume, and apply:
 
