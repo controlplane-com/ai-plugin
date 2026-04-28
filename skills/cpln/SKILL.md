@@ -105,6 +105,13 @@ cpln policy add-binding secret-access \
 # Inject the secret into the workload
 cpln workload update my-app --gvc my-gvc \
   --set spec.containers.main.env.DB_PASSWORD.value=cpln://secret/db-password.payload
+
+# ALWAYS verify the injection landed — --set exits 0 even if the container name
+# doesn't match, silently writing to a path that doesn't exist in the spec.
+cpln workload get my-app --gvc my-gvc -o json \
+  | jq '.spec.containers[] | select(.name == "main") | .env'
+# If DB_PASSWORD is absent from the output, the container name was wrong.
+# Re-run with the correct name from: cpln workload get my-app --gvc my-gvc -o json | jq '[.spec.containers[].name]'
 ```
 
 ## Workflow: GitOps with cpln apply

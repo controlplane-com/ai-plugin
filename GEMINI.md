@@ -18,6 +18,20 @@ The plugin auto-configures the Control Plane MCP Server. Your `CPLN_TOKEN` (prom
 
 **Never write a cpln command from memory.** Before constructing a command, consult `rules/cli-conventions.md` (command structure, shared flags, resource command map, hallucination traps) and `skills/cpln/SKILL.md` (setup, workflows, examples). Verify exact flag names with `cpln <command> --help` or the MCP suggest tool (`mcp__cpln__cpln_suggest`).
 
+## CLI Guardrails
+
+These commands do not exist — never generate them:
+
+- `cpln secret create` → use type-specific: `cpln secret create-opaque`, `create-aws`, `create-tls`, etc.
+- `cpln apply` without `--file` → always: `cpln apply --file manifest.yaml`
+- `cpln <resource> list` → use `cpln <resource> get` (no args = list all)
+
+These are too destructive to run without explicit user confirmation in the conversation:
+
+- `cpln gvc delete-all-workloads` — destroys every workload in the GVC
+- `cpln volumeset shrink` — permanent data loss on the old volume
+- Any `cpln <resource> delete` — surface the org, GVC, resource name, and blast radius before proceeding
+
 ## Key Conventions
 
 - CLI commands use `cpln` prefix (e.g., `cpln apply --file manifest.yaml`)

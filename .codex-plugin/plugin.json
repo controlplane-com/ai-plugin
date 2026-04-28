@@ -23,6 +23,7 @@
     "autoscaling"
   ],
   "skills": "./skills/",
+  "rules": "./rules/",
   "mcpServers": "./.mcp.json",
   "apps": "./.app.json",
   "interface": {

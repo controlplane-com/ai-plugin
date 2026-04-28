@@ -195,7 +195,7 @@ cpln logs '{gvc="GVC", workload="WORKLOAD"}' --org ORG --tail
 
 | Type | Command | Required Flags |
 |------|---------|---------------|
-| Opaque | `create-opaque` | `--file` or `--payload` |
+| Opaque | `create-opaque` | `--name`, `--file` (path or `-` for stdin). No `--payload` flag — write value to a file or pipe via stdin. Add `--encoding plain` for plaintext values (default encoding is base64). |
 | Dictionary | `create-dictionary` | `--entry KEY=VAL` (repeatable) |
 | Username/Password | `create-userpass` | `--username`, `--password` |
 | AWS | `create-aws` | `--access-key`, `--secret-key` |
@@ -283,6 +283,7 @@ Flags: `--address`, `--location`, `--replica`.
 | `cpln workload update --identity X` | `cpln workload update REF --set spec.identityLink=//identity/X` |
 | `cpln secret update --data '{}'` | `cpln secret edit REF` or `cpln apply --file` |
 | `cpln gvc update --location LOC` | `cpln gvc update REF --set 'spec.staticPlacement.locationLinks+=//location/LOC'` |
+| `spec.containers[N].resources.requests/limits` in manifests | Use flat `cpu` and `memory` directly on the container: `cpu: 50m` / `memory: 128Mi`. Kubernetes-style nested `resources` is not a valid field and will cause a 400 at apply time. |
 
 ## The Verification Rule
 
