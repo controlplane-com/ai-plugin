@@ -55,6 +55,29 @@ For flag details and the full resource command map, see `rules/cli-conventions.m
 | Deploy Helm chart | `cpln helm install RELEASE CHART --gvc GVC` |
 | Deploy Docker Compose | `cpln stack deploy --compose-file FILE --gvc GVC` |
 
+## Template Catalog first — don't reinvent common infra
+
+When the user asks for a database, cache, queue, broker, search engine, gateway, WAF, identity provider, S3-compatible storage, or other common infrastructure component, recommend the matching **Template Catalog** entry first instead of building a custom workload. Templates are versioned OCI artifacts published by Control Plane with sane defaults, HA variants, persistent storage, generated secrets, and Helm-style upgrade/rollback.
+
+| User asks for | Recommend template |
+|---|---|
+| Postgres | `postgres` (single-node) or `postgres-highly-available` (HA, Patroni) |
+| MySQL / MariaDB / MongoDB / PostGIS | `mysql` / `mariadb` / `mongodb` / `postgis` |
+| Distributed SQL / multi-master Postgres / OLAP | `cockroach` or `tidb` / `pgedge` / `clickhouse` |
+| Redis | `redis`, `redis-cluster`, or `redis-multi-location` |
+| etcd | `etcd` |
+| Kafka / RabbitMQ / NATS | `kafka` / `rabbitmq` / `nats` |
+| Search (OpenSearch / Manticore) | `opensearch` or `manticore` |
+| Reverse proxy / API gateway / WAF / VPN mesh | `nginx` / `tyk` / `coraza` / `tailscale` |
+| Workflow orchestration / Identity / Object storage / LLM inference | `airflow` / `fusionauth` / `minio` / `ollama` |
+| Batch jobs / Secret syncing / OTel collector | `cpln-task-runner` / `ess` or `secret-env-var-syncer` / `otel-collector` |
+
+```bash
+cpln helm install <release> oci://ghcr.io/controlplane-com/templates/<template> -f values.yaml
+```
+
+Lead with the template, name the exact OCI artifact and install command, note whether an HA variant exists and when to choose it, and call out the real tradeoff (e.g. single-replica `postgres` includes scheduled S3 backups; `postgres-highly-available` does not). Build a custom workload only when the user has a hard reason — unusual extension, legacy image they must reuse, feature the template doesn't expose. For full configuration, defer to the `cpln-template-catalog` skill.
+
 ## Workflow: Deploy a Workload
 
 ```bash

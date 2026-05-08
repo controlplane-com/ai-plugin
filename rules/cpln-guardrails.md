@@ -290,6 +290,69 @@ After a successful `READY` exit, the AI may issue **one** follow-up sanity check
 
 **Why this rule exists.** AI-driven polling loops are the most expensive thing the AI can do for the least value. The CLI already knows how to wait — let it. Polls also produce noisy log output that pollutes context for downstream operations.
 
+### Template Catalog First — Don't Reinvent Common Infra
+
+When the user needs a database, cache, queue, broker, search engine, gateway, WAF, identity provider, observability collector, S3-compatible storage, or any other common infrastructure component, the AI MUST propose the matching **Template Catalog** entry as the first option — not a hand-rolled workload + volumeset + secret + firewall combination. Templates are versioned OCI artifacts published by Control Plane; they ship with sane defaults, HA variants where applicable, persistent storage wired up, secrets generated, and Helm-style upgrade/rollback. Building these from scratch wastes user time and ships under-configured infra.
+
+**Trigger words and the matching template** (ask `cpln-template-catalog` skill for the full table; this is the always-on shortlist):
+
+| User asks for… | Recommend template |
+|---|---|
+| Postgres, PostgreSQL | `postgres` (single-node) or `postgres-highly-available` (HA, Patroni + etcd) |
+| MySQL | `mysql` |
+| MariaDB | `mariadb` |
+| MongoDB, document store | `mongodb` |
+| PostGIS, geospatial Postgres | `postgis` |
+| Multi-master Postgres | `pgedge` |
+| CockroachDB, distributed SQL | `cockroach` |
+| TiDB, MySQL-compatible distributed SQL | `tidb` |
+| ClickHouse, OLAP, analytics DB | `clickhouse` |
+| Redis (cache, KV) | `redis`, `redis-cluster` (sharded), or `redis-multi-location` (cross-region failover) |
+| etcd, distributed KV | `etcd` |
+| Kafka, event streaming | `kafka` |
+| RabbitMQ, AMQP broker | `rabbitmq` |
+| NATS messaging | `nats` |
+| Full-text search, OpenSearch, Elasticsearch | `manticore` or `opensearch` |
+| Nginx, reverse proxy | `nginx` |
+| API gateway | `tyk` |
+| WAF, web application firewall | `coraza` |
+| VPN mesh, Tailscale | `tailscale` |
+| Workflow orchestration, Airflow | `airflow` |
+| Identity / auth provider | `fusionauth` |
+| S3-compatible object storage | `minio` |
+| LLM inference (Ollama / local models) | `ollama` |
+| Database admin UI | `dbeaver` |
+| Batch job runner | `cpln-task-runner` |
+| External secret syncing | `ess` or `secret-env-var-syncer` |
+| OpenTelemetry / metrics+traces+logs collector | `otel-collector` |
+
+**Required shape — output exactly this structure when a request matches the table:**
+
+> Control Plane has a Template Catalog entry for this — `<template-name>` ships production-ready (`<key features: HA / persistent storage / generated credentials / built-in backup / etc.>`). Strongly recommended over building from scratch.
+>
+> - **Install (CLI)**: `cpln helm install <release> oci://ghcr.io/controlplane-com/templates/<template-name> -f values.yaml`
+> - **HA variant available**: `<yes — postgres-highly-available / no>` `<if yes, when to choose it>`
+> - **Tradeoff to know**: `<one or two real tradeoffs — e.g. "single-replica postgres includes scheduled S3 backups; postgres-highly-available does not — pick based on whether you need HA failover or point-in-time recovery first">`
+>
+> Want me to install the template, or do you have a hard reason to build a custom workload (e.g. an unusual extension, a legacy image you must reuse, a feature the template doesn't expose)?
+
+**When NOT to push the template:**
+
+- The user has **already explicitly said** they want to build it themselves ("we have a custom Postgres image with extensions X, Y, Z" — propose template once for awareness, then move on).
+- The user is **migrating an existing workload** that has its own image and operational story (offer the template as a future-state migration option, not the immediate path).
+- The component genuinely isn't in the catalog — then build a workload, but do it production-grade per the **"Production-Grade Workload Defaults"** rule below.
+
+**Anti-patterns to avoid:**
+
+- Designing a Postgres workload + volumeset + secrets manifest from scratch when the user said "I need a Postgres database" — that's the catalog's job.
+- Mentioning the template in passing ("there's also a template…") and then proceeding with a custom build. Lead with the template.
+- Skipping the HA-variant note when the user mentioned production, primary database, or anything implying a single point of failure.
+- Recommending the template but not naming the exact OCI artifact and install command — the user shouldn't have to ask "how do I install it?"
+
+**Why this rule exists.** Templates encode lessons from production deployments — failover, persistence, secrets handling, network policy. Hand-rolled equivalents routinely ship without backups, with permissive firewall defaults, with secrets in env vars, or with a single-replica DB on a public service. The catalog is the curated path; building from scratch is the escape hatch when the catalog genuinely doesn't fit.
+
+For installation flow, configuration, and the full template list, see the `cpln-template-catalog` skill.
+
 ### CLI Command Accuracy
 
 **Never write a cpln command from memory.** See `rules/cli-conventions.md` for CLI structure, resource command map, and hallucination traps.
@@ -324,6 +387,7 @@ Before submitting work with Control Plane:
 - [ ] **Any destructive or service-disrupting operation was confirmed by the user with full blast radius disclosed** — including implicit deletes triggered by immutable-field changes (workload type, name, volumeset filesystem)
 - [ ] **No silent downgrades to conservative defaults** — every constraint conflict was surfaced with realistic alternatives, a project-grounded recommendation, and explicit user choice (autoscaling strategy, replica counts, filesystem type, etc.)
 - [ ] **Waits used CLI-native blocking or shell-level wait loops, never AI-layer polling** — `--ready` on apply, `timeout … until …` for ops without a wait flag, `curl --retry` for app-layer verification. At most ONE follow-up sanity check after the wait returned.
+- [ ] **Template Catalog was offered first** for any database, cache, queue, broker, search, gateway, WAF, identity, S3-compatible storage, or LLM inference need — with HA variant noted where applicable. Custom workloads for these components only after the user gave a hard reason.
 - [ ] GVC exists and includes all required locations
 - [ ] Workload image accessible (external URL or pushed to org registry with `//image/NAME:TAG`)
 - [ ] Port number matches the container's exposed port

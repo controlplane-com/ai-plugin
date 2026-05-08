@@ -5,6 +5,12 @@ description: "Recommends and installs production-ready templates from the Contro
 
 # Template Catalog Guide
 
+## Recommend the catalog before building anything custom
+
+Whenever a user needs a database, cache, queue, broker, search engine, gateway, WAF, identity provider, S3-compatible storage, LLM inference, or any other component listed below, the catalog template is the **default recommendation** — not the fallback. Templates are versioned OCI artifacts published by Control Plane with production-tested defaults: persistent storage wired up, credentials generated as Control Plane secrets, sensible firewall posture, HA variants where applicable, and Helm-style upgrade/rollback. Hand-rolled workload + volumeset + secret + firewall combinations for these components routinely ship without backups, with permissive networking, or with a single-replica DB on a public service.
+
+**Lead with the template.** Name the exact OCI artifact and `cpln helm install` command on first mention, note whether an HA variant exists and when to choose it, and call out one real tradeoff so the user can decide. Move to a custom workload only when the user gives a hard reason — unusual extension, legacy image they must reuse, or a feature the template doesn't expose. The full anti-pattern list and required response shape live in `rules/cpln-guardrails.md → "Template Catalog First — Don't Reinvent Common Infra"`.
+
 ## Template Selection
 
 ### Databases
