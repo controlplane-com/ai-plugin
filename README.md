@@ -21,9 +21,9 @@ The plugin is intended for platform engineers, application developers, DevOps te
 | Claude Code | Plugin metadata, `CLAUDE.md`, skills, agents, commands, rules, hooks, Claude MCP config | Public marketplace/listing status: not claimed. |
 | Codex / OpenAI | Codex plugin metadata, skills directory, Codex MCP config, app metadata | Codex CLI currently exposes plugin marketplaces through `codex plugin marketplace` and installation through `/plugins`. Slash commands and Claude-style agents are not assumed to be supported. |
 | Gemini CLI | `gemini-extension.json`, `GEMINI.md`, commands, MCP config | Local validation uses `gemini extensions validate .`. |
-| Generic MCP clients | Hosted MCP server endpoint | Configure the `cpln` server manually in the client’s native MCP format. |
+| Generic MCP clients | Hosted MCP server endpoint | Configure the `cpln` server manually in the client's native MCP format. |
 | ChatGPT / OpenAI Apps SDK | App metadata only | No standalone Apps SDK server is included in this repository. |
-| Other skill-only clients | Markdown skills in `skills/` | Support depends on the client’s skill import format. |
+| Other skill-only clients | Markdown skills in `skills/` | Support depends on the client's skill import format. |
 
 ## Installation
 
@@ -123,11 +123,11 @@ See `.env.example` for a local template. Do not commit real tokens.
 
 ### Example Prompts
 
-- “Troubleshoot why my `api` workload is not starting in the `production` GVC.”
-- “Set up secret access for `my-api` to read `db-password`.”
-- “Review this workload manifest for Control Plane validation issues before I apply it.”
-- “Migrate this Kubernetes deployment to Control Plane.”
-- “Create least-privilege access for a GitHub Actions deployment service account.”
+- "Troubleshoot why my `api` workload is not starting in the `production` GVC."
+- "Set up secret access for `my-api` to read `db-password`."
+- "Review this workload manifest for Control Plane validation issues before I apply it."
+- "Migrate this Kubernetes deployment to Control Plane."
+- "Create least-privilege access for a GitHub Actions deployment service account."
 
 ### Slash Commands
 
@@ -166,7 +166,7 @@ The hosted MCP server exposes live Control Plane tools for reading and mutating 
 ## Security and Privacy
 
 - `CPLN_TOKEN` is sent as a bearer token to `https://mcp.cpln.io/mcp` when MCP tools are used.
-- MCP tools may read or modify Control Plane resources depending on the token’s permissions.
+- MCP tools may read or modify Control Plane resources depending on the token's permissions.
 - The plugin itself does not store logs, secrets, prompts, or telemetry.
 - Your AI client and model provider may process prompts, command output, logs, manifests, and MCP responses according to their own retention policies.
 - Workload logs, audit events, secret metadata, and infrastructure state are only fetched when a user or agent invokes the relevant workflow/tool.
@@ -182,7 +182,7 @@ Report vulnerabilities using `SECURITY.md`.
 | MCP requests fail with authentication errors | Confirm `CPLN_TOKEN` is set in the AI client environment and belongs to an active service account. |
 | MCP tools are unavailable in Codex | Confirm the plugin was installed from `/plugins`, not only that the marketplace was added. Then restart Codex and use `/mcp` inside the session to inspect plugin-provided MCP servers. |
 | MCP tools are unavailable in another client | Confirm the client supports this repo's `.mcp.json` format or manually configured the `cpln` MCP server in that client's native MCP format. |
-| Commands are not available | Confirm the client supports this repo’s command format. Codex should use skills/MCP rather than Claude-style slash commands. |
+| Commands are not available | Confirm the client supports this repo's command format. Codex should use skills/MCP rather than Claude-style slash commands. |
 | Gemini extension does not load | Run `gemini extensions validate .` from the repository root. |
 | AI proposes an uncertain `cpln` command | Check `rules/cli-conventions.md` and verify flags with `cpln <command> --help` or the MCP suggest tool. |
 | A write operation targets the wrong org/GVC | Stop and confirm `CPLN_ORG`, `CPLN_GVC`, `CPLN_PROFILE`, or explicit command flags before retrying. |
