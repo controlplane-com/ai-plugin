@@ -1,26 +1,27 @@
-# Control Plane AI Plugin
+# cpln guardrails
 
-This plugin provides domain knowledge, guided workflows, and validation guardrails for [Control Plane](https://controlplane.com) — a hybrid platform for deploying and managing containerized workloads across AWS, GCP, Azure, and private clouds from a unified interface.
+Always-on rules for working with Control Plane. Procedural how-to (deploy, troubleshoot, migrate, set up secrets, etc.) lives in cpln skills — let those load on demand.
 
-## Architecture
+## Verify before running
 
-- **skills/** — 23 domain knowledge modules covering workload types, autoscaling, networking, secrets, observability, etc. The core module is `skills/cpln/SKILL.md` — consult it before writing any `cpln` CLI command or workflow.
-- **rules/** — Validation guardrails and manifest references. `rules/cli-conventions.md` defines the full CLI structure, shared flags, resource command map, and hallucination traps — read it whenever you are constructing a `cpln` command.
-- **agents/** — 8 guided workflow agents (troubleshoot workloads, set up secrets, configure domains, migrate from Kubernetes, etc.)
-- **commands/** — 8 slash commands that invoke agents (`/troubleshoot`, `/setup-secret`, etc.)
-- **MCP Server** — Pre-configured connection with 80+ tools at `https://mcp.cpln.io/mcp`
+- Never write a `cpln` command from memory. Confirm shape and flags with `cpln <command> --help` or the `cpln_suggest` MCP tool before suggesting or running it. (MCP tool naming may differ across hosts; verify the exact name against the active Gemini build.)
+- Resource commands follow `cpln <resource> <action> [REF] [--flags]`. Standalones break the pattern: `apply`, `delete`, `logs`, `port-forward`, `cp`, `convert`, `login`.
+- `cpln <resource> list` does not exist. Listing is the no-args form: `cpln workload get` lists every workload in the GVC.
+- For programmatic reads, use `-o yaml` or `-o json`. Don't parse unstructured CLI output.
 
-## MCP Server
+## Confirm before destructive operations
 
-The plugin auto-configures the Control Plane MCP Server. Your `CPLN_TOKEN` (prompted during install) enables live infrastructure operations. Without a token, skills and agents still provide read-only platform knowledge.
+Before any of the following, pause and show the user the full target (org, GVC, resource name) and the change being made:
 
-## CLI Command Accuracy
+- `cpln workload delete`, `cpln gvc delete`, `cpln gvc delete-all-workloads`, `cpln secret delete`, `cpln volumeset delete`, `cpln identity delete`, `cpln policy delete`, `cpln domain delete`
+- `cpln apply` against a production org/GVC, or any apply that replaces an immutable workload type
+- Volumeset shrink, volume deletion, or snapshot deletion
+- Secret reveal (`cpln secret reveal`, `reveal_secret`, `workload_reveal_secret`) — exposes plaintext
 
-**Never write a cpln command from memory.** Before constructing a command, consult `rules/cli-conventions.md` (command structure, shared flags, resource command map, hallucination traps) and `skills/cpln/SKILL.md` (setup, workflows, examples). Verify exact flag names with `cpln <command> --help` or the MCP suggest tool (`mcp__cpln__cpln_suggest`).
+If `CPLN_ORG`, `CPLN_GVC`, or `CPLN_PROFILE` are unset and the command needs scope, ask which org/GVC to target before running.
 
-## Key Conventions
+## Hard rules
 
-- CLI commands use `cpln` prefix (e.g., `cpln apply --file manifest.yaml`)
-- YAML examples use uppercase placeholders: WORKLOAD, GVC, ORG
-
-For platform rules (firewall defaults, workload-type constraints, secret access chain, etc.), see `rules/cpln-guardrails.md`. For CLI command shapes and hallucination traps, see `rules/cli-conventions.md`.
+- `cpln apply` always requires `--file <manifest>`. There is no implicit manifest path.
+- Secret creation uses type-specific commands: `cpln secret create-opaque`, `create-aws`, `create-tls`, `create-dictionary`, etc. Generic `cpln secret create` does not exist.
+- Bearer token (`CPLN_TOKEN`) is sent live to `https://mcp.cpln.io/mcp` for MCP operations. Treat MCP access as production access to the configured org.

@@ -45,7 +45,7 @@ Add the plugin marketplace to Codex:
 codex plugin marketplace add controlplane-com/ai-plugin
 ```
 
-Then start Codex, open `/plugins`, select the Control Plane marketplace, and install the `cpln` plugin. The Codex plugin manifest points to `.mcp.json`, which installs the hosted `cpln` MCP server with `CPLN_TOKEN` as its bearer-token environment variable.
+Then start Codex and open `/plugins`. Use the left/right arrow keys to navigate between marketplaces until you reach Control Plane, then select and install the `cpln` plugin. The Codex plugin manifest points to `.mcp.json`, which installs the hosted `cpln` MCP server with `CPLN_TOKEN` as its bearer-token environment variable.
 
 If you prefer the standalone marketplace installer, install the plugin artifact directly from GitHub:
 
