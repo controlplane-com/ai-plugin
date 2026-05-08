@@ -87,7 +87,7 @@ Verify the converted type matches user expectations. Override in the YAML if nee
 
 ### Step 5: Validate Before Applying
 
-Review the converted manifest against the **cpln-cli** skill's verification checklist before applying. Key things to check:
+Review the converted manifest against the **cpln** skill's verification checklist before applying. Key things to check:
 - Workload type matches use case and autoscaling strategy is compatible
 - Firewall rules allow required traffic (both inbound and outbound default to deny on the platform)
 - Secret references use `cpln://secret/NAME` format with identity and policy in place

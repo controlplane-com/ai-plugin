@@ -330,7 +330,7 @@ Use the Console UI Audit Trail with filters to review all actions across the org
 
 ### Related Skills
 
-- **cpln-cli** — CLI setup, command lookup, deploy/secret/GitOps/debug workflows
+- **cpln** — CLI setup, command lookup, deploy/secret/GitOps/debug workflows
 - **cpln-access-control** — Policies, permissions, identity bindings
 - **cpln-external-logging** — Ship logs to external destinations for long-term retention
 

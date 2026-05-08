@@ -115,7 +115,7 @@ There is no MCP tool for `cpln image build` or `cpln image copy` — use the CLI
 
 ### Related Skills
 
-- **cpln-cli** — General CLI conventions and shared flags.
+- **cpln** — General CLI conventions and shared flags.
 - **cpln-access-control** — Image policies (`pull`, `create`, `manage`).
 - **cpln-environment-promotion** — Patterns for moving images between dev/staging/prod orgs.
 

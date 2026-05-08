@@ -286,7 +286,7 @@ Profiles store authentication credentials and default context (org, GVC) for the
 ### Related Skills
 
 - **cpln-access-control** — Policies, bindings, permissions, groups, service accounts, RBAC patterns.
-- **cpln-cli** — Workload deployment, CLI setup, resource hierarchy.
+- **cpln** — Workload deployment, CLI setup, resource hierarchy.
 
 ### Linked Reference Docs
 
