@@ -1,0 +1,163 @@
+name: Release
+
+# Triggered when a version tag is pushed (e.g. v1.1.0). The job:
+#   1. Verifies all four plugin manifests carry the same version as the tag.
+#   2. Validates every JSON manifest parses.
+#   3. Extracts the matching CHANGELOG section and creates a GitHub Release
+#      with notes + install snippets + a compare link to the previous tag.
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Validate and publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with full history for compare links)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve tag and version
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          PREVIOUS_TAG="$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)"
+          {
+            echo "tag=$TAG"
+            echo "version=$VERSION"
+            echo "previous_tag=$PREVIOUS_TAG"
+          } >> "$GITHUB_OUTPUT"
+          echo "Releasing $TAG (version $VERSION, previous tag: ${PREVIOUS_TAG:-none})"
+
+      - name: Validate manifest version alignment
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          fail=0
+          check() {
+            local file="$1" path="$2" actual
+            actual="$(jq -r "$path" "$file")"
+            if [ "$actual" != "$VERSION" ]; then
+              echo "::error file=$file::version $actual does not match tag $VERSION"
+              fail=1
+            else
+              echo "✓ $file ($path) = $actual"
+            fi
+          }
+          check .claude-plugin/plugin.json '.version'
+          check .claude-plugin/marketplace.json '.plugins[0].version'
+          check .codex-plugin/plugin.json '.version'
+          check gemini-extension.json '.version'
+          [ "$fail" -eq 0 ] || exit 1
+
+      - name: Validate JSON syntax
+        run: |
+          jq empty \
+            .claude-mcp.json \
+            .app.json \
+            .claude-plugin/plugin.json \
+            .claude-plugin/marketplace.json \
+            .codex-plugin/plugin.json \
+            .codex-plugin/mcp.json \
+            gemini-extension.json \
+            hooks/hooks.json \
+            .agents/plugins/marketplace.json
+
+      - name: Extract release notes from CHANGELOG
+        id: notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          # Grab everything between "## [VERSION]" and the next top-level
+          # version header (## [...]) or end of file.
+          notes="$(awk -v ver="$VERSION" '
+            BEGIN { found = 0 }
+            /^## \[/ {
+              if (found) exit
+              if ($0 ~ "\\[" ver "\\]") { found = 1; next }
+            }
+            found { print }
+          ' CHANGELOG.md)"
+
+          # Trim leading/trailing blank lines.
+          notes="$(printf "%s" "$notes" | awk 'NF { hit = 1 } hit { print }' | awk 'BEGIN { RS = ""; ORS = "\n" } { print }')"
+
+          if [ -z "$notes" ]; then
+            echo "::error::CHANGELOG.md has no section for version $VERSION"
+            exit 1
+          fi
+
+          {
+            echo "notes<<RELEASE_NOTES_EOF"
+            printf "%s\n" "$notes"
+            echo "RELEASE_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Assemble release body
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+          PREVIOUS_TAG: ${{ steps.version.outputs.previous_tag }}
+          NOTES: ${{ steps.notes.outputs.notes }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          {
+            printf '## What changed\n\n'
+            printf '%s\n' "$NOTES"
+            printf '\n---\n\n'
+            printf '## Install or upgrade\n\n'
+            printf '**Claude Code**\n\n'
+            printf '```\n'
+            printf '/plugin marketplace add %s\n' "$REPO"
+            printf '/plugin install cpln@controlplane\n'
+            printf '/reload-plugins\n'
+            printf '```\n\n'
+            printf '**Codex**\n\n'
+            printf '```bash\n'
+            printf 'codex plugin marketplace add %s\n' "$REPO"
+            printf '```\n\n'
+            printf 'Then start Codex, open `/plugins`, and install `cpln` from the Control Plane marketplace.\n\n'
+            printf '**Gemini CLI**\n\n'
+            printf '```bash\n'
+            printf 'gemini extensions install https://github.com/%s.git\n' "$REPO"
+            printf '```\n\n'
+            printf '**Generic MCP client** — point it at `https://mcp.cpln.io/mcp` with `Authorization: Bearer ${CPLN_TOKEN}`. See README for the per-client config snippet.\n\n'
+            if [ -n "$PREVIOUS_TAG" ]; then
+              printf -- '---\n\n'
+              printf '**Full changelog**: https://github.com/%s/compare/%s...%s\n' "$REPO" "$PREVIOUS_TAG" "$TAG"
+            fi
+          } > release-notes.md
+
+          echo "::group::Assembled release body"
+          cat release-notes.md
+          echo "::endgroup::"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          # Skip pre-releases? Treat any tag that contains a "-" as pre-release.
+          PRERELEASE_FLAG=""
+          case "$TAG" in
+            *-*) PRERELEASE_FLAG="--prerelease" ;;
+          esac
+
+          gh release create "$TAG" \
+            --title "Control Plane AI Plugin $TAG" \
+            --notes-file release-notes.md \
+            $PRERELEASE_FLAG
