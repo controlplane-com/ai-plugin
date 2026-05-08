@@ -45,7 +45,7 @@ Add the plugin marketplace to Codex:
 codex plugin marketplace add controlplane-com/ai-plugin
 ```
 
-Then start Codex and open `/plugins`. Use the left/right arrow keys to navigate between marketplaces until you reach Control Plane, then select and install the `cpln` plugin. The Codex plugin manifest points to `.mcp.json`, which installs the hosted `cpln` MCP server with `CPLN_TOKEN` as its bearer-token environment variable.
+Then start Codex and open `/plugins`. Use the left/right arrow keys to navigate between marketplaces until you reach Control Plane, then select and install the `cpln` plugin. The Codex plugin manifest points to `.codex-plugin/mcp.json`, which installs the hosted `cpln` MCP server with `CPLN_TOKEN` as its bearer-token environment variable.
 
 If you prefer the standalone marketplace installer, install the plugin artifact directly from GitHub:
 
@@ -53,7 +53,7 @@ If you prefer the standalone marketplace installer, install the plugin artifact 
 npx codex-marketplace add controlplane-com/ai-plugin --plugin
 ```
 
-Codex plugin metadata is in `.codex-plugin/plugin.json`, the Codex MCP bundle is in `.mcp.json`, and the Codex marketplace entry is in `.agents/plugins/marketplace.json`.
+Codex plugin metadata is in `.codex-plugin/plugin.json`, the Codex MCP bundle is in `.codex-plugin/mcp.json`, and the Codex marketplace entry is in `.agents/plugins/marketplace.json`.
 
 ### Gemini CLI
 
@@ -157,7 +157,7 @@ This repository includes:
 
 Client-specific MCP configuration files:
 
-- Codex: `.mcp.json` uses `url` and `bearer_token_env_var`.
+- Codex: `.codex-plugin/mcp.json` uses `url` and `bearer_token_env_var`.
 - Claude Code: `.claude-mcp.json` uses `type: "http"` and `headers.Authorization`.
 - Gemini CLI: `gemini-extension.json` uses `httpUrl` and `headers.Authorization`.
 
@@ -181,7 +181,7 @@ Report vulnerabilities using `SECURITY.md`.
 | --- | --- |
 | MCP requests fail with authentication errors | Confirm `CPLN_TOKEN` is set in the AI client environment and belongs to an active service account. |
 | MCP tools are unavailable in Codex | Confirm the plugin was installed from `/plugins`, not only that the marketplace was added. Then restart Codex and use `/mcp` inside the session to inspect plugin-provided MCP servers. |
-| MCP tools are unavailable in another client | Confirm the client supports this repo's `.mcp.json` format or manually configured the `cpln` MCP server in that client's native MCP format. |
+| MCP tools are unavailable in another client | Confirm the client supports one of this repo's MCP configs (`.claude-mcp.json`, `.codex-plugin/mcp.json`, or the MCP block inside `gemini-extension.json`), or manually configured the `cpln` MCP server in that client's native MCP format. |
 | Commands are not available | Confirm the client supports this repo's command format. Codex should use skills/MCP rather than Claude-style slash commands. |
 | Gemini extension does not load | Run `gemini extensions validate .` from the repository root. |
 | AI proposes an uncertain `cpln` command | Check `rules/cli-conventions.md` and verify flags with `cpln <command> --help` or the MCP suggest tool. |

@@ -15,7 +15,7 @@ For end-user installation, capabilities, and supported clients, see `README.md`.
 - `.codex-plugin/plugin.json` — Codex plugin manifest.
 - `.agents/plugins/marketplace.json` — Codex marketplace entry.
 - `gemini-extension.json` — Gemini CLI extension manifest. Declares the `cpln` MCP server and points `contextFileName` at `GEMINI.md` (loaded for end users every session — keep it short).
-- `.claude-mcp.json`, `.mcp.json`, MCP block in `gemini-extension.json` — three per-client MCP configs pointing at the same hosted server (`https://mcp.cpln.io/mcp`). Keep all three in sync when changing the server URL or auth shape.
+- `.claude-mcp.json`, `.codex-plugin/mcp.json`, MCP block in `gemini-extension.json` — three per-client MCP configs pointing at the same hosted server (`https://mcp.cpln.io/mcp`). Keep all three in sync when changing the server URL or auth shape. The Codex file lives inside `.codex-plugin/` (rather than at the repo root as `.mcp.json`) so Claude Code's cwd auto-discovery doesn't try to parse the Codex-format file as a project MCP config when developing in this repo.
 
 ## Authoring conventions
 
@@ -50,10 +50,11 @@ Use this to catch install-time issues `--plugin-dir` skips: missing files in the
 
 ```bash
 claude plugin validate .                       # validates .claude-plugin/* manifests
-jq empty .mcp.json .claude-mcp.json .app.json \
+jq empty .claude-mcp.json .app.json \
   .claude-plugin/plugin.json .claude-plugin/marketplace.json \
-  .codex-plugin/plugin.json gemini-extension.json \
-  hooks/hooks.json .agents/plugins/marketplace.json
+  .codex-plugin/plugin.json .codex-plugin/mcp.json \
+  gemini-extension.json hooks/hooks.json \
+  .agents/plugins/marketplace.json
 ```
 
 ### Debug plugin loading

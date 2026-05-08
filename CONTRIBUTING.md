@@ -12,7 +12,7 @@
 Run checks that match the files you changed:
 
 ```bash
-jq empty .mcp.json .claude-mcp.json .app.json .claude-plugin/plugin.json .claude-plugin/marketplace.json .codex-plugin/plugin.json gemini-extension.json hooks/hooks.json .agents/plugins/marketplace.json
+jq empty .claude-mcp.json .app.json .claude-plugin/plugin.json .claude-plugin/marketplace.json .codex-plugin/plugin.json .codex-plugin/mcp.json gemini-extension.json hooks/hooks.json .agents/plugins/marketplace.json
 gemini extensions validate .
 ```
 
@@ -26,7 +26,7 @@ Before a public release:
 - Keep `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, and `gemini-extension.json` versions aligned.
 - Review `README.md` for current install instructions and unsupported marketplace claims.
 - Confirm no real secrets or service account tokens are committed.
-- Confirm `.mcp.json` uses Codex MCP fields (`url` and `bearer_token_env_var`) and does not use raw authorization headers.
+- Confirm `.codex-plugin/mcp.json` uses Codex MCP fields (`url` and `bearer_token_env_var`) and does not use raw authorization headers.
 - Confirm `.claude-mcp.json` uses Claude Code MCP fields (`type`, `url`, and `headers`) with environment interpolation.
 - Confirm `gemini-extension.json` uses Gemini CLI MCP fields (`httpUrl` and `headers`) and declares any required extension settings.
 - Confirm `LICENSE`, `SECURITY.md`, `.env.example`, and `.gitignore` are present.
