@@ -4,11 +4,12 @@ For end-user installation, capabilities, and supported clients, see `README.md`.
 
 ## Repo layout
 
-- `skills/` — Domain-knowledge skill modules. Each lives in its own subdirectory with a `SKILL.md` carrying frontmatter (`name`, `description`, `version`).
-- `agents/` — Guided workflow agents. Each is a top-level `<agent>.md` with frontmatter; longer agents may have a sibling `<agent>/` directory with extra reference docs the agent loads on demand (e.g., `agents/workload-troubleshooter/diagnostics.md`).
+- `skills/` — Domain-knowledge skill modules. Each lives in its own subdirectory with a `SKILL.md` carrying frontmatter (`name`, `description`).
+- `agents/` — Guided workflow agents. Each is a top-level `<agent>.md` with frontmatter. Companion reference docs that an agent loads on demand live under `references/<agent>/` (kept out of `agents/` so the loader doesn't try to register them as standalone agents).
+- `references/` — On-demand reference docs cited by agents (e.g., `references/workload-troubleshooter/diagnostics.md`). Plain markdown, no frontmatter required. Ships with the plugin install.
 - `commands/` — Slash commands. Each command has a paired `<command>.md` (Claude) and `<command>.toml` (Gemini-style prompt template); keep them aligned.
-- `rules/` — Validation guardrails and manifest references. Files with `alwaysApply: true` in frontmatter (`cli-conventions.md`, `cpln-guardrails.md`) are loaded into every session; treat changes to them as broad-impact.
-- `hooks/hooks.json` — Pre/post-tool hooks. **Claude-specific**; Gemini and Codex ignore this file. The Gemini-side equivalents of these guardrails live in `GEMINI.md`.
+- `rules/` — Validation guardrails and manifest references. Files with `alwaysApply: true` in frontmatter (`cli-conventions.md`, `cpln-guardrails.md`) are concatenated and injected into every Claude Code session by the `SessionStart` entry in `hooks/hooks.json`. `alwaysApply` is **not** a native Claude Code field — the hook is what gives it meaning, so adding a new always-on rule means dropping a file with `alwaysApply: true` and nothing else. Treat changes to those files as broad-impact.
+- `hooks/hooks.json` — **Claude-specific** PreToolUse guards on `cpln` Bash patterns plus the `SessionStart` rule injector. Gemini and Codex ignore this file; the Gemini-side equivalents live in `GEMINI.md`.
 - `assets/` — Logos and icons referenced by plugin/marketplace manifests.
 - `.claude-plugin/` — Claude plugin manifest (`plugin.json`) and marketplace entry (`marketplace.json`).
 - `.codex-plugin/plugin.json` — Codex plugin manifest.

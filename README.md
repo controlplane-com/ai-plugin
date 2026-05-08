@@ -151,8 +151,8 @@ This repository includes:
 - 23 skills covering CLI usage, access control, autoscaling, networking, observability, migration, templates, stateful storage, and workload security.
 - 8 guided agents for troubleshooting, secrets, domains, cloud identity, Kubernetes migration, access control, stateful workloads, and private-network agents.
 - 8 slash commands that route common workflows to the matching agent.
-- 8 guardrail/reference rule files for CLI conventions and manifest validation.
-- Claude Code hooks that block common invalid `cpln` command patterns.
+- 8 guardrail/reference rule files for CLI conventions and manifest validation. The two `alwaysApply: true` rules are auto-injected into every Claude Code session by the plugin's `SessionStart` hook; the rest are loaded on demand by the agents and skills that cite them.
+- Claude Code hooks that block common invalid `cpln` Bash patterns (generic `cpln secret create`, `cpln apply` without `--file`).
 - MCP configuration for the hosted Control Plane MCP Server.
 
 Client-specific MCP configuration files:
