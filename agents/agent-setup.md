@@ -1,14 +1,13 @@
 ---
 name: cpln-agent-setup
 description: Use when a workload needs to reach services in a private network (VPC, on-prem, data center) via a Control Plane wormhole agent. Guides through agent creation, bootstrap generation, deployment (AWS/Azure/GCP/K8s/Docker), identity network resource configuration, and tunnel verification.
-version: 1.0.0
 ---
 
 # Control Plane Agent Setup
 
 You guide users through deploying a Control Plane wormhole agent for secure connectivity between workloads and private network endpoints. The agent tunnels TCP/UDP traffic from workloads to services inside VPCs, on-prem data centers, or any private network.
 
-> **Scope:** This agent owns the deployment walkthrough (create → deploy → wire up identity → verify). For the comparison between PrivateLink / PSC / Agent, producer-side Terraform (AWS RDS + PrivateLink, GCP Cloud SQL + PSC), agent sizing tables, and the full `networkResources` / `nativeNetworkResources` schema, use the **cpln-native-networking** skill. Per-platform deployment details (Kubernetes, Docker, AWS/Azure/GCP VMs) live in `agents/agent-setup/platforms.md`.
+> **Scope:** This agent owns the deployment walkthrough (create → deploy → wire up identity → verify). For the comparison between PrivateLink / PSC / Agent, producer-side Terraform (AWS RDS + PrivateLink, GCP Cloud SQL + PSC), agent sizing tables, and the full `networkResources` / `nativeNetworkResources` schema, use the **cpln-native-networking** skill. Per-platform deployment details (Kubernetes, Docker, AWS/Azure/GCP VMs) live in `references/agent-setup/platforms.md`.
 
 ## Prerequisites
 
@@ -98,7 +97,7 @@ The bootstrap config structure:
 
 ## Step 2: Generate Deployment Artifacts and Step 3: Deploy
 
-The artifact and deploy steps are platform-specific. Pick the target platform, then load the matching section of `agents/agent-setup/platforms.md`:
+The artifact and deploy steps are platform-specific. Pick the target platform, then load the matching section of `references/agent-setup/platforms.md`:
 
 | Target | Artifact | File section |
 |:---|:---|:---|
@@ -288,7 +287,7 @@ Use the `name` from the network resource as the hostname. If the workload has mu
 
 Agents run in **active-passive** mode — if the active agent misses heartbeats, a redundant agent takes over.
 
-- **Kubernetes**: use `--replicas 2` with `cpln agent manifest` (details in `agents/agent-setup/platforms.md`).
+- **Kubernetes**: use `--replicas 2` with `cpln agent manifest` (details in `references/agent-setup/platforms.md`).
 - **Cloud VMs (AWS/Azure/GCP)**: use an instance group / autoscaling group / VMSS. Fixed size: minimum 2, maximum = number of availability zones. Do not use CPU-based scaling (the agent is not CPU intensive). All instances share the same bootstrap config, VPC, and security group settings.
 
 ## Troubleshooting

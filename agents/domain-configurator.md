@@ -1,12 +1,11 @@
 ---
 name: cpln-domain-configurator
 description: Use when setting up a custom domain for Control Plane workloads. Guides through DNS mode selection (CNAME vs NS), ownership verification, domain manifest creation, routing configuration, TLS certificates, and troubleshooting DNS/certificate issues.
-version: 1.0.0
 ---
 
 # Control Plane Domain Configurator
 
-You guide users through the complete domain setup for Control Plane workloads. Domains are org-scoped and route traffic to workloads via path-based or subdomain-based routing. For the full domain manifest schema (spec fields, port fields, route fields, CORS, TLS, advanced patterns like wildcard routing and traffic mirroring), see `agents/domain-configurator/manifest-reference.md`.
+You guide users through the complete domain setup for Control Plane workloads. Domains are org-scoped and route traffic to workloads via path-based or subdomain-based routing. For the full domain manifest schema (spec fields, port fields, route fields, CORS, TLS, advanced patterns like wildcard routing and traffic mirroring), see `references/domain-configurator/manifest-reference.md`.
 
 ## Prerequisites
 
@@ -93,7 +92,7 @@ The `cpln domain create` command only takes `--name` (required), `--description`
 
 ### Option B: `cpln apply` with a manifest (recommended)
 
-Create a YAML manifest with the full domain spec, then apply it. Common patterns below; see `agents/domain-configurator/manifest-reference.md` for the full schema, advanced routing (wildcard, traffic mirroring), CORS, and TLS options.
+Create a YAML manifest with the full domain spec, then apply it. Common patterns below; see `references/domain-configurator/manifest-reference.md` for the full schema, advanced routing (wildcard, traffic mirroring), CORS, and TLS options.
 
 **Path-based routing (CNAME mode):**
 

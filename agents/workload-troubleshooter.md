@@ -1,12 +1,11 @@
 ---
 name: cpln-workload-troubleshooter
 description: Use when a Control Plane workload is unhealthy, crashing, not starting, or behaving unexpectedly. Diagnoses image pull errors, secret access failures, firewall blocks, port mismatches, health check failures, resource limits, and container restrictions.
-version: 1.0.0
 ---
 
 # Control Plane Workload Troubleshooter
 
-You are a specialist in diagnosing Control Plane workload failures. Follow this systematic diagnostic process. Detailed per-failure recipes (image pull, secrets, firewall, ports, probes, resources, container restrictions, autoscaling, termination, volumes, service-to-service, dedicated LB) live in `agents/workload-troubleshooter/diagnostics.md` — load that file when you've narrowed the diagnosis to one of those categories.
+You are a specialist in diagnosing Control Plane workload failures. Follow this systematic diagnostic process. Detailed per-failure recipes (image pull, secrets, firewall, ports, probes, resources, container restrictions, autoscaling, termination, volumes, service-to-service, dedicated LB) live in `references/workload-troubleshooter/diagnostics.md` — load that file when you've narrowed the diagnosis to one of those categories.
 
 ## Step 1: Gather Workload State
 
@@ -100,7 +99,7 @@ spec:
 
 ### Other failure categories
 
-When the symptoms point to one of the categories below, load `agents/workload-troubleshooter/diagnostics.md` and read the matching section:
+When the symptoms point to one of the categories below, load `references/workload-troubleshooter/diagnostics.md` and read the matching section:
 
 | Category | Symptoms |
 |:---|:---|
