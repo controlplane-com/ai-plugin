@@ -18,23 +18,75 @@ gemini extensions validate .
 
 For Markdown-only changes, review links, tables, frontmatter, and command examples manually. This repository currently has no package manifest, build script, or test suite.
 
-## Release Checks
+## Versioning
 
-Before a public release:
+This repo follows [Semantic Versioning](https://semver.org/). The version lives in four manifests that must stay aligned:
 
-- Update `CHANGELOG.md`.
-- Keep `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, and `gemini-extension.json` versions aligned.
-- Review `README.md` for current install instructions and unsupported marketplace claims.
-- Confirm no real secrets or service account tokens are committed.
-- Confirm `.codex-plugin/mcp.json` uses Codex MCP fields (`url` and `bearer_token_env_var`) and does not use raw authorization headers.
-- Confirm `.claude-mcp.json` uses Claude Code MCP fields (`type`, `url`, and `headers`) with environment interpolation.
-- Confirm `gemini-extension.json` uses Gemini CLI MCP fields (`httpUrl` and `headers`) and declares any required extension settings.
-- Confirm `LICENSE`, `SECURITY.md`, `.env.example`, and `.gitignore` are present.
-- Verify the exact Claude Code install command before publishing it.
-- Run `gemini extensions validate .`.
-- Test Codex marketplace loading locally where supported: `codex plugin marketplace add /absolute/path/to/ai-plugin/.agents/plugins`.
-- State clearly that no standalone OpenAI Apps SDK server is included unless one is later added.
-- Do not create a tag until the final public release version is confirmed.
+| File                                | Path                          |
+| ----------------------------------- | ----------------------------- |
+| `.claude-plugin/plugin.json`        | `.version`                    |
+| `.claude-plugin/marketplace.json`   | `.plugins[0].version`         |
+| `.codex-plugin/plugin.json`         | `.version`                    |
+| `gemini-extension.json`             | `.version`                    |
+
+Pick the bump based on what changed since the last tag:
+
+- **Patch** (`1.0.0` → `1.0.1`) — bug fix in a skill, agent, hook, or rule that doesn't change behavior for existing users; doc or CHANGELOG-only changes; broken-link or typo fixes.
+- **Minor** (`1.0.0` → `1.1.0`) — new skill, new agent, new slash command, new hook, new always-on rule, new MCP capability, or any other backward-compatible feature.
+- **Major** (`1.0.0` → `2.0.0`) — removing or renaming a skill / agent / command, changing the MCP server URL or auth shape, breaking frontmatter schema, or any change that requires action from existing users.
+
+`CHANGELOG.md` follows [Keep a Changelog](https://keepachangelog.com/). Land changes under the top-level `[Unreleased]` block as you merge them; the bump script promotes that block into the released section.
+
+## Cutting a release
+
+Maintainers cut a release by running the bump script, filling in CHANGELOG notes, and pushing a tag. CI does the rest.
+
+1. **Make sure `main` is clean and up to date.**
+   ```bash
+   git checkout main && git pull --ff-only
+   ```
+
+2. **Run the bump script** with the new semver.
+   ```bash
+   ./scripts/bump-version.sh 1.1.0
+   ```
+   This updates the four manifests and rewrites `CHANGELOG.md` so `[Unreleased]` becomes `[1.1.0] - YYYY-MM-DD`, with a fresh empty `[Unreleased]` block above it. The script refuses to run on a dirty tree and verifies the four manifests agree on the new version after the bump.
+
+3. **Fill in the release notes** under the new `## [1.1.0]` heading in `CHANGELOG.md`. Keep entries operational and user-facing — describe what changed for someone using the plugin, not what changed in the repo. Drop unused subsections (`Added` / `Changed` / `Fixed` / `Removed`).
+
+4. **Run local checks** (the same ones in [Local Checks](#local-checks)).
+
+5. **Commit and tag.**
+   ```bash
+   git add -A
+   git commit -m "Bump version to 1.1.0"
+   git tag v1.1.0
+   git push origin main
+   git push origin v1.1.0
+   ```
+   Optionally run `claude plugin tag .` instead of `git tag` — the Claude Code CLI tags the commit *and* validates that `plugin.json` and the marketplace entry agree before tagging.
+
+6. **The release workflow takes over.** On the `v1.1.0` tag push, `.github/workflows/release.yml`:
+   - Verifies all four manifests carry version `1.1.0` (catches drift if a manifest was hand-edited).
+   - Validates every JSON file parses.
+   - Extracts the `## [1.1.0]` section from `CHANGELOG.md`.
+   - Creates a GitHub Release with the notes plus install/upgrade snippets for Claude Code, Codex, Gemini CLI, and generic MCP clients, and a compare-link to the previous tag.
+
+   If any manifest is out of sync with the tag, the workflow fails and no release is published — fix the manifest, retag, and push again.
+
+## Pre-release checks
+
+Run before tagging:
+
+- `CHANGELOG.md` `[Unreleased]` section is empty (everything moved into the new versioned section).
+- `README.md` install instructions match the published marketplace IDs.
+- No real secrets, service account tokens, or org-specific values in the diff.
+- `.codex-plugin/mcp.json` uses Codex MCP fields (`url`, `bearer_token_env_var`) and not raw auth headers.
+- `.claude-mcp.json` uses Claude Code MCP fields (`type`, `url`, `headers`) with environment interpolation.
+- `gemini-extension.json` MCP block uses Gemini CLI fields (`httpUrl`, `headers`) and declares any required extension settings.
+- `LICENSE`, `SECURITY.md`, `.env.example`, `.gitignore` are present.
+- `gemini extensions validate .` is clean.
+- `claude plugin validate .claude-plugin/plugin.json` is clean (or only the deliberate developer-CLAUDE.md warning).
 
 ## Pull Requests
 
