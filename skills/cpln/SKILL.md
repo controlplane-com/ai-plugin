@@ -1,7 +1,6 @@
 ---
 name: cpln-cli
 description: "Writes cpln CLI commands and workflows for deploying and managing workloads on Control Plane. Use when the user asks about cpln login, cpln apply, cpln workload, deploying via CLI, container debugging with cpln exec/logs, or any cpln resource command. Covers CLI setup, authentication, resource management, deployment workflows, and interactive debugging."
-version: 1.0.0
 ---
 
 # cpln CLI

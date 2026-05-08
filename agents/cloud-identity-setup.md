@@ -1,7 +1,6 @@
 ---
 name: cpln-cloud-identity-setup
 description: Use when a workload needs credential-free access to cloud resources (e.g. AWS S3, GCP Cloud SQL, Azure services, NATS NGS) or private network resources via agents. Guides through cloud account registration, identity creation, cloud access configuration, and provider-specific setup for AWS, GCP, Azure, and NATS NGS.
-version: 1.0.0
 ---
 
 # Control Plane Cloud Identity Setup

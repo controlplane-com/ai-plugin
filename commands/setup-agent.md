@@ -2,7 +2,6 @@
 name: setup-agent
 description: Deploy a wormhole agent for secure connectivity between workloads and private network resources
 argument-hint: "[k8s|docker|aws|azure|gcp] --name [agent-name]"
-version: 1.0.0
 ---
 
 # Setup Agent

@@ -2,7 +2,6 @@
 name: migrate-k8s
 description: Migrate Kubernetes manifests, Docker Compose projects, or Helm charts to Control Plane
 argument-hint: "[path-to-manifest-or-directory] [--from k8s|compose|helm]"
-version: 1.0.0
 ---
 
 # Migrate to Control Plane

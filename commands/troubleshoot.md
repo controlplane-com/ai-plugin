@@ -2,7 +2,6 @@
 name: troubleshoot
 description: Diagnose and fix a Control Plane workload that is unhealthy or not working correctly
 argument-hint: "[workload-name] [--gvc gvc-name]"
-version: 1.0.0
 ---
 
 # Troubleshoot Workload

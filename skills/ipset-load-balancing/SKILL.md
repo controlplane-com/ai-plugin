@@ -1,7 +1,6 @@
 ---
 name: cpln-ipset-load-balancing
 description: "Reserves static IP addresses and configures load balancers on Control Plane. Use when the user asks about IP sets, static IPs, dedicated load balancers, direct load balancers, fixed IPs, IP whitelisting, or egress IPs. Covers IP set reservation, direct load balancers (per-workload), and GVC dedicated load balancers."
-version: 1.0.0
 ---
 
 # IP Sets & Load Balancing

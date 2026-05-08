@@ -1,7 +1,6 @@
 ---
 name: cpln-external-logging
 description: "Ships logs from Control Plane workloads to external providers. Use when the user asks about log export to S3, CloudWatch, Coralogix, Datadog, Logz.io, Stackdriver, or any external logging destination. Also when asking about log forwarding, centralized logging, or external log configuration."
-version: 1.0.0
 ---
 
 # External Logging Configuration

@@ -2,7 +2,6 @@
 name: setup-stateful
 description: Set up a stateful workload with persistent storage on Control Plane (volumeset + workload + mount)
 argument-hint: "[workload-name] in [gvc-name] [--image image]"
-version: 1.0.0
 ---
 
 # Setup Stateful Workload

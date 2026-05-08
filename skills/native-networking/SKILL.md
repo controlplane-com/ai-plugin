@@ -1,7 +1,6 @@
 ---
 name: cpln-native-networking
 description: "Connects Control Plane workloads to private VPCs, on-prem networks, and cross-cloud resources. Use when the user asks about AWS PrivateLink, GCP Private Service Connect, VPN alternatives, wormhole agents, or accessing resources inside private networks from Control Plane."
-version: 1.0.0
 ---
 
 # Native Networking & Agent Connectivity

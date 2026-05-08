@@ -1,7 +1,6 @@
 ---
 name: cpln-secret-setup-wizard
 description: Use when a workload needs to access a secret. Orchestrates the mandatory 3-step process — create identity, create policy with reveal permission, inject secret reference. Handles all 12 secret types and pull secret configuration.
-version: 1.0.0
 ---
 
 # Control Plane Secret Setup Wizard

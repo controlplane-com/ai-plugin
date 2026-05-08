@@ -1,7 +1,6 @@
 ---
 name: cpln-migration-patterns
 description: "Migrates workloads from Kubernetes, Docker Compose, or Helm charts to Control Plane. Use when the user asks about converting k8s manifests, docker-compose.yml, or Helm charts to Control Plane YAML. Covers resource mapping (Deployment to workload, Ingress to domain), secret conversion, workload type detection, and post-migration validation."
-version: 1.0.0
 ---
 
 # Migration Patterns

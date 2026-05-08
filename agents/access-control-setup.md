@@ -1,7 +1,6 @@
 ---
 name: cpln-access-control-setup
 description: Use when setting up access control for an org. Guides through creating groups, service accounts, and policies with correct principal links, permissions, and target scoping.
-version: 1.0.0
 ---
 
 # Control Plane Access Control Setup

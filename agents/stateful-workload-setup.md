@@ -1,7 +1,6 @@
 ---
 name: cpln-stateful-workload-setup
 description: Use when a user needs persistent storage on Control Plane. Guides through filesystem selection, volumeset creation, stateful workload setup, volume mounting, and backup configuration. Redirects to template-catalog for common databases.
-version: 1.0.0
 ---
 
 # Control Plane Stateful Workload Setup

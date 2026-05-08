@@ -2,7 +2,6 @@
 name: setup-access
 description: Set up access control for an org — groups, service accounts, and policies with correct permissions and targets
 argument-hint: "[--team team-name | --cicd pipeline-name]"
-version: 1.0.0
 ---
 
 # Setup Access Control

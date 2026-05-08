@@ -1,7 +1,6 @@
 ---
 name: cpln-audit-compliance
 description: "Manages audit trail, compliance, and security monitoring on Control Plane. Use when the user asks about audit logs, SOC 2, HIPAA, PCI compliance, audit context, who changed what, change tracking, or regulatory requirements. Covers tamper-proof audit events, audit context configuration, compliance certifications, and security monitoring."
-version: 1.0.0
 ---
 
 # Audit Trail & Compliance

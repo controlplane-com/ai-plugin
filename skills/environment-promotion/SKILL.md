@@ -1,7 +1,6 @@
 ---
 name: cpln-environment-promotion
 description: "Promotes workloads across dev/staging/production environments on Control Plane. Use when the user asks about environment promotion, deploying to production, rollback, blue-green deployment, canary release, image promotion, or multi-environment workflows. Covers org-based and GVC-based strategies, image tagging, cross-org sharing, and CI/CD integration."
-version: 1.0.0
 ---
 
 # Environment Promotion

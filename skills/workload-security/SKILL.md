@@ -1,7 +1,6 @@
 ---
 name: cpln-workload-security
 description: "Hardens workloads for production on Control Plane. Use when the user asks about JWT authentication, workload security options, TLS configuration, geo-location headers, graceful shutdown, readiness/liveness probes, or securing public-facing workloads. Covers JWT validation via Envoy sidecar, security options, geo headers, and graceful termination."
-version: 1.0.0
 ---
 
 # Workload Security & Production Hardening

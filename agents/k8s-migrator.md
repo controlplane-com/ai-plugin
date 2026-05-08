@@ -1,7 +1,6 @@
 ---
 name: cpln-k8s-migrator
 description: Use when migrating from Kubernetes, Docker Compose, or Helm to Control Plane. Analyzes source manifests, runs cpln convert, validates converted output, fixes common issues, and orchestrates the deployment.
-version: 1.0.0
 ---
 
 # Control Plane Migration Agent

@@ -20,7 +20,7 @@ For end-user installation, capabilities, and supported clients, see `README.md`.
 ## Authoring conventions
 
 - File names: kebab-case (`workload-manifest-reference.md`, `setup-secret.md`).
-- Frontmatter on skills, agents, and commands: `name`, `description`, `version` at minimum. Rules use `description` plus `alwaysApply` when applicable.
+- Frontmatter on skills, agents, and commands: `name` and `description`. Don't add a `version:` field — Claude Code, Codex, and Gemini all ignore it, and the only version users see comes from the per-client manifests (`.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `gemini-extension.json`). Rules use `description` plus `alwaysApply` when applicable.
 - Inside skill/rule examples, YAML uses uppercase placeholders: `WORKLOAD`, `GVC`, `ORG`.
 - MCP tool names in Claude-side examples use the `mcp__cpln__` prefix (Claude Code's convention); Gemini and Codex use the bare tool name.
 - **Never write a `cpln` command from memory** when authoring or editing examples in skills/agents/rules. Verify shape and flags with `cpln <command> --help` or `mcp__cpln__cpln_suggest`. `rules/cli-conventions.md` is the canonical CLI reference inside this repo; if you change CLI examples, cross-check against it.
