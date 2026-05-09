@@ -112,15 +112,30 @@ For full details on resource allocation interactions, GPU constraints, and state
 |:---|:---|:---|:---|
 | Production API | **2+** | Based on load testing | Avoid cold starts; ensure HA. `1` is a single point of failure — any restart, deploy, or node loss is full downtime. |
 | Dev/staging | 0-1 | 3-5 | Cost savings; accept cold starts. Flag as dev-only when proposing. |
-| Scale-to-zero (Serverless) | 0 | Based on peak | Set `scaleToZeroDelay` (default 300s) |
+| Scale-to-zero (Serverless) | 0 | Based on peak | Set `scaleToZeroDelay` (default 300s). **Only use when the user explicitly asked for scale-to-zero by name.** See the rule below. |
 | Fixed replicas | Same value | Same value | Set `metric: disabled` or set min=max |
 | Background worker | 1 | Based on queue depth | Use KEDA for event-driven scaling |
 
 **Production default is `minScale: 2`.** Pick `1` only when explicitly justified: single-writer database (SQLite, leader-election service), background worker with single-owner semantics, or a workload the user labelled as dev/staging. When relaxing to `1`, name the reason — never silently. The same rule applies to `maxScale`: the platform default of `5` is rarely the right cap. Size to expected peak load × headroom (e.g. p95 RPS ÷ per-replica capacity × 1.5). See `rules/cpln-guardrails.md → "Production-Grade Workload Defaults"` for the broader checklist (sizing, probes, autoscaling strategy).
 
+### Scale-to-zero is NOT the production default
+
+`minScale: 0` (true scale-to-zero) is a separate, more aggressive choice and is **never** the AI's default — even on Serverless, even when the user said "auto-scale." Configure `minScale: 0` only when the user explicitly asked for scale-to-zero by name. When a workload scales to 0, the next request waits for a cold replica to schedule, pull, and start; that latency lands on a real user. After `scaleToZeroDelay` (default 300s) of idle, the next user pays it again. For customer-facing services, the cost saved is usually small and the UX cost is large.
+
+Acceptable scale-to-zero use cases (still require the user to opt in by name):
+
+- Internal admin tools / dashboards used by humans, very rarely
+- Dev / staging / preview environments
+- Event-driven KEDA workers behind a retry-tolerant queue
+- Background batch jobs framed as "scale up only when there's work"
+
+Never default to `minScale: 0` for customer-facing HTTP APIs, websites, login/auth, payments, B2B endpoints, or anything behind a public domain. Do not include `scaleToZeroDelay` on a workload with `minScale ≥ 1` — it has no effect there and signals the AI mistakenly thought scale-to-zero was on the table. Full rule: `rules/cpln-guardrails.md → "Scale-to-Zero — Never the Default for Production"`.
+
 ## Common Patterns
 
-### High-Traffic API (Serverless, Scale-to-Zero)
+### Customer-Facing API (Serverless, Concurrency Autoscaling)
+
+Production default: HA from `minScale: 2`, never scales below 2 (no cold starts on real-user traffic), grows to 50 replicas under load.
 
 ```yaml
 kind: workload
@@ -145,8 +160,9 @@ spec:
       maxConcurrency: 100
       minScale: 2
       maxScale: 50
-      scaleToZeroDelay: 300
 ```
+
+Note: no `scaleToZeroDelay` — it has no effect when `minScale ≥ 1`. Add it only if the user explicitly asked for scale-to-zero (and only on a workload class where that's appropriate per the rule above).
 
 ### Compute-Heavy Worker (Standard, CPU-Based)
 

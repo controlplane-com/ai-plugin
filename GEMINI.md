@@ -26,6 +26,23 @@ If `CPLN_ORG`, `CPLN_GVC`, or `CPLN_PROFILE` are unset and the command needs sco
 - Secret creation uses type-specific commands: `cpln secret create-opaque`, `create-aws`, `create-tls`, `create-dictionary`, etc. Generic `cpln secret create` does not exist.
 - Bearer token (`CPLN_TOKEN`) is sent live to `https://mcp.cpln.io/mcp` for MCP operations. Treat MCP access as production access to the configured org.
 
+## Scale-to-zero — never the default for production
+
+Scale-to-zero is a real Control Plane capability. Explain how it works when asked. **Do not** recommend it, default to it, or configure it unless the user has explicitly asked for it by name (synonyms like "save costs" or "auto-scale" are NOT enough — the user must say "scale to zero" or "scale to 0 replicas").
+
+When a serverless workload scales to 0, the next request waits for a cold replica to schedule, pull, and start — multi-second latency directly on a real user. After idle (`scaleToZeroDelay`, default 300s), the next user pays it again. For customer-facing services this is a recurring foot-gun.
+
+Production default is `minScale ≥ 1` (usually `≥ 2`).
+
+Scale-to-zero IS appropriate **only** when the user explicitly opted in AND the workload fits one of:
+
+- Internal admin tools / dashboards used by humans, very rarely
+- Dev / staging / preview environments
+- Event-driven workers behind a queue with retry semantics (KEDA-driven, queue absorbs the latency)
+- Background batch jobs the user framed as "scale up only when there's work"
+
+Never use scale-to-zero for customer-facing HTTP APIs, websites, login/auth, payments, B2B endpoints called by paying customers, or anything behind a public domain. If the user asks the AI to enable scale-to-zero on such a workload, name the cold-start tradeoff before configuring. Do not include `scaleToZeroDelay` on any workload with `minScale ≥ 1` — it has no effect there.
+
 ## Production-grade workload defaults
 
 When proposing or editing any workload, configure it for production from the outset — not the Control Plane platform defaults (`cpu: 50m`, `memory: 128Mi`, `minScale: 1`, no probes), which exist to make first-deploy frictionless, not to ship production. Inheriting them silently is the most common way to ship under-provisioned, single-point-of-failure infra.

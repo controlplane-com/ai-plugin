@@ -290,6 +290,50 @@ After a successful `READY` exit, the AI may issue **one** follow-up sanity check
 
 **Why this rule exists.** AI-driven polling loops are the most expensive thing the AI can do for the least value. The CLI already knows how to wait — let it. Polls also produce noisy log output that pollutes context for downstream operations.
 
+### Scale-to-Zero — Never the Default for Production
+
+Scale-to-zero is a real Control Plane capability and the AI may explain how it works when asked. But the AI MUST NOT recommend it, default to it, or configure it on any workload unless **the user has explicitly asked for it by name**. Inferring it from "save costs" or "auto-scale" or any synonym is not enough — the user must say "scale to zero" (or equivalent like "scale down to 0 replicas when idle").
+
+**Why scale-to-zero is wrong as a production default.** When a serverless workload scales to zero, the next incoming request hits a cold replica that must be scheduled, pulled, and started before serving — typically a multi-second delay, sometimes longer for large images or warm-up-heavy runtimes. That cold-start tax lands directly on whichever **real user** sent the next request after the idle period. They see a slow page, a timed-out API call, or a JavaScript fetch that gives up. Once the workload goes idle again (after `scaleToZeroDelay`, default 300s), the next user pays the same tax. For a customer-facing or client-facing service, this is a recurring foot-gun that ships latency variance directly to end users — and no monitoring captures the user who closed the tab. **For production traffic, the only correct default is `minScale ≥ 1` — usually `≥ 2` per "Production-Grade Workload Defaults".**
+
+**When scale-to-zero IS appropriate** (and may be configured **only** when the user explicitly opted in):
+
+- **Internal tools used by humans, very rarely** — admin dashboards, internal status pages, infrequent batch triggers. Cold-start is acceptable because the user is internal and the access pattern is human, not automated.
+- **Dev / staging / preview environments** — cost matters more than latency; flaky cold starts are a known cost.
+- **Event-driven workers behind a queue with retry semantics** — KEDA-driven workers that consume from a queue (Kafka, Redis, SQS) where the producer retries. The first message after idle pays the cold start, but the queue absorbs the latency. Cron-equivalent workloads *should* use the cron type instead.
+- **Background jobs the user explicitly framed as "scale up only when there's work"** — pre-rendering, batch ingestion, on-demand compute kicked off by a known caller that tolerates startup time.
+
+**Never use scale-to-zero for** (default to `minScale ≥ 1` and surface the tradeoff if the user pushed back):
+
+- Customer-facing HTTP APIs, websites, web apps
+- B2B API endpoints called by paying customers' systems
+- Any workload behind a public domain that real users hit directly
+- Login / auth services (cold start during login = abandoned signup)
+- Health-critical paths (payments, checkout, anything where slow = lost revenue)
+- Any workload where a 5-second tail latency would be a bug report
+
+**Required shape — when the user asks "should I use scale-to-zero?" or asks the AI to enable it:**
+
+> Scale-to-zero on `<workload>` would mean: when no traffic for `<scaleToZeroDelay>s` (default 300s), the workload drops to 0 replicas. The next incoming request waits for a cold replica to schedule, pull, and start — typically multi-second, sometimes longer for `<image size or runtime warm-up>`. That latency lands on a real user.
+>
+> - **Fits scale-to-zero**: `<yes if internal-tool / dev / queue-with-retry / batch worker — name which / no>`
+> - **Recommendation**: `<minScale: 0 with reasoning OR minScale: 1+ with reasoning>`
+> - **Tradeoff**: `<concrete cost saved vs. latency users will see>`
+>
+> If you do want scale-to-zero, I'll set it; otherwise I'll keep `minScale: <n>` per the production-grade defaults.
+
+**Required shape — when the AI is proposing autoscaling on a new workload (the more common case):**
+
+The AI proposes `minScale: 1` or `2`+ (per Production-Grade Workload Defaults), and does **not** mention scale-to-zero unless the workload's purpose obviously fits one of the "appropriate" cases above (internal tool used rarely, etc.). If the AI is unsure, it asks the user about traffic pattern — it does NOT offer scale-to-zero as an option to consider.
+
+**Anti-patterns to avoid:**
+
+- Setting `minScale: 0` on a Serverless workload by default because "Serverless can scale to zero." The platform supports it; the production stance does not default to it.
+- Including `scaleToZeroDelay` on a workload with `minScale ≥ 1`. The field has no effect there and signals that the AI thought scale-to-zero was on the table.
+- Recommending scale-to-zero to "save costs" without quantifying both sides — cost saved (likely small for any workload that gets meaningful traffic) vs. cold-start latency hitting users (high impact on UX).
+- Surfacing scale-to-zero as a "consider this" option on a customer-facing service. Don't volunteer the foot-gun.
+- Conflating "scale down on low traffic" with "scale to zero." A workload with `minScale: 2` and `maxScale: 50` already scales down. Scale-to-zero is the specific case of scaling all the way to 0 replicas — only that is forbidden by default.
+
 ### Production-Grade Workload Defaults
 
 Whenever the AI proposes a new workload, edits an existing one, or generates a manifest, the result MUST be configured for production from the outset — adequate resources, multi-replica HA, an autoscaling strategy that fits the traffic shape, and explicit readiness/liveness probes. The Control Plane platform defaults are deliberately minimal (`cpu: 50m`, `memory: 128Mi`, `minScale: 1`, no probes on Standard/Stateful) and are designed for the platform's freeflow first-deploy story — they are NOT what a real workload should ship with. Inheriting them silently is the most common way the AI ships under-provisioned, single-point-of-failure infra.
@@ -336,8 +380,6 @@ If the AI does not have the data to set a value confidently (e.g. expected traff
 - Setting readiness and liveness to the same configuration. They serve different purposes (gate traffic vs. restart container) and need different cadences/thresholds.
 - Picking `maxScale: 5` because it's the default. Size to real expected peak.
 - Silently turning **off** Capacity AI (default on for Standard/Serverless) without a reason. Capacity AI is the platform's right-sizing mechanism; disable it only when constrained (CPU/multi metric autoscaling, Stateful, GPU) and surface the constraint per the **"Constraint Conflicts"** rule.
-
-**Why this rule exists.** Control Plane's defaults exist to make first-deploy frictionless, not to ship production. A workload running at `cpu: 50m`, `memory: 128Mi`, `minScale: 1`, no probes, default firewall is one bad request away from OOM, one container restart away from downtime, and one hung process away from a silent outage. Every one of those failures has happened in customer environments because the AI accepted defaults without comment. The AI's job is to articulate the production stance up front and let the user override down — never the reverse.
 
 For per-metric autoscaling YAML and the strategy decision tree, see `cpln-autoscaling-capacity`. For probe schema and termination details, see `cpln-workload-security`.
 
@@ -400,8 +442,6 @@ When the user needs a database, cache, queue, broker, search engine, gateway, WA
 - Skipping the HA-variant note when the user mentioned production, primary database, or anything implying a single point of failure.
 - Recommending the template but not naming the exact OCI artifact and install command — the user shouldn't have to ask "how do I install it?"
 
-**Why this rule exists.** Templates encode lessons from production deployments — failover, persistence, secrets handling, network policy. Hand-rolled equivalents routinely ship without backups, with permissive firewall defaults, with secrets in env vars, or with a single-replica DB on a public service. The catalog is the curated path; building from scratch is the escape hatch when the catalog genuinely doesn't fit.
-
 For installation flow, configuration, and the full template list, see the `cpln-template-catalog` skill.
 
 ### CLI Command Accuracy
@@ -440,6 +480,7 @@ Before submitting work with Control Plane:
 - [ ] **Waits used CLI-native blocking or shell-level wait loops, never AI-layer polling** — `--ready` on apply, `timeout … until …` for ops without a wait flag, `curl --retry` for app-layer verification. At most ONE follow-up sanity check after the wait returned.
 - [ ] **Template Catalog was offered first** for any database, cache, queue, broker, search, gateway, WAF, identity, S3-compatible storage, or LLM inference need — with HA variant noted where applicable. Custom workloads for these components only after the user gave a hard reason.
 - [ ] **Workload was configured production-grade** — not the platform defaults: CPU/memory sized to the runtime (not `50m` / `128Mi`), `minScale ≥ 2` for user-facing services (or single-replica explicitly justified), autoscaling metric chosen by traffic shape, **explicit readiness AND liveness probes** with appropriate cadences. Any relaxation was named and reasoned.
+- [ ] **Scale-to-zero was NOT used** unless the user explicitly asked for it by name. The AI did not propose `minScale: 0` to "save costs" or set `scaleToZeroDelay` on any customer-facing or client-facing workload.
 - [ ] GVC exists and includes all required locations
 - [ ] Workload image accessible (external URL or pushed to org registry with `//image/NAME:TAG`)
 - [ ] Port number matches the container's exposed port

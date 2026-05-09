@@ -55,6 +55,23 @@ For flag details and the full resource command map, see `rules/cli-conventions.m
 | Deploy Helm chart | `cpln helm install RELEASE CHART --gvc GVC` |
 | Deploy Docker Compose | `cpln stack deploy --compose-file FILE --gvc GVC` |
 
+## Scale-to-zero — never the default for production
+
+Scale-to-zero is a real Control Plane capability. Explain how it works when asked. **Do not** recommend it, default to it, or configure it unless the user has explicitly asked for it **by name** (synonyms like "save costs" or "auto-scale" are NOT enough — the user must say "scale to zero" or "scale to 0 replicas").
+
+When a serverless workload scales to 0, the next request waits for a cold replica to schedule, pull, and start — multi-second latency that lands on a real user. After idle (`scaleToZeroDelay`, default 300s), the next user pays it again. For customer-facing or client-facing services this is a recurring foot-gun.
+
+**Production default is `minScale ≥ 1`** (usually `≥ 2` per the production-grade defaults below).
+
+Scale-to-zero IS appropriate **only** when the user explicitly opted in AND the workload fits one of:
+
+- Internal admin tools / dashboards used by humans, very rarely
+- Dev / staging / preview environments
+- Event-driven workers behind a queue with retry semantics (KEDA-driven; queue absorbs the latency)
+- Background batch jobs explicitly framed as "scale up only when there's work"
+
+Never use scale-to-zero for customer-facing HTTP APIs, websites, login/auth, payments, B2B endpoints called by paying customers, or anything behind a public domain. Do not include `scaleToZeroDelay` on any workload with `minScale ≥ 1` — it has no effect and signals the AI thought scale-to-zero was on the table. If the user explicitly asks for scale-to-zero on a customer-facing workload, name the cold-start tradeoff before configuring it.
+
 ## Production-grade workload defaults
 
 When proposing or editing any workload, configure it for production from the outset — not Control Plane's platform defaults (`cpu: 50m`, `memory: 128Mi`, `minScale: 1`, no probes), which exist to make first-deploy frictionless, not to ship production.
