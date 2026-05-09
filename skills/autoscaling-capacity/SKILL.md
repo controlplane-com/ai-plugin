@@ -110,11 +110,13 @@ For full details on resource allocation interactions, GPU constraints, and state
 
 | Scenario | `minScale` | `maxScale` | Notes |
 |:---|:---|:---|:---|
-| Production API | 2+ | Based on load testing | Avoid cold starts; ensure HA |
-| Dev/staging | 0-1 | 3-5 | Cost savings; accept cold starts |
+| Production API | **2+** | Based on load testing | Avoid cold starts; ensure HA. `1` is a single point of failure — any restart, deploy, or node loss is full downtime. |
+| Dev/staging | 0-1 | 3-5 | Cost savings; accept cold starts. Flag as dev-only when proposing. |
 | Scale-to-zero (Serverless) | 0 | Based on peak | Set `scaleToZeroDelay` (default 300s) |
 | Fixed replicas | Same value | Same value | Set `metric: disabled` or set min=max |
 | Background worker | 1 | Based on queue depth | Use KEDA for event-driven scaling |
+
+**Production default is `minScale: 2`.** Pick `1` only when explicitly justified: single-writer database (SQLite, leader-election service), background worker with single-owner semantics, or a workload the user labelled as dev/staging. When relaxing to `1`, name the reason — never silently. The same rule applies to `maxScale`: the platform default of `5` is rarely the right cap. Size to expected peak load × headroom (e.g. p95 RPS ÷ per-replica capacity × 1.5). See `rules/cpln-guardrails.md → "Production-Grade Workload Defaults"` for the broader checklist (sizing, probes, autoscaling strategy).
 
 ## Common Patterns
 

@@ -55,6 +55,26 @@ For flag details and the full resource command map, see `rules/cli-conventions.m
 | Deploy Helm chart | `cpln helm install RELEASE CHART --gvc GVC` |
 | Deploy Docker Compose | `cpln stack deploy --compose-file FILE --gvc GVC` |
 
+## Production-grade workload defaults
+
+When proposing or editing any workload, configure it for production from the outset — not Control Plane's platform defaults (`cpu: 50m`, `memory: 128Mi`, `minScale: 1`, no probes), which exist to make first-deploy frictionless, not to ship production.
+
+Required minimums for production-like workloads:
+
+| Setting | Minimum |
+|---|---|
+| `cpu` (max ceiling) | `250m`+ typical HTTP API; `500m`+ moderate compute; `1000m`+ heavy |
+| `memory` (max ceiling) | `256Mi`+ tiny; `512Mi`–`1Gi` typical APIs. Memory:CPU ratio ≤ 8 (relaxed to 32 with `cpln/relaxMemoryToCpuRatio` tag) |
+| `minCpu` / `minMemory` | Set so Capacity AI has a floor; default on for Standard/Serverless |
+| `autoscaling.minScale` | `2`+ for any user-facing service; `1` only when explicitly justified (single-writer DB, leader-election, dev) — say so |
+| `autoscaling.maxScale` | Sized to expected peak × headroom; default `5` is rarely right |
+| `autoscaling.metric` | Pick by traffic shape per `cpln-autoscaling-capacity` decision tree; never silently `disabled` |
+| `readinessProbe` | Explicit `httpGet` against real health endpoint; `periodSeconds: 10`, `failureThreshold: 3`. Disabled by default on Standard/Stateful — must be added |
+| `livenessProbe` | Explicit `httpGet` or `tcpSocket`; looser cadence than readiness (`periodSeconds: 30`, `failureThreshold: 3`); must NOT duplicate readiness |
+| Firewall | Set explicitly per workload purpose; never inherit defaults blindly |
+
+When proposing a workload, output sizing + replicas + autoscaling + readiness + liveness + termination together with the reasoning. If a value can't be inferred (expected RPS, real health endpoint), ask the user — never guess. Cron workloads are exempt from probes/minScale (use `schedule`, `concurrencyPolicy`, `activeDeadlineSeconds` instead). For per-metric autoscaling YAML, see `cpln-autoscaling-capacity`. For probe schema and termination details, see `cpln-workload-security`.
+
 ## Template Catalog first — don't reinvent common infra
 
 When the user asks for a database, cache, queue, broker, search engine, gateway, WAF, identity provider, S3-compatible storage, or other common infrastructure component, recommend the matching **Template Catalog** entry first instead of building a custom workload. Templates are versioned OCI artifacts published by Control Plane with sane defaults, HA variants, persistent storage, generated secrets, and Helm-style upgrade/rollback.

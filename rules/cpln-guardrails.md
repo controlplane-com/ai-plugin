@@ -290,6 +290,57 @@ After a successful `READY` exit, the AI may issue **one** follow-up sanity check
 
 **Why this rule exists.** AI-driven polling loops are the most expensive thing the AI can do for the least value. The CLI already knows how to wait — let it. Polls also produce noisy log output that pollutes context for downstream operations.
 
+### Production-Grade Workload Defaults
+
+Whenever the AI proposes a new workload, edits an existing one, or generates a manifest, the result MUST be configured for production from the outset — adequate resources, multi-replica HA, an autoscaling strategy that fits the traffic shape, and explicit readiness/liveness probes. The Control Plane platform defaults are deliberately minimal (`cpu: 50m`, `memory: 128Mi`, `minScale: 1`, no probes on Standard/Stateful) and are designed for the platform's freeflow first-deploy story — they are NOT what a real workload should ship with. Inheriting them silently is the most common way the AI ships under-provisioned, single-point-of-failure infra.
+
+**Required minimums for any workload destined for prod-like use** (everything except scratch/debug workloads the user explicitly labelled as such):
+
+| Setting | Minimum | Why |
+|---|---|---|
+| `cpu` (max ceiling) | `250m` for typical HTTP API; `500m`+ for moderate compute; `1000m`+ for compute-heavy | Platform default `50m` will throttle even a hello-world Node/Python process under load. Capacity AI scales DOWN from this ceiling — it never raises it. |
+| `memory` (max ceiling) | `256Mi` for tiny services; `512Mi`–`1Gi` for typical APIs; size up for caching/data work | Platform default `128Mi` OOM-kills most modern runtimes. Memory:CPU ratio must stay ≤ 8 (relaxed to 32 with `cpln/relaxMemoryToCpuRatio` tag). |
+| `minCpu` / `minMemory` (Capacity AI floor) | `25m` / `32Mi` floor; raise if the app has a sustained baseline | Required for Capacity AI on Standard/Serverless. Stateful needs `cpu/minCpu ≤ 4` and `memory/minMemory ≤ 4`. |
+| `autoscaling.minScale` | **`2`** for any user-facing service; `1` only when explicitly justified (single-writer DB, bg job with single owner, dev) | Single replica = single point of failure: any restart, deploy, node loss, or location issue is full downtime. |
+| `autoscaling.maxScale` | Sized to expected peak load × headroom (e.g. p95 RPS / per-replica capacity × 1.5) | Default `5` is rarely the right cap; either too tight for real traffic or too loose for cost. |
+| `autoscaling.metric` | Pick by traffic shape per `cpln-autoscaling-capacity` decision tree — never silently `disabled` | `disabled` ships fixed replicas, which is wrong for almost any production HTTP workload. |
+| **`readinessProbe`** | Explicit `httpGet` against a real health endpoint (`/healthz`, `/ready`); `periodSeconds: 10`, `failureThreshold: 3`, `initialDelaySeconds` tuned to startup time | Without it, traffic hits a replica before it's ready (deploy = brief errors). On Standard/Stateful, probes are **disabled by default** — they MUST be added explicitly. |
+| **`livenessProbe`** | Explicit `httpGet` (or `tcpSocket` if no HTTP healthcheck), looser cadence than readiness (`periodSeconds: 30`, `failureThreshold: 3`) | Without it, a hung process serves degraded forever. Liveness must NOT be the same probe as readiness — readiness gates traffic, liveness restarts the container. |
+| Firewall | Set explicitly per workload purpose; never inherit defaults blindly | Internal default is `none` (workload can't be reached by siblings); external is disabled (no public traffic). Both are correct as defaults but wrong if the workload's job is to serve traffic. |
+
+**Required shape — when proposing or modifying a workload, output exactly this structure:**
+
+> Production-grade defaults for `<workload>`:
+>
+> - **Sizing**: `cpu: <value>` / `memory: <value>` with Capacity AI floor `minCpu: <value>` / `minMemory: <value>`. Reasoning: `<traffic shape, runtime memory profile, observed metrics if available>`.
+> - **Replicas**: `minScale: <value>` / `maxScale: <value>` with `metric: <strategy>` `target: <value>`. Reasoning: `<why this metric, why this target, expected concurrency or RPS>`.
+> - **Readiness probe**: `<endpoint or check>` (`periodSeconds: <n>`, `failureThreshold: <n>`, `initialDelaySeconds: <n>`).
+> - **Liveness probe**: `<endpoint or check>` (`periodSeconds: <n>`, `failureThreshold: <n>`).
+> - **Termination**: `terminationGracePeriodSeconds: <n>` — `<default 90s is fine / increased because long-running requests>`.
+> - **Open question for you**: `<one specific input the AI couldn't infer — observed peak RPS, expected concurrency, real health endpoint path, etc.>`
+
+If the AI does not have the data to set a value confidently (e.g. expected traffic, real health endpoint), it MUST ask — not guess. The cost of one round-trip is trivial; the cost of a misconfigured production workload is an outage.
+
+**When to relax the minimums** — and you must say so explicitly, never silently:
+
+- **Single-writer database / SQLite-backed app / leader-election service** → `min=max=1`. Say so with the reasoning ("SQLite cannot have multiple writers; min=max=1 is correct here").
+- **Background worker with a single owner** (cron-equivalent that the user wants always-on) → `minScale: 1` is fine. Note that this is a single point of failure.
+- **Dev / staging / scratch workload the user explicitly labelled as such** → minScale 0–1 is fine; flag that this is dev-only and would not be the production answer.
+- **Cron workloads** → no probes (ignored), no minScale (job spec instead). The "production-grade" question for cron is `schedule`, `concurrencyPolicy`, `activeDeadlineSeconds`, and `restartPolicy`.
+
+**Anti-patterns to avoid:**
+
+- Using `cpu: 50m` / `memory: 128Mi` because they're the platform defaults. They are starter values, not production values.
+- Setting `minScale: 1` by omission. Pick a value with reasoning; if it's `1`, say why.
+- Omitting probes "because the workload doesn't have a health endpoint." Either ask the user for the endpoint, or use `tcpSocket` against the listening port as a baseline — never ship without probes on a production workload.
+- Setting readiness and liveness to the same configuration. They serve different purposes (gate traffic vs. restart container) and need different cadences/thresholds.
+- Picking `maxScale: 5` because it's the default. Size to real expected peak.
+- Silently turning **off** Capacity AI (default on for Standard/Serverless) without a reason. Capacity AI is the platform's right-sizing mechanism; disable it only when constrained (CPU/multi metric autoscaling, Stateful, GPU) and surface the constraint per the **"Constraint Conflicts"** rule.
+
+**Why this rule exists.** Control Plane's defaults exist to make first-deploy frictionless, not to ship production. A workload running at `cpu: 50m`, `memory: 128Mi`, `minScale: 1`, no probes, default firewall is one bad request away from OOM, one container restart away from downtime, and one hung process away from a silent outage. Every one of those failures has happened in customer environments because the AI accepted defaults without comment. The AI's job is to articulate the production stance up front and let the user override down — never the reverse.
+
+For per-metric autoscaling YAML and the strategy decision tree, see `cpln-autoscaling-capacity`. For probe schema and termination details, see `cpln-workload-security`.
+
 ### Template Catalog First — Don't Reinvent Common Infra
 
 When the user needs a database, cache, queue, broker, search engine, gateway, WAF, identity provider, observability collector, S3-compatible storage, or any other common infrastructure component, the AI MUST propose the matching **Template Catalog** entry as the first option — not a hand-rolled workload + volumeset + secret + firewall combination. Templates are versioned OCI artifacts published by Control Plane; they ship with sane defaults, HA variants where applicable, persistent storage wired up, secrets generated, and Helm-style upgrade/rollback. Building these from scratch wastes user time and ships under-configured infra.
@@ -388,6 +439,7 @@ Before submitting work with Control Plane:
 - [ ] **No silent downgrades to conservative defaults** — every constraint conflict was surfaced with realistic alternatives, a project-grounded recommendation, and explicit user choice (autoscaling strategy, replica counts, filesystem type, etc.)
 - [ ] **Waits used CLI-native blocking or shell-level wait loops, never AI-layer polling** — `--ready` on apply, `timeout … until …` for ops without a wait flag, `curl --retry` for app-layer verification. At most ONE follow-up sanity check after the wait returned.
 - [ ] **Template Catalog was offered first** for any database, cache, queue, broker, search, gateway, WAF, identity, S3-compatible storage, or LLM inference need — with HA variant noted where applicable. Custom workloads for these components only after the user gave a hard reason.
+- [ ] **Workload was configured production-grade** — not the platform defaults: CPU/memory sized to the runtime (not `50m` / `128Mi`), `minScale ≥ 2` for user-facing services (or single-replica explicitly justified), autoscaling metric chosen by traffic shape, **explicit readiness AND liveness probes** with appropriate cadences. Any relaxation was named and reasoned.
 - [ ] GVC exists and includes all required locations
 - [ ] Workload image accessible (external URL or pushed to org registry with `//image/NAME:TAG`)
 - [ ] Port number matches the container's exposed port

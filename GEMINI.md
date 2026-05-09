@@ -26,6 +26,21 @@ If `CPLN_ORG`, `CPLN_GVC`, or `CPLN_PROFILE` are unset and the command needs sco
 - Secret creation uses type-specific commands: `cpln secret create-opaque`, `create-aws`, `create-tls`, `create-dictionary`, etc. Generic `cpln secret create` does not exist.
 - Bearer token (`CPLN_TOKEN`) is sent live to `https://mcp.cpln.io/mcp` for MCP operations. Treat MCP access as production access to the configured org.
 
+## Production-grade workload defaults
+
+When proposing or editing any workload, configure it for production from the outset — not the Control Plane platform defaults (`cpu: 50m`, `memory: 128Mi`, `minScale: 1`, no probes), which exist to make first-deploy frictionless, not to ship production. Inheriting them silently is the most common way to ship under-provisioned, single-point-of-failure infra.
+
+Required minimums for production-like workloads:
+
+- **Sizing**: `cpu: 250m`+ for typical HTTP API (`500m`+ moderate compute, `1000m`+ heavy); `memory: 256Mi`+ for tiny services (`512Mi`–`1Gi` typical APIs). Memory:CPU ratio must stay ≤ 8 (relaxed to 32 with `cpln/relaxMemoryToCpuRatio` tag). Set `minCpu` / `minMemory` so Capacity AI has a floor.
+- **Replicas**: `minScale: 2`+ for any user-facing service. `minScale: 1` only when explicitly justified (single-writer DB, leader-election service, dev workload) — and say so.
+- **Autoscaling**: pick `metric` by traffic shape per the `cpln-autoscaling-capacity` decision tree. Never silently `disabled`. Size `maxScale` to expected peak × headroom — default `5` is rarely right.
+- **Readiness probe**: explicit `httpGet` against a real health endpoint (`/healthz`, `/ready`); `periodSeconds: 10`, `failureThreshold: 3`. On Standard/Stateful workloads, probes are **disabled by default** and must be added explicitly.
+- **Liveness probe**: explicit `httpGet` (or `tcpSocket` if no HTTP healthcheck), looser cadence than readiness (`periodSeconds: 30`, `failureThreshold: 3`). Must NOT be the same probe as readiness.
+- **Firewall**: set explicitly per workload purpose; never inherit defaults blindly.
+
+When proposing a workload, output sizing + replicas + readiness + liveness + termination together with the reasoning. If a value cannot be inferred (expected RPS, real health endpoint), ask — never guess. Cron workloads are exempt from probes/minScale (use `schedule`, `concurrencyPolicy`, `activeDeadlineSeconds` instead).
+
 ## Template Catalog first — don't reinvent common infra
 
 When the user asks for a database, cache, queue, broker, search engine, gateway, WAF, identity provider, S3-compatible storage, or any other common infrastructure component, recommend the matching **Template Catalog** entry as the first option. Templates are versioned OCI artifacts published by Control Plane with sane defaults, HA variants, persistent storage, generated secrets, and Helm-style upgrade/rollback. Hand-rolling these wastes time and ships under-configured infra.

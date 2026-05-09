@@ -5,6 +5,68 @@ description: "Hardens workloads for production on Control Plane. Use when the us
 
 # Workload Security & Production Hardening
 
+## Health Probes (readiness + liveness)
+
+Production workloads MUST configure both `readinessProbe` and `livenessProbe` on every container. They serve different purposes and must NOT be the same probe.
+
+| Probe | Purpose | Failure behavior | Typical cadence |
+|---|---|---|---|
+| `readinessProbe` | Gate traffic — keep replica out of the load balancer until it's ready, take it out if it stops being ready | Replica is removed from LB pool; no restart | `periodSeconds: 10`, `failureThreshold: 3`, `initialDelaySeconds` tuned to real startup time |
+| `livenessProbe` | Detect a hung process — restart the container if it stops responding to its own healthcheck | Container is killed and restarted | `periodSeconds: 30`, `failureThreshold: 3` (looser than readiness — restarts are expensive) |
+
+**Defaults by workload type:**
+
+- **Serverless** — TCP probe on the listening port is enabled by default. That's better than nothing, but a real `httpGet` against an app endpoint catches more failure modes (DB unreachable, dependency timeout, deadlock).
+- **Standard / Stateful** — probes are **disabled by default**. They MUST be added explicitly for any production workload.
+- **Cron** — probes are ignored.
+
+### Probe schema
+
+Each probe takes exactly one of `exec`, `grpc`, `tcpSocket`, `httpGet` (xor). Timing fields and ranges:
+
+| Field | Range | Default |
+|:---|:---|:---|
+| `initialDelaySeconds` | 0-600 | 10 |
+| `periodSeconds` | 1-600 | 10 |
+| `timeoutSeconds` | 1-600 | 1 |
+| `successThreshold` | 1-20 | 1 |
+| `failureThreshold` | 1-20 | 3 |
+
+### Production-grade probe example
+
+```yaml
+spec:
+  containers:
+    - name: api
+      image: //image/api:v1.0
+      ports:
+        - number: 8080
+          protocol: http
+      readinessProbe:
+        httpGet:
+          path: /healthz/ready
+          port: 8080
+        initialDelaySeconds: 5
+        periodSeconds: 10
+        timeoutSeconds: 2
+        failureThreshold: 3
+      livenessProbe:
+        httpGet:
+          path: /healthz/live
+          port: 8080
+        initialDelaySeconds: 30
+        periodSeconds: 30
+        timeoutSeconds: 3
+        failureThreshold: 3
+```
+
+### Probe design rules
+
+- **Readiness** should check anything the request path needs: DB connection, downstream auth provider, cache. If readiness passes but the dependency is down, the LB sends traffic that fails.
+- **Liveness** should check ONLY the process itself (e.g. event loop responsive, HTTP handler returns). It should NOT check downstream dependencies — a 5-minute Postgres outage shouldn't cycle every replica of every dependent workload.
+- If the workload genuinely has no HTTP healthcheck, use `tcpSocket` against the listening port as a baseline — never ship without probes.
+- Tune `initialDelaySeconds` to real cold-start time (warm-up loads, JIT compilation, dependency wait). Too low = LB pulls a healthy replica during boot; too high = traffic delays.
+
 ## JWT Authentication
 
 JWT Authentication validates JSON Web Tokens at the infrastructure level (Envoy sidecar) before requests reach the workload. Configured under `sidecar.envoy` in the workload or GVC spec.
