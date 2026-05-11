@@ -6,10 +6,10 @@
 # Usage: scripts/bump-version.sh <X.Y.Z>
 #
 # Files updated (kept in lockstep):
-#   - .claude-plugin/plugin.json         .version
-#   - .claude-plugin/marketplace.json    .plugins[0].version
-#   - .codex-plugin/plugin.json          .version
-#   - gemini-extension.json              .version
+#   - plugins/cpln/.claude-plugin/plugin.json   .version
+#   - .claude-plugin/marketplace.json           .plugins[0].version
+#   - plugins/cpln/.codex-plugin/plugin.json    .version
+#   - gemini-extension.json                     .version
 #   - CHANGELOG.md                       [Unreleased] -> [X.Y.Z] - YYYY-MM-DD,
 #                                        plus a fresh empty [Unreleased] above it
 #
@@ -52,9 +52,9 @@ bump_json() {
   mv "$tmp" "$file"
 }
 
-bump_json .claude-plugin/plugin.json '.version'
+bump_json plugins/cpln/.claude-plugin/plugin.json '.version'
 bump_json .claude-plugin/marketplace.json '.plugins[0].version'
-bump_json .codex-plugin/plugin.json '.version'
+bump_json plugins/cpln/.codex-plugin/plugin.json '.version'
 bump_json gemini-extension.json '.version'
 
 # Promote the [Unreleased] section in CHANGELOG.md to [X.Y.Z] - DATE
@@ -81,9 +81,9 @@ awk -v ver="$VERSION" -v date="$TODAY" '
 
 # Sanity-check: every manifest agrees on $VERSION.
 for spec in \
-  ".claude-plugin/plugin.json:.version" \
+  "plugins/cpln/.claude-plugin/plugin.json:.version" \
   ".claude-plugin/marketplace.json:.plugins[0].version" \
-  ".codex-plugin/plugin.json:.version" \
+  "plugins/cpln/.codex-plugin/plugin.json:.version" \
   "gemini-extension.json:.version"; do
   file="${spec%%:*}"
   path="${spec#*:}"
@@ -96,9 +96,9 @@ done
 
 cat <<EOF
 Bumped to $VERSION across:
-  - .claude-plugin/plugin.json
+  - plugins/cpln/.claude-plugin/plugin.json
   - .claude-plugin/marketplace.json
-  - .codex-plugin/plugin.json
+  - plugins/cpln/.codex-plugin/plugin.json
   - gemini-extension.json
   - CHANGELOG.md (Unreleased -> [$VERSION] - $TODAY)
 

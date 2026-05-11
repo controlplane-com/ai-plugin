@@ -8,7 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Added
 
+- Gemini-format hook config at repo-root `hooks/hooks.json` (`BeforeTool` guards on `run_shell_command` for generic `cpln secret create` and `cpln apply` missing `--file`). Gemini auto-discovers it; Claude and Codex never see it because their plugin root now resolves to `plugins/cpln/`.
+
 ### Changed
+
+- **Repo restructured.** All Claude + Codex plugin content (skills, agents, commands, rules, references, assets, hooks, `.claude-plugin/plugin.json`, `.codex-plugin/`, `.claude-mcp.json`, `.app.json`) moved into `plugins/cpln/`. Marketplaces (`.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json`) now point at `plugins/cpln`. Gemini extension manifest, marketplace JSONs, and contributor docs stay at repo root. Existing install commands are unchanged; users get the new layout on their next `/plugin upgrade` or marketplace re-add.
+- Claude + Codex hooks now ship in `plugins/cpln/hooks/cpln-hooks.json` and are declared explicitly via the `hooks` field in each plugin manifest, replacing the auto-discovered default path.
 
 ### Fixed
 

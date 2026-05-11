@@ -24,6 +24,7 @@
   ],
   "skills": "./skills/",
   "mcpServers": "./.codex-plugin/mcp.json",
+  "hooks": "./hooks/cpln-hooks.json",
   "apps": "./.app.json",
   "interface": {
     "displayName": "Control Plane",

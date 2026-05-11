@@ -172,8 +172,8 @@ This repository includes:
 
 Client-specific MCP configuration files:
 
-- Codex: `.codex-plugin/mcp.json` uses `url` and `bearer_token_env_var`.
-- Claude Code: `.claude-mcp.json` uses `type: "http"` and `headers.Authorization`.
+- Codex: `plugins/cpln/.codex-plugin/mcp.json` uses `url` and `bearer_token_env_var`.
+- Claude Code: `plugins/cpln/.claude-mcp.json` uses `type: "http"` and `headers.Authorization`.
 - Gemini CLI: `gemini-extension.json` uses `httpUrl` and `headers.Authorization`.
 
 The hosted MCP server exposes live Control Plane tools for reading and mutating infrastructure. Treat MCP access as production access to the configured Control Plane organization.
@@ -196,10 +196,10 @@ Report vulnerabilities by following the process in [SECURITY.md](SECURITY.md).
 | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | MCP requests fail with authentication errors | Confirm `CPLN_TOKEN` is set in the AI client environment and belongs to an active service account.                                                                                                                                           |
 | MCP tools are unavailable in Codex           | Confirm the plugin was installed from `/plugins`, not only that the marketplace was added. Then restart Codex and use `/mcp` inside the session to inspect plugin-provided MCP servers.                                                      |
-| MCP tools are unavailable in another client  | Confirm the client supports one of this repo's MCP configs (`.claude-mcp.json`, `.codex-plugin/mcp.json`, or the MCP block inside `gemini-extension.json`), or manually configured the `cpln` MCP server in that client's native MCP format. |
+| MCP tools are unavailable in another client  | Confirm the client supports one of this repo's MCP configs (`plugins/cpln/.claude-mcp.json`, `plugins/cpln/.codex-plugin/mcp.json`, or the MCP block inside `gemini-extension.json`), or manually configured the `cpln` MCP server in that client's native MCP format. |
 | Commands are not available                   | Confirm the client supports this repo's command format. Codex should use skills/MCP rather than Claude-style slash commands.                                                                                                                 |
 | Gemini extension does not load               | Run `gemini extensions validate .` from the repository root.                                                                                                                                                                                 |
-| AI proposes an uncertain `cpln` command      | Check `rules/cli-conventions.md` and verify flags with `cpln <command> --help` or the MCP suggest tool.                                                                                                                                      |
+| AI proposes an uncertain `cpln` command      | Check `plugins/cpln/rules/cli-conventions.md` and verify flags with `cpln <command> --help` or the MCP suggest tool.                                                                                                                         |
 | A write operation targets the wrong org/GVC  | Stop and confirm `CPLN_ORG`, `CPLN_GVC`, `CPLN_PROFILE`, or explicit command flags before retrying.                                                                                                                                          |
 
 ## Contributing

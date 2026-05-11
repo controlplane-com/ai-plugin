@@ -1,5 +1,6 @@
 {
   "name": "controlplane",
+  "description": "Official Control Plane marketplace. Skills, agents, guardrails, and MCP configuration for deploying and managing containerized workloads across AWS, GCP, Azure, and private clouds.",
   "owner": {
     "name": "Control Plane",
     "email": "support@controlplane.com"
@@ -9,7 +10,8 @@
       "name": "cpln",
       "source": {
         "source": "github",
-        "repo": "controlplane-com/ai-plugin"
+        "repo": "controlplane-com/ai-plugin",
+        "path": "plugins/cpln"
       },
       "description": "Control Plane AI workflows, skills, guardrails, and MCP configuration.",
       "version": "1.1.0",

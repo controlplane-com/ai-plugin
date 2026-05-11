@@ -5,14 +5,24 @@
 - Keep wording precise and operational, not promotional.
 - Do not invent unsupported client features, marketplace listings, commands, or URLs.
 - Prefer least-privilege and explicit-confirmation guidance for write-capable workflows.
-- Verify `cpln` CLI syntax against `rules/cli-conventions.md`, `skills/cpln/SKILL.md`, `cpln <command> --help`, or MCP suggestion tools.
+- Verify `cpln` CLI syntax against `plugins/cpln/rules/cli-conventions.md`, `plugins/cpln/skills/cpln/SKILL.md`, `cpln <command> --help`, or MCP suggestion tools.
 
 ## Local Checks
 
 Run checks that match the files you changed:
 
 ```bash
-jq empty .claude-mcp.json .app.json .claude-plugin/plugin.json .claude-plugin/marketplace.json .codex-plugin/plugin.json .codex-plugin/mcp.json gemini-extension.json hooks/hooks.json .agents/plugins/marketplace.json
+jq empty \
+  .claude-plugin/marketplace.json \
+  .agents/plugins/marketplace.json \
+  gemini-extension.json \
+  hooks/hooks.json \
+  plugins/cpln/.claude-plugin/plugin.json \
+  plugins/cpln/.codex-plugin/plugin.json \
+  plugins/cpln/.codex-plugin/mcp.json \
+  plugins/cpln/.claude-mcp.json \
+  plugins/cpln/.app.json \
+  plugins/cpln/hooks/cpln-hooks.json
 gemini extensions validate .
 ```
 
@@ -22,12 +32,12 @@ For Markdown-only changes, review links, tables, frontmatter, and command exampl
 
 This repo follows [Semantic Versioning](https://semver.org/). The version lives in four manifests that must stay aligned:
 
-| File                                | Path                          |
-| ----------------------------------- | ----------------------------- |
-| `.claude-plugin/plugin.json`        | `.version`                    |
-| `.claude-plugin/marketplace.json`   | `.plugins[0].version`         |
-| `.codex-plugin/plugin.json`         | `.version`                    |
-| `gemini-extension.json`             | `.version`                    |
+| File                                          | Path                          |
+| --------------------------------------------- | ----------------------------- |
+| `plugins/cpln/.claude-plugin/plugin.json`     | `.version`                    |
+| `.claude-plugin/marketplace.json`             | `.plugins[0].version`         |
+| `plugins/cpln/.codex-plugin/plugin.json`      | `.version`                    |
+| `gemini-extension.json`                       | `.version`                    |
 
 Pick the bump based on what changed since the last tag:
 
@@ -81,12 +91,12 @@ Run before tagging:
 - `CHANGELOG.md` `[Unreleased]` section is empty (everything moved into the new versioned section).
 - `README.md` install instructions match the published marketplace IDs.
 - No real secrets, service account tokens, or org-specific values in the diff.
-- `.codex-plugin/mcp.json` uses Codex MCP fields (`url`, `bearer_token_env_var`) and not raw auth headers.
-- `.claude-mcp.json` uses Claude Code MCP fields (`type`, `url`, `headers`) with environment interpolation.
+- `plugins/cpln/.codex-plugin/mcp.json` uses Codex MCP fields (`url`, `bearer_token_env_var`) and not raw auth headers.
+- `plugins/cpln/.claude-mcp.json` uses Claude Code MCP fields (`type`, `url`, `headers`) with environment interpolation.
 - `gemini-extension.json` MCP block uses Gemini CLI fields (`httpUrl`, `headers`) and declares any required extension settings.
 - `LICENSE`, `SECURITY.md`, `.env.example`, `.gitignore` are present.
 - `gemini extensions validate .` is clean.
-- `claude plugin validate .claude-plugin/plugin.json` is clean (or only the deliberate developer-CLAUDE.md warning).
+- `claude plugin validate .` is clean (or only the deliberate developer-CLAUDE.md warning).
 
 ## Pull Requests
 
