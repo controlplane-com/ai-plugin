@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Added
 
+### Changed
+
+### Fixed
+
+### Removed
+
+## [1.2.1] - 2026-05-11
+
+### Added
+
 - `plugins/cpln/hooks/inject-rules.sh` — a single bundled shell script that walks `plugins/cpln/rules/*.md`, filters by `alwaysApply: true` in frontmatter, and emits the `hookSpecificOutput.additionalContext` envelope. Called from all three SessionStart hooks (Claude, Codex, Gemini); uses `awk` for JSON escaping so the hook has zero optional runtime dependencies.
 
 ### Changed
