@@ -8,16 +8,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Added
 
-- Gemini-format hook config at repo-root `hooks/hooks.json` (`BeforeTool` guards on `run_shell_command` for generic `cpln secret create` and `cpln apply` missing `--file`). Gemini auto-discovers it; Claude and Codex never see it because their plugin root now resolves to `plugins/cpln/`.
+- Gemini `SessionStart` hook at repo-root `hooks/hooks.json` that injects the same `alwaysApply: true` rules every Claude and Codex session already receives. Uses Gemini's `${extensionPath}` config-time variable to reach `plugins/cpln/rules/`, and emits the standard `hookSpecificOutput.additionalContext` shape Gemini's hooks docs describe. All three runtimes now do rule injection from one source via one schema.
+- Marketplace-level `description` field in `.claude-plugin/marketplace.json`.
 
 ### Changed
 
-- **Repo restructured.** All Claude + Codex plugin content (skills, agents, commands, rules, references, assets, hooks, `.claude-plugin/plugin.json`, `.codex-plugin/`, `.claude-mcp.json`, `.app.json`) moved into `plugins/cpln/`. Marketplaces (`.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json`) now point at `plugins/cpln`. Gemini extension manifest, marketplace JSONs, and contributor docs stay at repo root. Existing install commands are unchanged; users get the new layout on their next `/plugin upgrade` or marketplace re-add.
-- Claude + Codex hooks now ship in `plugins/cpln/hooks/cpln-hooks.json` and are declared explicitly via the `hooks` field in each plugin manifest, replacing the auto-discovered default path.
+- **Repo restructured into `plugins/cpln/`.** All Claude + Codex plugin content (skills, agents, commands, rules, references, assets, hooks, plugin manifests, MCP configs) moved into `plugins/cpln/`; marketplaces, the Gemini extension manifest, and contributor docs stay at repo root. End-user install commands are unchanged — `/plugin upgrade` and `codex plugin marketplace upgrade` re-resolve automatically. Claude + Codex hooks now live in `plugins/cpln/hooks/cpln-hooks.json` and are declared via each plugin manifest's `hooks` field, freeing the default `hooks/hooks.json` path at the repo root for Gemini's auto-discovery.
 
 ### Fixed
 
+- Codex plugin install failing silently with `"local plugin source path must not be empty"`. `.agents/plugins/marketplace.json` source previously declared `path: "./"`, which Codex's path validator rejects, causing the plugin to be dropped on every session so `/plugins` never listed it.
+- Codex `defaultPrompt` warning. `interface.defaultPrompt` had 4 entries (Codex max is 3) and was being ignored wholesale; trimmed to 3.
+
 ### Removed
+
+- Claude + Codex `PreToolUse` Bash guards that denied generic `cpln secret create` (no type-specific subcommand) and `cpln apply` without `--file`. They caught syntax mistakes the `cpln` CLI itself already rejects with clear errors, so the deny-message added little over the CLI's own output — and the same guidance is now injected upfront via the SessionStart rule content. No corresponding Gemini `BeforeTool` guards shipped (they were drafted then removed in the same release).
 
 ## [1.1.0] - 2026-05-11
 

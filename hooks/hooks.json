@@ -1,21 +1,12 @@
 {
   "hooks": {
-    "BeforeTool": [
+    "SessionStart": [
       {
-        "matcher": "run_shell_command",
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "command -v jq >/dev/null 2>&1 || { echo 'cpln plugin: BeforeTool cpln-secret-create guard skipped (jq not installed)' >&2; exit 0; }; input=$(cat); cmd=$(echo \"$input\" | jq -r '.tool_input.command // empty'); if echo \"$cmd\" | grep -qE 'cpln\\s+secret\\s+create\\b' && ! echo \"$cmd\" | grep -qE 'cpln\\s+secret\\s+create-'; then jq -nc '{decision:\"deny\",reason:\"Use type-specific secret commands (cpln secret create-opaque, create-aws, create-tls, etc.). Generic `cpln secret create` does not exist.\"}'; exit 0; fi"
-          }
-        ]
-      },
-      {
-        "matcher": "run_shell_command",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "command -v jq >/dev/null 2>&1 || { echo 'cpln plugin: BeforeTool cpln-apply guard skipped (jq not installed)' >&2; exit 0; }; input=$(cat); cmd=$(echo \"$input\" | jq -r '.tool_input.command // empty'); if echo \"$cmd\" | grep -qE 'cpln\\s+apply' && ! echo \"$cmd\" | grep -qE -e '--file|-f\\b'; then jq -nc '{decision:\"deny\",reason:\"cpln apply requires --file flag. Usage: cpln apply --file manifest.yaml\"}'; exit 0; fi"
+            "command": "command -v jq >/dev/null 2>&1 || { echo 'cpln plugin: SessionStart rule injection skipped (jq not installed)' >&2; exit 0; }; R=\"${extensionPath}/plugins/cpln\"; ctx=\"\"; for f in \"$R\"/rules/*.md; do [ -f \"$f\" ] || continue; if sed -n '/^---$/,/^---$/p' \"$f\" | grep -qE '^alwaysApply:[[:space:]]*true[[:space:]]*$'; then ctx=\"$ctx$(cat \"$f\")\"$'\\n'; fi; done; [ -z \"$ctx\" ] && exit 0; jq -nc --arg c \"$ctx\" '{hookSpecificOutput:{hookEventName:\"SessionStart\",additionalContext:$c}}'"
           }
         ]
       }
