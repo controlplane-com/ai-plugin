@@ -41,7 +41,6 @@
     "defaultPrompt": [
       "Deploy a workload to Control Plane with autoscaling and firewall rules.",
       "Troubleshoot why my workload is not starting.",
-      "Set up secret access for my API workload.",
       "Migrate my Kubernetes deployment to Control Plane."
     ],
     "brandColor": "#1563FF",
