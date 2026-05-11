@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "command -v jq >/dev/null 2>&1 || { echo 'cpln plugin: SessionStart rule injection skipped (jq not installed)' >&2; exit 0; }; R=\"${extensionPath}/plugins/cpln\"; ctx=\"\"; for f in \"$R\"/rules/*.md; do [ -f \"$f\" ] || continue; if sed -n '/^---$/,/^---$/p' \"$f\" | grep -qE '^alwaysApply:[[:space:]]*true[[:space:]]*$'; then ctx=\"$ctx$(cat \"$f\")\"$'\\n'; fi; done; [ -z \"$ctx\" ] && exit 0; jq -nc --arg c \"$ctx\" '{hookSpecificOutput:{hookEventName:\"SessionStart\",additionalContext:$c}}'"
+            "command": "CLAUDE_PLUGIN_ROOT=\"${extensionPath}/plugins/cpln\" bash \"${extensionPath}/plugins/cpln/hooks/inject-rules.sh\""
           }
         ]
       }
