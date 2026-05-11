@@ -21,7 +21,6 @@ jq empty \
   plugins/cpln/.codex-plugin/plugin.json \
   plugins/cpln/.codex-plugin/mcp.json \
   plugins/cpln/.claude-mcp.json \
-  plugins/cpln/.app.json \
   plugins/cpln/hooks/cpln-hooks.json
 gemini extensions validate .
 ```

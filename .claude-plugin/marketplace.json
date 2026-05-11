@@ -8,11 +8,7 @@
   "plugins": [
     {
       "name": "cpln",
-      "source": {
-        "source": "github",
-        "repo": "controlplane-com/ai-plugin",
-        "path": "plugins/cpln"
-      },
+      "source": "./plugins/cpln",
       "description": "Control Plane AI workflows, skills, guardrails, and MCP configuration.",
       "version": "1.2.0",
       "author": {

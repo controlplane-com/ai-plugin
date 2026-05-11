@@ -45,6 +45,16 @@ If you prefer the standalone marketplace installer, install the plugin artifact 
 npx codex-marketplace add controlplane-com/ai-plugin --plugin
 ```
 
+**Enable plugin hooks for guardrail injection (recommended).** Codex ships with the `plugin_hooks` feature off by default, which gates both display and execution of plugin-bundled hooks. The Control Plane plugin uses a `SessionStart` hook to inject the `cli-conventions` and `cpln-guardrails` rules into every Codex session so the assistant respects the production write-guardrails (typed confirmations on destructive ops, org/GVC sanity checks, no invented `cpln` flags). To enable, add this block to `~/.codex/config.toml` and restart Codex:
+
+```toml
+[features]
+plugins = true
+plugin_hooks = true
+```
+
+After the restart, `/plugins` → **Control Plane** → **Hooks** should show `SessionStart`. Without this, Codex still loads skills and MCP tools, but the guardrails are not injected automatically and the Hooks row reads "No plugin hooks."
+
 **Update to a newer release:** Codex does not auto-update plugin marketplaces. Run the upgrade command when a new release is published, then restart Codex so the new plugin manifest is picked up.
 
 ```bash
@@ -196,6 +206,7 @@ Report vulnerabilities by following the process in [SECURITY.md](SECURITY.md).
 | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | MCP requests fail with authentication errors | Confirm `CPLN_TOKEN` is set in the AI client environment and belongs to an active service account.                                                                                                                                           |
 | MCP tools are unavailable in Codex           | Confirm the plugin was installed from `/plugins`, not only that the marketplace was added. Then restart Codex and use `/mcp` inside the session to inspect plugin-provided MCP servers.                                                      |
+| Codex `/plugins` → Control Plane shows "No plugin hooks." and guardrails are not injected | Codex gates plugin hooks behind a feature flag. Add `[features]\nplugins = true\nplugin_hooks = true` to `~/.codex/config.toml` and restart Codex. See the Codex install section above. |
 | MCP tools are unavailable in another client  | Confirm the client supports one of this repo's MCP configs (`plugins/cpln/.claude-mcp.json`, `plugins/cpln/.codex-plugin/mcp.json`, or the MCP block inside `gemini-extension.json`), or manually configured the `cpln` MCP server in that client's native MCP format. |
 | Commands are not available                   | Confirm the client supports this repo's command format. Codex should use skills/MCP rather than Claude-style slash commands.                                                                                                                 |
 | Gemini extension does not load               | Run `gemini extensions validate .` from the repository root.                                                                                                                                                                                 |
