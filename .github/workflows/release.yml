@@ -114,6 +114,7 @@ jobs:
         run: |
           set -euo pipefail
           {
+            printf '# Control Plane AI Plugin\n\n'
             printf '## What changed\n\n'
             printf '%s\n' "$NOTES"
             printf '\n---\n\n'
@@ -178,6 +179,6 @@ jobs:
           esac
 
           gh release create "$TAG" \
-            --title "Control Plane AI Plugin $TAG" \
+            --title "$TAG" \
             --notes-file release-notes.md \
             $PRERELEASE_FLAG
