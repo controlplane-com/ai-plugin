@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Added
 
+### Changed
+
+### Fixed
+
+### Removed
+
+## [1.1.0] - 2026-05-11
+
+### Added
+
 - Always-on guardrail rule: Template Catalog first — recommend the matching catalog template (Postgres, Redis, Kafka, RabbitMQ, MongoDB, Nginx, etc.) before hand-rolling a workload, with HA variants noted where applicable.
 - Always-on guardrail rule: production-grade workload defaults — explicit minimums for CPU/memory sizing, multi-replica HA, autoscaling strategy, and required readiness/liveness probes for any workload destined for prod-like use.
 - Always-on guardrail rule: scale-to-zero is forbidden by default — only configured when the user explicitly opts in by name, never on customer-facing services.
