@@ -8,11 +8,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Added
 
+- Always-on guardrail rule: Template Catalog first — recommend the matching catalog template (Postgres, Redis, Kafka, RabbitMQ, MongoDB, Nginx, etc.) before hand-rolling a workload, with HA variants noted where applicable.
+- Always-on guardrail rule: production-grade workload defaults — explicit minimums for CPU/memory sizing, multi-replica HA, autoscaling strategy, and required readiness/liveness probes for any workload destined for prod-like use.
+- Always-on guardrail rule: scale-to-zero is forbidden by default — only configured when the user explicitly opts in by name, never on customer-facing services.
+- README "Update to a newer release" sections per client (Claude Code, Codex, Gemini CLI), including auto-update opt-in flows.
+- GitHub Release notes now include per-client update commands alongside first-time install commands.
+
 ### Changed
 
-### Fixed
-
-### Removed
+- `skills/workload-security` — added a Health Probes section covering readiness vs. liveness, default-by-workload-type, schema, production probe example, and probe design rules.
+- `skills/autoscaling-capacity` — bolded `minScale: 2+` as the production default; renamed the misleading "High-Traffic API (Serverless, Scale-to-Zero)" example to "Customer-Facing API (Serverless, Concurrency Autoscaling)" and removed the no-op `scaleToZeroDelay` line.
+- `skills/template-catalog` — added a "Recommend the catalog before building anything custom" lead section that frames the catalog as the default, not the fallback.
+- `skills/cpln` and `GEMINI.md` — embedded the three new guardrail rules in concise form so Codex and Gemini sessions pick them up alongside the Claude Code SessionStart hook.
 
 ## [1.0.0] - 2026-04-27
 
