@@ -54,24 +54,25 @@ jobs:
               echo "✓ $file ($path) = $actual"
             fi
           }
-          check .claude-plugin/plugin.json '.version'
+          check plugins/cpln/.claude-plugin/plugin.json '.version'
           check .claude-plugin/marketplace.json '.plugins[0].version'
-          check .codex-plugin/plugin.json '.version'
+          check plugins/cpln/.codex-plugin/plugin.json '.version'
           check gemini-extension.json '.version'
           [ "$fail" -eq 0 ] || exit 1
 
       - name: Validate JSON syntax
         run: |
           jq empty \
-            .claude-mcp.json \
-            .app.json \
-            .claude-plugin/plugin.json \
             .claude-plugin/marketplace.json \
-            .codex-plugin/plugin.json \
-            .codex-plugin/mcp.json \
+            .agents/plugins/marketplace.json \
             gemini-extension.json \
             hooks/hooks.json \
-            .agents/plugins/marketplace.json
+            plugins/cpln/.claude-plugin/plugin.json \
+            plugins/cpln/.codex-plugin/plugin.json \
+            plugins/cpln/.codex-plugin/mcp.json \
+            plugins/cpln/.claude-mcp.json \
+            plugins/cpln/.app.json \
+            plugins/cpln/hooks/cpln-hooks.json
 
       - name: Extract release notes from CHANGELOG
         id: notes
