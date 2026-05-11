@@ -8,11 +8,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Added
 
+- `plugins/cpln/hooks/inject-rules.sh` — a single bundled shell script that walks `plugins/cpln/rules/*.md`, filters by `alwaysApply: true` in frontmatter, and emits the `hookSpecificOutput.additionalContext` envelope. Called from all three SessionStart hooks (Claude, Codex, Gemini); uses `awk` for JSON escaping so the hook has zero optional runtime dependencies.
+
 ### Changed
+
+- `SessionStart` hooks across Claude (`plugins/cpln/hooks/cpln-hooks.json`), Codex (same), and Gemini (`hooks/hooks.json`) now invoke `inject-rules.sh` instead of inlining a `jq`-based shell pipeline. Behavior is byte-for-byte identical to the previous `jq` output (verified against the same rule files) but no longer depends on `jq` being installed on the user's machine.
+- README's Codex install section now explains the `plugin_hooks` feature flag (`UnderDevelopment, default_enabled: false` in `codex-rs/features/src/lib.rs`) and ships the `~/.codex/config.toml` snippet needed to enable plugin-bundled hook display and execution. Without the flag the Codex `/plugins` tab shows "No plugin hooks" and the SessionStart rule injector never fires.
 
 ### Fixed
 
+- **Empty 1.2.0 install on Claude.** `.claude-plugin/marketplace.json` used `{source: "github", repo: …, path: "plugins/cpln"}`; Claude's `github` source schema doesn't accept a `path` field, so the entire repo was cloned to the cache and Claude looked for `plugin.json` at the cache root (where only `marketplace.json` exists), loading the plugin with zero skills, agents, commands, or hooks. Source switched to the documented relative-path form `"./plugins/cpln"`.
+- **Empty Apps tab and parse warning on Codex.** `plugins/cpln/.app.json` shipped rich metadata (`name`, `description`, `apiBase`, `auth`, `docs`, …) but Codex's `PluginAppConfig` struct in `codex-rs/core-plugins/src/loader.rs` requires a single `id: String` field — an opaque `asdk_app_<hex>` identifier assigned by OpenAI's Apps SDK when Control Plane is registered as a ChatGPT App. Until that registration exists, the manifest's `apps: "./.app.json"` line and `.app.json` itself are removed; Codex no longer emits `missing field "id"` warnings on every session.
+
 ### Removed
+
+- `plugins/cpln/.app.json` and the `apps` field in `plugins/cpln/.codex-plugin/plugin.json` (see Fixed above).
 
 ## [1.2.0] - 2026-05-11
 
