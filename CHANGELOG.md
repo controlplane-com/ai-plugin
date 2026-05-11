@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Added
 
+### Changed
+
+### Fixed
+
+### Removed
+
+## [1.2.0] - 2026-05-11
+
+### Added
+
 - Gemini `SessionStart` hook at repo-root `hooks/hooks.json` that injects the same `alwaysApply: true` rules every Claude and Codex session already receives. Uses Gemini's `${extensionPath}` config-time variable to reach `plugins/cpln/rules/`, and emits the standard `hookSpecificOutput.additionalContext` shape Gemini's hooks docs describe. All three runtimes now do rule injection from one source via one schema.
 - Marketplace-level `description` field in `.claude-plugin/marketplace.json`.
 
