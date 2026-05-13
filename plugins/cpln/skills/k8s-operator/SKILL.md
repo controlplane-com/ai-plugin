@@ -1,5 +1,5 @@
 ---
-name: cpln-k8s-operator
+name: k8s-operator
 description: "Manages Control Plane resources as Kubernetes CRDs and sets up ArgoCD GitOps. Use when the user asks about the Control Plane Kubernetes operator, CRDs, custom resources, ArgoCD integration, managing Control Plane from a k8s cluster, or converting YAML to CRD format."
 ---
 

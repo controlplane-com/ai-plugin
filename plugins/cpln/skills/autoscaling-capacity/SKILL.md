@@ -1,5 +1,5 @@
 ---
-name: cpln-autoscaling-capacity
+name: autoscaling-capacity
 description: "Configures workload autoscaling and Capacity AI on Control Plane. Use when the user asks about scaling up/down, min/max replicas, concurrency or RPS scaling, CPU/memory/latency-based scaling, KEDA, Capacity AI optimization, scale-to-zero, or custom metrics scaling."
 ---
 

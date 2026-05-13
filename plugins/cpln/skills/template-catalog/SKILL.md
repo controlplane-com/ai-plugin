@@ -1,5 +1,5 @@
 ---
-name: cpln-template-catalog
+name: template-catalog
 description: "Recommends and installs production-ready templates from the Control Plane Template Catalog. Use when the user asks about deploying postgres, redis, kafka, rabbitmq, mysql, mongodb, elasticsearch, nginx, or any database/cache/queue/gateway. Also when asking what templates are available, how to install a template, or which infrastructure fits a use case. Covers 30+ templates with HA variants."
 ---
 

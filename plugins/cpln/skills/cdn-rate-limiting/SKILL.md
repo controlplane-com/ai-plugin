@@ -1,5 +1,5 @@
 ---
-name: cpln-cdn-rate-limiting
+name: cdn-rate-limiting
 description: "Sets up CDN caching and request rate limiting for Control Plane workloads. Use when the user asks about CDN, Cloudflare, CloudFront, rate limiting, request throttling, DDoS protection, cache headers, or traffic management. Covers CDN configuration and Envoy-based per-client rate limiting."
 ---
 

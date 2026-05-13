@@ -1,5 +1,5 @@
 ---
-name: cpln-gitops-cicd
+name: gitops-cicd
 description: "Sets up CI/CD pipelines and GitOps workflows for Control Plane. Use when the user asks about GitHub Actions, GitLab CI, Bitbucket Pipelines, CircleCI, Google Cloud Build, automated deployment, cpln apply in CI, or service account tokens for pipelines. Covers pipeline authentication, environment setup, manifest application, and provider-specific examples."
 ---
 

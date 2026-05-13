@@ -1,5 +1,5 @@
 ---
-name: cpln-query-spec
+name: query-spec
 description: "Filters, selects, and sorts Control Plane resources using the query spec language. Use when the user asks about targetQuery, memberQuery, cpln query commands, tag-based selection, property filtering, or dynamic location selection. Covers query spec syntax (match/property/rel/sort/tag), policy targetQuery, group memberQuery, and GVC dynamic locations."
 ---
 

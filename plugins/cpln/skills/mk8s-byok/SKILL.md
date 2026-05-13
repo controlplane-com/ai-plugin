@@ -1,5 +1,5 @@
 ---
-name: cpln-mk8s-byok
+name: mk8s-byok
 description: "Provisions managed Kubernetes (mk8s) clusters and registers existing clusters via BYOK on Control Plane. Use when the user asks about creating a Kubernetes cluster, mk8s, BYOK, registering an existing cluster, node pools, cluster add-ons, or multi-cloud Kubernetes. Covers AWS/GCP/Azure/Hetzner provisioning, BYOK bootstrap, add-ons, and node configuration."
 ---
 

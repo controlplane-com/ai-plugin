@@ -1,5 +1,5 @@
 ---
-name: cpln-iac-terraform-pulumi
+name: iac-terraform-pulumi
 description: "Manages Control Plane resources with Terraform or Pulumi. Use when the user asks about Terraform provider, Pulumi provider, infrastructure as code, IaC, or managing Control Plane resources declaratively. Covers provider setup, authentication, supported resource types, template catalog integration, and state management."
 ---
 

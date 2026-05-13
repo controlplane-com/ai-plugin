@@ -57,6 +57,9 @@ jobs:
           check plugins/cpln/.claude-plugin/plugin.json '.version'
           check .claude-plugin/marketplace.json '.plugins[0].version'
           check plugins/cpln/.codex-plugin/plugin.json '.version'
+          check plugins/cpln/.cursor-plugin/plugin.json '.version'
+          check .cursor-plugin/marketplace.json '.metadata.version'
+          check .cursor-plugin/marketplace.json '.plugins[0].version'
           check gemini-extension.json '.version'
           [ "$fail" -eq 0 ] || exit 1
 
@@ -65,11 +68,14 @@ jobs:
           jq empty \
             .claude-plugin/marketplace.json \
             .agents/plugins/marketplace.json \
+            .cursor-plugin/marketplace.json \
             gemini-extension.json \
             hooks/hooks.json \
             plugins/cpln/.claude-plugin/plugin.json \
             plugins/cpln/.codex-plugin/plugin.json \
             plugins/cpln/.codex-plugin/mcp.json \
+            plugins/cpln/.cursor-plugin/plugin.json \
+            plugins/cpln/.cursor-plugin/mcp.json \
             plugins/cpln/.claude-mcp.json \
             plugins/cpln/hooks/cpln-hooks.json
 

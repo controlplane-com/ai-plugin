@@ -1,5 +1,5 @@
 ---
-name: cpln-firewall-networking
+name: firewall-networking
 description: "Configures firewall rules and service-to-service communication on Control Plane. Use when the user asks about inbound/outbound rules, CIDR whitelisting, IP blocking, hostname filtering, geo-blocking, header-based routing, internal endpoints, or network security. Covers external/internal firewall configuration, geo-filtering, header matching, and service mesh connectivity."
 ---
 

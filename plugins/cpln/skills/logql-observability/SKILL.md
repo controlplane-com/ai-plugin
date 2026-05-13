@@ -1,5 +1,5 @@
 ---
-name: cpln-logql-observability
+name: logql-observability
 description: "Queries workload logs and builds log dashboards on Control Plane. Use when the user asks about LogQL syntax, log search, viewing logs in Grafana, log stream selectors, log filtering, log patterns, log metrics extraction, or setting up log-based dashboards."
 ---
 

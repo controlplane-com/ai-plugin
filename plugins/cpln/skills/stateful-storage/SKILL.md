@@ -1,5 +1,5 @@
 ---
-name: cpln-stateful-storage
+name: stateful-storage
 description: "Creates persistent storage for stateful workloads on Control Plane. Use when the user asks about volumes, volume sets, disk, mounting storage, snapshots, volume expansion, ext4/xfs filesystem, shared storage, or backup patterns for stateful containers."
 ---
 

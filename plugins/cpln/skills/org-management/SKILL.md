@@ -1,5 +1,5 @@
 ---
-name: cpln-org-management
+name: org-management
 description: "Manages organizations, billing, users, and authentication on Control Plane. Use when the user asks about creating an org, billing setup, inviting users, SSO login, SAML authentication, CLI profiles, switching orgs, or multi-org membership. Covers org creation, billing accounts, user invitation, SSO/SAML, service account auth, and CLI profiles."
 ---
 

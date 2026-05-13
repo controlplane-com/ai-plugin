@@ -1,5 +1,5 @@
 ---
-name: cpln-image
+name: image
 description: "Builds, pushes, pulls, and manages container images on Control Plane. Use when the user asks about Docker build, image registry, image tags, Dockerfile, buildpacks, pull secrets, private registry, ECR/GCR/DockerHub integration, cross-org image sharing, or image permissions. Covers image reference formats, buildpack conventions, tagging strategies, and platform requirements."
 ---
 

@@ -1,5 +1,5 @@
 ---
-name: cpln-metrics-observability
+name: metrics-observability
 description: "Configures workload metrics, Prometheus scraping, and Grafana dashboards on Control Plane. Use when the user asks about CPU/memory/request metrics, custom metrics endpoints, Prometheus federation, centralized Grafana setup, or metric-driven autoscaling."
 ---
 

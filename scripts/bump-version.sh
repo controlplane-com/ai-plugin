@@ -9,6 +9,9 @@
 #   - plugins/cpln/.claude-plugin/plugin.json   .version
 #   - .claude-plugin/marketplace.json           .plugins[0].version
 #   - plugins/cpln/.codex-plugin/plugin.json    .version
+#   - plugins/cpln/.cursor-plugin/plugin.json   .version
+#   - .cursor-plugin/marketplace.json           .metadata.version
+#   - .cursor-plugin/marketplace.json           .plugins[0].version
 #   - gemini-extension.json                     .version
 #   - CHANGELOG.md                       [Unreleased] -> [X.Y.Z] - YYYY-MM-DD,
 #                                        plus a fresh empty [Unreleased] above it
@@ -55,6 +58,9 @@ bump_json() {
 bump_json plugins/cpln/.claude-plugin/plugin.json '.version'
 bump_json .claude-plugin/marketplace.json '.plugins[0].version'
 bump_json plugins/cpln/.codex-plugin/plugin.json '.version'
+bump_json plugins/cpln/.cursor-plugin/plugin.json '.version'
+bump_json .cursor-plugin/marketplace.json '.metadata.version'
+bump_json .cursor-plugin/marketplace.json '.plugins[0].version'
 bump_json gemini-extension.json '.version'
 
 # Promote the [Unreleased] section in CHANGELOG.md to [X.Y.Z] - DATE
@@ -84,6 +90,9 @@ for spec in \
   "plugins/cpln/.claude-plugin/plugin.json:.version" \
   ".claude-plugin/marketplace.json:.plugins[0].version" \
   "plugins/cpln/.codex-plugin/plugin.json:.version" \
+  "plugins/cpln/.cursor-plugin/plugin.json:.version" \
+  ".cursor-plugin/marketplace.json:.metadata.version" \
+  ".cursor-plugin/marketplace.json:.plugins[0].version" \
   "gemini-extension.json:.version"; do
   file="${spec%%:*}"
   path="${spec#*:}"
@@ -99,6 +108,8 @@ Bumped to $VERSION across:
   - plugins/cpln/.claude-plugin/plugin.json
   - .claude-plugin/marketplace.json
   - plugins/cpln/.codex-plugin/plugin.json
+  - plugins/cpln/.cursor-plugin/plugin.json
+  - .cursor-plugin/marketplace.json (metadata.version and plugins[0].version)
   - gemini-extension.json
   - CHANGELOG.md (Unreleased -> [$VERSION] - $TODAY)
 

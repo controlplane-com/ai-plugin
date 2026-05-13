@@ -1,5 +1,5 @@
 ---
-name: cpln-access-control
+name: access-control
 description: "Sets up access control, policies, and RBAC on Control Plane. Use when the user asks about permissions, policies, service accounts, user access, group membership, bindings, who can do what, least-privilege setup, or IAM. Covers policy creation, permission bindings, group management, service account setup, user invitation, and common RBAC patterns."
 ---
 
