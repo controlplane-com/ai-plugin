@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
+### Added
+
+### Changed
+
+### Fixed
+
+### Removed
+
+## [1.3.2] - 2026-05-13
+
 ### Fixed
 
 - Gemini CLI skills and agents missing since 1.2.0.
