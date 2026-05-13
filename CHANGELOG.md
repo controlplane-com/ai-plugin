@@ -14,6 +14,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Removed
 
+## [1.3.0] - 2026-05-12
+
+### Added
+
+- Cursor support. The plugin now installs into Cursor 2.6+ via Team Marketplaces (Teams and Enterprise plans). Public Cursor Marketplace listing is pending review.
+
 ## [1.2.1] - 2026-05-11
 
 ### Added
