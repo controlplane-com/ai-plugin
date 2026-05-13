@@ -12,9 +12,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Fixed
 
-- Gemini CLI slash commands missing since 1.2.0.
-
 ### Removed
+
+## [1.3.1] - 2026-05-13
+
+### Fixed
+
+- Gemini CLI slash commands missing since 1.2.0.
 
 ## [1.3.0] - 2026-05-12
 
