@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+#
+# Pre-commit hook: if any source skill/agent file under plugins/cpln/ is
+# staged for commit, regenerate the skills/ and agents/ mirrors at the
+# repo root and stage the result. This keeps the Gemini-facing mirrors
+# in sync with the Claude/Codex/Cursor source of truth without anyone
+# having to remember to run the script.
+#
+# Enable once per clone with:
+#   git config core.hooksPath .githooks
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+if git diff --cached --name-only --diff-filter=ACMRD \
+  | grep -qE '^plugins/cpln/(skills|agents)/'; then
+  "$REPO_ROOT/scripts/sync-gemini-content.sh" >/dev/null
+  git add "$REPO_ROOT/skills" "$REPO_ROOT/agents"
+fi

@@ -22,10 +22,19 @@ jq empty \
   plugins/cpln/.codex-plugin/mcp.json \
   plugins/cpln/.claude-mcp.json \
   plugins/cpln/hooks/cpln-hooks.json
+scripts/sync-gemini-content.sh --check
 gemini extensions validate .
 ```
 
 When changing a slash command, edit both the `.md` under `plugins/cpln/commands/` (read by Claude / Codex / Cursor) and the matching `.toml` at the repo root `commands/` (read by Gemini). Keep their `description` field aligned.
+
+Skills and agents live only at `plugins/cpln/skills/` and `plugins/cpln/agents/`. The `skills/` and `agents/` directories at the repo root are **generated mirrors for Gemini** — never edit them directly. The pre-commit hook in `.githooks/pre-commit` regenerates them whenever a source file is staged. Enable it once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+If you ever need to refresh the mirrors manually, run `scripts/sync-gemini-content.sh`.
 
 For Markdown-only changes, review links, tables, frontmatter, and command examples manually. This repository currently has no package manifest, build script, or test suite.
 
@@ -97,6 +106,7 @@ Run before tagging:
 - `gemini-extension.json` MCP block uses Gemini CLI fields (`httpUrl`, `headers`) and declares any required extension settings.
 - `LICENSE`, `SECURITY.md`, `.env.example`, `.gitignore` are present.
 - `gemini extensions validate .` is clean.
+- `scripts/sync-gemini-content.sh --check` passes (root `skills/` and `agents/` match `plugins/cpln/`).
 - `claude plugin validate .` is clean (or only the deliberate developer-CLAUDE.md warning).
 
 ## Pull Requests

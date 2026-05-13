@@ -79,6 +79,9 @@ jobs:
             plugins/cpln/.claude-mcp.json \
             plugins/cpln/hooks/cpln-hooks.json
 
+      - name: Validate Gemini skills/agents mirror is in sync
+        run: scripts/sync-gemini-content.sh --check
+
       - name: Extract release notes from CHANGELOG
         id: notes
         env:

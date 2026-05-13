@@ -7,8 +7,9 @@ End-user install and capability docs live in `README.md`. Development principles
 | Path | Purpose |
 | --- | --- |
 | `plugins/cpln/` | The plugin itself. Claude, Codex, and Cursor all resolve this as their plugin root. |
-| `plugins/cpln/skills/<name>/SKILL.md` | One domain skill per folder. Companion files (`*.md`) load on demand. |
-| `plugins/cpln/agents/<name>.md` | One guided workflow per file. Reference docs live under `plugins/cpln/references/<name>/`. |
+| `plugins/cpln/skills/<name>/SKILL.md` | One domain skill per folder. Companion files (`*.md`) load on demand. Source of truth — mirrored to `skills/` at the repo root for Gemini by `scripts/sync-gemini-content.sh`. |
+| `plugins/cpln/agents/<name>.md` | One guided workflow per file. Reference docs live under `plugins/cpln/references/<name>/`. Source of truth — mirrored to `agents/` at the repo root for Gemini by `scripts/sync-gemini-content.sh`. |
+| `skills/`, `agents/` | **Generated mirrors. Do not edit.** Refreshed automatically by the pre-commit hook in `.githooks/pre-commit` whenever a file under `plugins/cpln/{skills,agents}/` is staged. Also refreshed by `scripts/bump-version.sh` and validated on CI. |
 | `plugins/cpln/commands/<name>.md` | Slash command for Claude / Codex / Cursor. Each `.md` has a matching `.toml` at the repo root for Gemini — keep the pair aligned by name and description. |
 | `commands/<name>.toml` | Slash command for Gemini. Gemini discovers commands at the extension root (the repo root), not under `plugins/cpln/`. Authored separately from the matching `.md` because the `.toml` `prompt` is a tight model instruction while the `.md` body is user docs. |
 | `plugins/cpln/rules/*.md` | Guardrails and manifest references. Files with `alwaysApply: true` are injected into every session by the `SessionStart` hook in `plugins/cpln/hooks/cpln-hooks.json`. |
@@ -53,6 +54,12 @@ claude --plugin-dir ./plugins/cpln
 ```
 
 Loads the plugin from this working tree for one session. Edits to skills, agents, commands, rules pick up on `/reload-plugins`; edits to `plugin.json`, hooks, or MCP configs require restarting the session.
+
+Enable the pre-commit hook once per clone so the Gemini-facing `skills/` and `agents/` mirrors stay in sync automatically:
+
+```bash
+git config core.hooksPath .githooks
+```
 
 ## Validation
 

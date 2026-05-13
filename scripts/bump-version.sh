@@ -15,6 +15,8 @@
 #   - gemini-extension.json                     .version
 #   - CHANGELOG.md                       [Unreleased] -> [X.Y.Z] - YYYY-MM-DD,
 #                                        plus a fresh empty [Unreleased] above it
+#   - skills/, agents/                   regenerated from plugins/cpln/ via
+#                                        scripts/sync-gemini-content.sh
 #
 # Dependencies: jq, awk (BSD or GNU), date.
 
@@ -62,6 +64,11 @@ bump_json plugins/cpln/.cursor-plugin/plugin.json '.version'
 bump_json .cursor-plugin/marketplace.json '.metadata.version'
 bump_json .cursor-plugin/marketplace.json '.plugins[0].version'
 bump_json gemini-extension.json '.version'
+
+# Refresh the Gemini-facing skills/ and agents/ mirrors at the repo root
+# from plugins/cpln/. The pre-commit hook keeps these in sync during
+# normal development; this is the belt-and-suspenders at release time.
+"$REPO_ROOT/scripts/sync-gemini-content.sh"
 
 # Promote the [Unreleased] section in CHANGELOG.md to [X.Y.Z] - DATE
 # and seed a fresh empty [Unreleased] block above it.
