@@ -9,7 +9,8 @@ End-user install and capability docs live in `README.md`. Development principles
 | `plugins/cpln/` | The plugin itself. Claude, Codex, and Cursor all resolve this as their plugin root. |
 | `plugins/cpln/skills/<name>/SKILL.md` | One domain skill per folder. Companion files (`*.md`) load on demand. |
 | `plugins/cpln/agents/<name>.md` | One guided workflow per file. Reference docs live under `plugins/cpln/references/<name>/`. |
-| `plugins/cpln/commands/<name>.md` + `.toml` | One slash command per pair (`.md` for Claude/Codex, `.toml` for Gemini). Keep them aligned. |
+| `plugins/cpln/commands/<name>.md` | Slash command for Claude / Codex / Cursor. Each `.md` has a matching `.toml` at the repo root for Gemini — keep the pair aligned by name and description. |
+| `commands/<name>.toml` | Slash command for Gemini. Gemini discovers commands at the extension root (the repo root), not under `plugins/cpln/`. Authored separately from the matching `.md` because the `.toml` `prompt` is a tight model instruction while the `.md` body is user docs. |
 | `plugins/cpln/rules/*.md` | Guardrails and manifest references. Files with `alwaysApply: true` are injected into every session by the `SessionStart` hook in `plugins/cpln/hooks/cpln-hooks.json`. |
 | `plugins/cpln/.claude-plugin/plugin.json` | Claude plugin manifest. |
 | `plugins/cpln/.codex-plugin/plugin.json` + `mcp.json` | Codex manifest and MCP config. |

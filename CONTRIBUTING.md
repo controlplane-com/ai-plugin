@@ -25,6 +25,8 @@ jq empty \
 gemini extensions validate .
 ```
 
+When changing a slash command, edit both the `.md` under `plugins/cpln/commands/` (read by Claude / Codex / Cursor) and the matching `.toml` at the repo root `commands/` (read by Gemini). Keep their `description` field aligned.
+
 For Markdown-only changes, review links, tables, frontmatter, and command examples manually. This repository currently has no package manifest, build script, or test suite.
 
 ## Versioning
