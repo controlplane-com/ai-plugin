@@ -58,6 +58,8 @@ spec:
 
 ## File System Types
 
+The capability names below (`shrinkVolume`, `deleteVolume`, `restoreVolume`, `createVolumeSnapshot`, `deleteVolumeSnapshot`, `expandVolume`) are the **API operation `type` values** posted to the volumeset commands endpoint. The CLI exposes them as friendlier dedicated verbs — see `rules/cli-conventions.md` "Volumeset Command Verbs" for the verb mapping (`shrinkVolume` → `cpln volumeset shrink`, `deleteVolume` → `cpln volumeset volume delete`, `restoreVolume` → `cpln volumeset snapshot restore`, etc.).
+
 | Feature | ext4 | xfs | shared |
 |:---|:---|:---|:---|
 | Access mode | read-write-once | read-write-once | read-write-many |
@@ -123,7 +125,7 @@ spec:
 ## Volume Expansion
 
 - Volumes can only be expanded once every 6 hours
-- Cannot expand to a smaller size — use `shrinkVolume` for that (causes data loss)
+- Cannot expand to a smaller size — use `cpln volumeset shrink` (API operation `shrinkVolume`) for that. **Permanent data loss** — only safe for workloads with built-in replication. See `rules/cli-conventions.md` and the destructive-op confirmation shape in `rules/cpln-guardrails.md` before running.
 
 ## Common Validation Errors
 

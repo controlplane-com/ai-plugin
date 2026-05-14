@@ -29,28 +29,28 @@ Org (Organization) — top-level isolation boundary, globally unique name
 
 ## Platform Capabilities
 
-| Capability | When to use | Deeper guidance (skill) |
-|---|---|---|
-| **Workloads** — Deploy containers as serverless, standard, cron, or stateful | Primary deployment unit — most users start here | `autoscaling-capacity`, `workload-security` |
-| **Template Catalog** — 30+ templates (Postgres, Redis, Kafka, MongoDB, etc.) | Need a database, queue, or common service — install instead of building from scratch | `template-catalog` |
-| **Secrets** — 12 types with identity-based access control | Store credentials, certificates, config. Requires 3-step access (see below) | `access-control` |
-| **Images** — Build, push, copy container images | Containerize apps for deployment. Use `cpln image build --push` | `image` |
-| **Managed Kubernetes (mk8s)** — Provision K8s clusters across providers | Need a full K8s cluster; teams deploy INTO mk8s clusters | `mk8s-byok` |
-| **CPLN Platform (BYOK)** — Register existing K8s clusters as locations | Already have Kubernetes — want Control Plane workload management on top | `mk8s-byok` |
-| **Agents** — Secure tunnels to private networks (VPCs, on-prem) | Workloads need to reach private TCP endpoints behind firewalls | `native-networking` |
-| **Domains** — Custom domain routing with auto-TLS | Expose workloads on your own domain | Domain configurator agent |
-| **External Logging** — Ship logs to S3, Datadog, Coralogix, etc. | Compliance, long-term retention, or external log analysis | `external-logging` |
-| **MCP Server** — 80+ tools for AI agents | AI-assisted infrastructure management | — |
+| Capability                                                                   | When to use                                                                          | Deeper guidance (skill)                     |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------- |
+| **Workloads** — Deploy containers as serverless, standard, cron, or stateful | Primary deployment unit — most users start here                                      | `autoscaling-capacity`, `workload-security` |
+| **Template Catalog** — 30+ templates (Postgres, Redis, Kafka, MongoDB, etc.) | Need a database, queue, or common service — install instead of building from scratch | `template-catalog`                          |
+| **Secrets** — 12 types with identity-based access control                    | Store credentials, certificates, config. Requires 3-step access (see below)          | `access-control`                            |
+| **Images** — Build, push, copy container images                              | Containerize apps for deployment. Use `cpln image build --push`                      | `image`                                     |
+| **Managed Kubernetes (mk8s)** — Provision K8s clusters across providers      | Need a full K8s cluster; teams deploy INTO mk8s clusters                             | `mk8s-byok`                                 |
+| **CPLN Platform (BYOK)** — Register existing K8s clusters as locations       | Already have Kubernetes — want Control Plane workload management on top              | `mk8s-byok`                                 |
+| **Agents** — Secure tunnels to private networks (VPCs, on-prem)              | Workloads need to reach private TCP endpoints behind firewalls                       | `native-networking`                         |
+| **Domains** — Custom domain routing with auto-TLS                            | Expose workloads on your own domain                                                  | Domain configurator agent                   |
+| **External Logging** — Ship logs to S3, Datadog, Coralogix, etc.             | Compliance, long-term retention, or external log analysis                            | `external-logging`                          |
+| **MCP Server** — 80+ tools for AI agents                                     | AI-assisted infrastructure management                                                | —                                           |
 
 ## When to Use What
 
-| Scenario | Use |
-|---|---|
-| One-off deployments, visual exploration | Console UI |
-| GitOps, CI/CD automation, reproducible deployments | CLI with `cpln apply` |
-| Infrastructure as code, team collaboration, state management | Terraform / Pulumi |
-| Debugging, interactive exploration | CLI (`exec`, `logs`, `connect`) |
-| AI-assisted infrastructure management | MCP Server |
+| Scenario                                                     | Use                             |
+| ------------------------------------------------------------ | ------------------------------- |
+| One-off deployments, visual exploration                      | Console UI                      |
+| GitOps, CI/CD automation, reproducible deployments           | CLI with `cpln apply`           |
+| Infrastructure as code, team collaboration, state management | Terraform / Pulumi              |
+| Debugging, interactive exploration                           | CLI (`exec`, `logs`, `connect`) |
+| AI-assisted infrastructure management                        | MCP Server                      |
 
 ## Guardrails
 
@@ -58,7 +58,7 @@ These rules prevent real production failures. Every item below has caused incide
 
 ### Org / Profile / GVC Confirmation (ask before mutating)
 
-**Before running any `cpln` command that mutates state** — `create`, `delete`, `update`, `apply`, `patch`, `edit`, `add-binding`, `remove-binding`, `add-key`, `force-redeployment`, `clone`, `image build --push`, secret create-* variants, `add-location` / `remove-location`, etc. — the target **org**, **profile**, and (where applicable) **GVC** must be unambiguously established. If any is missing, **stop and ask before acting. Never silently fall back to whatever the active CLI profile happens to point at.**
+**Before running any `cpln` command that mutates state** — `create`, `delete`, `update`, `apply`, `patch`, `edit`, `add-binding`, `remove-binding`, `add-key`, `force-redeployment`, `clone`, `image build --push`, secret create-\* variants, `add-location` / `remove-location`, etc. — the target **org**, **profile**, and (where applicable) **GVC** must be unambiguously established. If any is missing, **stop and ask before acting. Never silently fall back to whatever the active CLI profile happens to point at.**
 
 Context is considered "established" only if one of these is true:
 
@@ -71,7 +71,7 @@ If any of those is unclear, ask. Propose what looks right and request confirmati
 
 > Before I run this, I want to confirm the target. Your active profile appears to be `<name>` (org: `<org>`, GVC: `<gvc>`). Should I use that, or a different org / profile / GVC?
 
-For **read-only** commands (`get`, `query`, `audit`, `logs`, `permissions`, `access-report`, `eventlog`), defaulting to the active profile is acceptable — but **announce the target before running**: *"Using profile `<name>` → org `<org>`, GVC `<gvc>`…"* — so the user can correct course before output is produced.
+For **read-only** commands (`get`, `query`, `audit`, `logs`, `permissions`, `access-report`, `eventlog`), defaulting to the active profile is acceptable — but **announce the target before running**: _"Using profile `<name>` → org `<org>`, GVC `<gvc>`…"_ — so the user can correct course before output is produced.
 
 **Why this rule exists.** Operating on the wrong org or GVC has caused production deletes, cross-environment secret leaks, and accidental cross-tenant changes. The cost of asking is one extra turn; the cost of acting on the wrong context is irreversible.
 
@@ -90,21 +90,91 @@ Missing any one step = silent failure at runtime. This is the #1 support issue.
 - **NEVER** prefix external images with `docker.io/`. Use `nginx:latest`, not `docker.io/library/nginx:latest`.
 - Your own org's registry: use `//image/NAME:TAG` in workload specs. `<own-org>.registry.cpln.io/...` is only for `docker login` / `docker push`, never in specs.
 - Another Control Plane org's registry: use the hostname form `<other-org>.registry.cpln.io/NAME:TAG` in workload specs (cross-org pull). See the **cpln-image** skill for the full reference table.
-- All images must be `linux/amd64`. Wrong platform causes `exec format error`.
+- **All images must be `linux/amd64`**. Wrong platform causes `exec format error` at runtime. On Apple Silicon / arm64 workstations, always run `cpln image build --push` and verify the artifact platform with `cpln image get image-name:image-tag --org <org>` before releasing; rebuild immediately if the digest shows a different architecture.
 - Port in workload spec must match the port the container actually listens on.
+- **`cpln image build` / `cpln image copy` write streaming progress (and warning text) to stderr** even while healthy. Do not abort early — wait for the final JSON summary that includes both `"image": "<org>.registry.../name:tag"` and `"link": "/org/<org>/image/<name>:<tag>"`, then verify with `cpln image get`.
+- When copying images across orgs (`cpln image copy <ref>`), use `--to-org` for the destination, `--to-name` to retag, and `--cleanup` to remove the local pulled/retagged copy. Source credentials come from `--profile` (or the active profile); destination credentials come from `--to-profile` — set it when the target org is on a different profile than the source.
+- **Before deleting an image, verify it is not referenced by any workload** (`cpln workload get --org <org> --gvc <gvc> --output json` and search for the image link). A deleted image still in use by a workload will fail to pull on the next replica restart.
+- Avoid trailing `.` in `cpln image build --name` — the simple `<name>:<tag>` form is what the CLI expects.
 
 ### Firewall Defaults
 
 - **Internal** (workload-to-workload): `none` — all blocked. Set to `same-gvc`, `same-org`, or `workload-list`.
 - **External inbound**: disabled. Add CIDR addresses (`0.0.0.0/0` for all).
 - **External outbound**: disabled. Add CIDRs or hostnames (hostname: ports 80, 443, 445 only).
+- **A workload is "public" only when BOTH external CIDRs are set**: `spec.firewallConfig.external.inboundAllowCIDR: ['0.0.0.0/0']` AND `outboundAllowCIDR: ['0.0.0.0/0']`. Setting one without the other ships a half-broken workload.
+
+### Workload Spec Defaults — Opt-in, Not Default
+
+- **`spec.identityLink`** — leave unset by default. Only attach an identity when the workload genuinely needs Control Plane secrets, cloud-account access, or private-network access. Attaching one to a plain public service grants permissions it should not have.
+- **`spec.defaultOptions.loadBalancer.enabled`** — leave `false` by default. Only enable when the user has explicitly asked for custom port / load-balancer behaviour, and call out the reason inline in the response.
+- **`spec.loadBalancer.direct.enabled: true`** — only when the user needs per-location public endpoints, custom TCP/UDP ports, or to bypass standard domain routing. Otherwise rely on the GVC-level `loadBalancer.dedicated` option. When enabling direct, set `externalPort` / `protocol` / `containerPort` together; optionally reference an `IpSet` for static IPs.
 
 ### Workload Type Constraints
 
-- **Scale to zero**: Serverless with `rps` or `concurrency` only. Cron cannot scale to zero.
-- **Capacity AI**: NOT with Stateful workloads, CPU autoscaling, or multi-metric.
-- **Cron**: Deploys to ALL GVC locations, no overrides. Cannot expose ports.
+- **Scale to zero**: Native on Serverless with `metric: rps` or `concurrency` only. Standard and Stateful can scale to zero **via KEDA** (`metric: keda`) — not with native CPU/memory/latency/multi metrics. Cron cannot scale to zero (runs on schedule, not autoscaled).
+- **Capacity AI**: NOT compatible with Stateful workloads, CPU autoscaling, or multi-metric autoscaling.
+- **Cron**: Deploys to ALL GVC locations, no per-location overrides. Cannot expose ports.
 - **Workload type is immutable** after creation. Changing type requires delete + recreate.
+- **Workload name is immutable**. "Renaming" requires `clone` (preferred) or get → edit → apply (new name) → delete (old).
+- **Volumeset filesystem type and performance class are immutable**. Changing either requires delete + recreate (data loss).
+
+### Org Immutability
+
+**Organizations are immutable.** Once created, they cannot be deleted via the API, CLI, or any MCP tool — removal requires Control Plane support. There is no `cpln org delete` and the MCP `cpln_resource_operation` cannot create or delete orgs (org creation lives on a different endpoint than the org-scoped API at `https://api.cpln.io`).
+
+Org creation paths (for completeness):
+
+- CLI: `cpln org create --name <name> --accountId <account-id> --invitee <email>...`
+- Control Plane UI
+- Terraform
+
+Never promise the user that an org can be deleted. Never attempt it.
+
+### Secret Reveal Is Break-Glass
+
+`cpln secret get` never returns the data payload. Only **`cpln secret reveal`** (and the MCP `reveal_secret` / `workload_reveal_secret` tools) return plaintext, and they require a token / identity bound to a policy with `reveal` permission.
+
+- Treat reveal as a **break-glass operation**: rotation, debugging, one-time inspection. Never a routine read.
+- Prefer workload bindings or environment references (`cpln://secret/NAME`) so the secret flows to the workload without ever transiting through the LLM context.
+- Log every reveal for audit. If the plaintext leaks, rotate the credential immediately.
+
+### Force Redeployment Is Not a Rollout
+
+`cpln workload force-redeployment` (and the equivalent flow) restarts replicas without changing the spec — useful when a referenced secret or config map was updated. It is **not** a substitute for an image rollout:
+
+- For new images: `cpln workload update --set spec.containers.<container>.image=<image>:<tag>` or apply an updated manifest with `cpln apply --file <m>.yaml --ready`. Validate the new image with `cpln image get` first.
+- Reaching for `force-redeployment` to "try again" after a failed deploy hides the real problem. Diagnose first (`cpln workload get-deployments`, `cpln logs`), fix the manifest, then re-apply.
+
+### Stop / Start — Traffic Halts Immediately
+
+`cpln workload stop` sets `spec.defaultOptions.suspend = true` and traffic to the workload halts immediately. `cpln workload start` clears the flag. Before stopping:
+
+- Coordinate with downstream dependencies (anything calling this workload sees connection errors).
+- For cron workloads, `suspend = true` is the documented pause path; pair with `cpln workload cron start` for manual on-demand runs.
+
+### Domain DNS Verification
+
+`cpln domain create` fails when the required TXT and CNAME records are missing. The CLI prints the exact values to publish:
+
+1. Surface those exact values to the user (don't paraphrase).
+2. Wait for DNS propagation (typically minutes; can be longer for some registrars).
+3. Rerun `cpln domain create` (or `cpln domain get <fqdn> -o yaml`) to confirm verification.
+
+Treat DNS-not-yet-verified as a known-state failure, not an error to retry blindly.
+
+### Agent Bootstrap Is Printed Once
+
+`cpln agent create --name <agent> --org <org> ... > bootstrap-config.json` prints the bootstrap JSON **exactly once**. There is no way to retrieve it later. If the file is lost, the agent must be deleted and recreated.
+
+- Pipe to a file at creation time. Always.
+- Verify the agent reaches `ready` after running `cpln agent up` — until then, identity network resources referencing the agent won't route traffic.
+
+### Kubernetes Migration: `cpln convert` Is for Existing Manifests Only
+
+`cpln convert` translates existing Kubernetes manifests into Control Plane specs. Use it when migrating an existing workload. **Do not** draft new Kubernetes YAML solely to pass through `convert` — for greenfield work, write native CPLN workload specs from the OpenAPI definitions instead. Native specs are more concise and avoid translation quirks.
+
+Always **draft new specs from the OpenAPI definitions** (or `cpln <resource> manifest`), not from existing environment-specific resources that may have drifted.
 
 ### Destructive Operations — Always Confirm With Blast Radius
 
@@ -138,7 +208,7 @@ When delete + recreate is the only path, the AI must:
 
 1. **Capture the current state first.** `cpln <resource> get NAME -o yaml-slim > <name>.bak.yaml` so a roll-back exists. Never delete a resource you cannot reconstruct.
 2. **Reuse the same name on recreate** unless the user explicitly wants a new name. Preserves the public URL (`<workload>.<gvc>.cpln.app`), internal DNS callers (`<workload>.<gvc>.cpln.local`), domain routes, policy `targetLinks`, identity bindings, and external consumers.
-3. **Confirm before deleting.** The user authorized the *goal* ("add storage"), not the *technique* ("delete and recreate"). Those are separate decisions.
+3. **Confirm before deleting.** The user authorized the _goal_ ("add storage"), not the _technique_ ("delete and recreate"). Those are separate decisions.
 
 **Required confirmation shape — output exactly this structure:**
 
@@ -156,7 +226,7 @@ If the answer is anything other than an unambiguous yes, **do not proceed**. "Ma
 
 If a single user task requires several destructive operations, ask once at the start with the full plan enumerated — don't death-by-a-thousand-prompts. But do not bundle a destructive op with non-destructive ones to make it slip through; surface it explicitly.
 
-**Why this rule exists.** Acting on the wrong resource — or on the right resource at the wrong moment — has caused production data loss and user-visible downtime. The cost of one extra round-trip is trivial; the cost of an unintended destructive action is sometimes irreversible. The AI must never assume that authorization for a *goal* extends to authorization for a destructive *means*.
+**Why this rule exists.** Acting on the wrong resource — or on the right resource at the wrong moment — has caused production data loss and user-visible downtime. The cost of one extra round-trip is trivial; the cost of an unintended destructive action is sometimes irreversible. The AI must never assume that authorization for a _goal_ extends to authorization for a destructive _means_.
 
 ### Constraint Conflicts — Surface, Don't Silently Default
 
@@ -204,9 +274,9 @@ Some Control Plane operations take minutes: stateful workload provisioning (volu
 
 **Default wait is `cpln apply --file <m>.yaml --ready`.** Simple, blocks inside the CLI, AI tokens during the wait ≈ 0, returns the CLI's own readiness verdict. Use this for the common case — routine deploys, config tweaks on healthy workloads, anything where the failure surface is small.
 
-**The one gap to know about:** `--ready` blocks until *ready or its default timeout* — it does NOT fail fast when a container has terminally errored on startup (exit code != 0, image pull error, crashloop, fatal in user code). On a misconfigured first-deploy, plain `--ready` will sit through its full default timeout (typically minutes) while the container is already dead. That's wasted wall-clock and obscures the actual failure.
+**The one gap to know about:** `--ready` blocks until _ready or its default timeout_ — it does NOT fail fast when a container has terminally errored on startup (exit code != 0, image pull error, crashloop, fatal in user code). On a misconfigured first-deploy, plain `--ready` will sit through its full default timeout (typically minutes) while the container is already dead. That's wasted wall-clock and obscures the actual failure.
 
-**Use a "patience-windowed safety net" for first-deploys / risky applies / re-applies after a recent failure.** Pattern: run `cpln apply --ready` in the background, sleep the *expected* wait time for this workload type (so we don't peek before the workload has had legitimate time to come up), then watch for *confirmed* terminal container errors only — killing the apply early if found. If the workload is still legitimately starting past the window, the watcher leaves it alone and `--ready` continues to its natural conclusion.
+**Use a "patience-windowed safety net" for first-deploys / risky applies / re-applies after a recent failure.** Pattern: run `cpln apply --ready` in the background, sleep the _expected_ wait time for this workload type (so we don't peek before the workload has had legitimate time to come up), then watch for _confirmed_ terminal container errors only — killing the apply early if found. If the workload is still legitimately starting past the window, the watcher leaves it alone and `--ready` continues to its natural conclusion.
 
 ```bash
 # Apply with --ready in the background — handles the happy path correctly
@@ -242,16 +312,16 @@ Three exit conditions: `0` = ready (proceed), `2` = watcher killed the apply on 
 
 **When to wrap, when not to:**
 
-| Situation | Plain `--ready` | Use the safety net |
-|---|---|---|
-| Bumping image tag on a workload that's been healthy for a while | ✅ | — |
-| Updating env vars on a healthy workload | ✅ | — |
-| Re-applying after a small config tweak | ✅ | — |
-| **First-deploy of a brand-new workload** | — | ✅ |
-| **First-deploy of a stateful workload** (volumeset + container schedule) | — | ✅ |
-| **Newly-built image with no prior deploy of that tag** | — | ✅ |
-| **Re-applying after a recent failure** ("I just fixed the DSN, let's try again") | — | ✅ |
-| Migrating workload type (delete + recreate as stateful) | — | ✅ |
+| Situation                                                                        | Plain `--ready` | Use the safety net |
+| -------------------------------------------------------------------------------- | --------------- | ------------------ |
+| Bumping image tag on a workload that's been healthy for a while                  | ✅              | —                  |
+| Updating env vars on a healthy workload                                          | ✅              | —                  |
+| Re-applying after a small config tweak                                           | ✅              | —                  |
+| **First-deploy of a brand-new workload**                                         | —               | ✅                 |
+| **First-deploy of a stateful workload** (volumeset + container schedule)         | —               | ✅                 |
+| **Newly-built image with no prior deploy of that tag**                           | —               | ✅                 |
+| **Re-applying after a recent failure** ("I just fixed the DSN, let's try again") | —               | ✅                 |
+| Migrating workload type (delete + recreate as stateful)                          | —               | ✅                 |
 
 **Other waits — patterns unchanged from the previous rule:**
 
@@ -275,18 +345,18 @@ When the safety net kills the apply (exit 2), or `--ready` itself exits non-zero
 
 After a successful `READY` exit, the AI may issue **one** follow-up sanity check to confirm the desired state landed. If that single check surfaces an unexpected state, diagnose — never another wait.
 
-**Set expectations upfront for waits >90s.** Tell the user the expected range *before* starting. Demo audiences and operators both hate silent multi-minute pauses. Reference table:
+**Set expectations upfront for waits >90s.** Tell the user the expected range _before_ starting. Demo audiences and operators both hate silent multi-minute pauses. Reference table:
 
-| Operation | Typical wait |
-|---|---|
-| Serverless workload first deploy | 30–90s |
-| Standard workload first deploy | 30–90s |
-| **Stateful workload first deploy (volumeset provision + container)** | **2–5 min** |
-| `cpln workload force-redeployment` | 30–90s (existing replica replaced) |
-| Volumeset expand | 30–60s (live, no downtime) |
-| Large image push (1GB+) | 1–5 min |
-| New GVC + first workload (cold path) | 1–3 min |
-| mk8s cluster provisioning | 10–30+ min (always background or skip) |
+| Operation                                                            | Typical wait                           |
+| -------------------------------------------------------------------- | -------------------------------------- |
+| Serverless workload first deploy                                     | 30–90s                                 |
+| Standard workload first deploy                                       | 30–90s                                 |
+| **Stateful workload first deploy (volumeset provision + container)** | **2–5 min**                            |
+| `cpln workload force-redeployment`                                   | 30–90s (existing replica replaced)     |
+| Volumeset expand                                                     | 30–60s (live, no downtime)             |
+| Large image push (1GB+)                                              | 1–5 min                                |
+| New GVC + first workload (cold path)                                 | 1–3 min                                |
+| mk8s cluster provisioning                                            | 10–30+ min (always background or skip) |
 
 **Why this rule exists.** AI-driven polling loops are the most expensive thing the AI can do for the least value. The CLI already knows how to wait — let it. Polls also produce noisy log output that pollutes context for downstream operations.
 
@@ -300,7 +370,7 @@ Scale-to-zero is a real Control Plane capability and the AI may explain how it w
 
 - **Internal tools used by humans, very rarely** — admin dashboards, internal status pages, infrequent batch triggers. Cold-start is acceptable because the user is internal and the access pattern is human, not automated.
 - **Dev / staging / preview environments** — cost matters more than latency; flaky cold starts are a known cost.
-- **Event-driven workers behind a queue with retry semantics** — KEDA-driven workers that consume from a queue (Kafka, Redis, SQS) where the producer retries. The first message after idle pays the cold start, but the queue absorbs the latency. Cron-equivalent workloads *should* use the cron type instead.
+- **Event-driven workers behind a queue with retry semantics** — KEDA-driven workers that consume from a queue (Kafka, Redis, SQS) where the producer retries. The first message after idle pays the cold start, but the queue absorbs the latency. Cron-equivalent workloads _should_ use the cron type instead.
 - **Background jobs the user explicitly framed as "scale up only when there's work"** — pre-rendering, batch ingestion, on-demand compute kicked off by a known caller that tolerates startup time.
 
 **Never use scale-to-zero for** (default to `minScale ≥ 1` and surface the tradeoff if the user pushed back):
@@ -340,17 +410,17 @@ Whenever the AI proposes a new workload, edits an existing one, or generates a m
 
 **Required minimums for any workload destined for prod-like use** (everything except scratch/debug workloads the user explicitly labelled as such):
 
-| Setting | Minimum | Why |
-|---|---|---|
-| `cpu` (max ceiling) | `250m` for typical HTTP API; `500m`+ for moderate compute; `1000m`+ for compute-heavy | Platform default `50m` will throttle even a hello-world Node/Python process under load. Capacity AI scales DOWN from this ceiling — it never raises it. |
-| `memory` (max ceiling) | `256Mi` for tiny services; `512Mi`–`1Gi` for typical APIs; size up for caching/data work | Platform default `128Mi` OOM-kills most modern runtimes. Memory:CPU ratio must stay ≤ 8 (relaxed to 32 with `cpln/relaxMemoryToCpuRatio` tag). |
-| `minCpu` / `minMemory` (Capacity AI floor) | `25m` / `32Mi` floor; raise if the app has a sustained baseline | Required for Capacity AI on Standard/Serverless. Stateful needs `cpu/minCpu ≤ 4` and `memory/minMemory ≤ 4`. |
-| `autoscaling.minScale` | **`2`** for any user-facing service; `1` only when explicitly justified (single-writer DB, bg job with single owner, dev) | Single replica = single point of failure: any restart, deploy, node loss, or location issue is full downtime. |
-| `autoscaling.maxScale` | Sized to expected peak load × headroom (e.g. p95 RPS / per-replica capacity × 1.5) | Default `5` is rarely the right cap; either too tight for real traffic or too loose for cost. |
-| `autoscaling.metric` | Pick by traffic shape per `cpln-autoscaling-capacity` decision tree — never silently `disabled` | `disabled` ships fixed replicas, which is wrong for almost any production HTTP workload. |
-| **`readinessProbe`** | Explicit `httpGet` against a real health endpoint (`/healthz`, `/ready`); `periodSeconds: 10`, `failureThreshold: 3`, `initialDelaySeconds` tuned to startup time | Without it, traffic hits a replica before it's ready (deploy = brief errors). On Standard/Stateful, probes are **disabled by default** — they MUST be added explicitly. |
-| **`livenessProbe`** | Explicit `httpGet` (or `tcpSocket` if no HTTP healthcheck), looser cadence than readiness (`periodSeconds: 30`, `failureThreshold: 3`) | Without it, a hung process serves degraded forever. Liveness must NOT be the same probe as readiness — readiness gates traffic, liveness restarts the container. |
-| Firewall | Set explicitly per workload purpose; never inherit defaults blindly | Internal default is `none` (workload can't be reached by siblings); external is disabled (no public traffic). Both are correct as defaults but wrong if the workload's job is to serve traffic. |
+| Setting                                    | Minimum                                                                                                                                                           | Why                                                                                                                                                                                             |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cpu` (max ceiling)                        | `250m` for typical HTTP API; `500m`+ for moderate compute; `1000m`+ for compute-heavy                                                                             | Platform default `50m` will throttle even a hello-world Node/Python process under load. Capacity AI scales DOWN from this ceiling — it never raises it.                                         |
+| `memory` (max ceiling)                     | `256Mi` for tiny services; `512Mi`–`1Gi` for typical APIs; size up for caching/data work                                                                          | Platform default `128Mi` OOM-kills most modern runtimes. Memory:CPU ratio must stay ≤ 8 (relaxed to 32 with `cpln/relaxMemoryToCpuRatio` tag).                                                  |
+| `minCpu` / `minMemory` (Capacity AI floor) | `25m` / `32Mi` floor; raise if the app has a sustained baseline                                                                                                   | Required for Capacity AI on Standard/Serverless. Stateful needs `cpu/minCpu ≤ 4` and `memory/minMemory ≤ 4`.                                                                                    |
+| `autoscaling.minScale`                     | **`2`** for any user-facing service; `1` only when explicitly justified (single-writer DB, bg job with single owner, dev)                                         | Single replica = single point of failure: any restart, deploy, node loss, or location issue is full downtime.                                                                                   |
+| `autoscaling.maxScale`                     | Sized to expected peak load × headroom (e.g. p95 RPS / per-replica capacity × 1.5)                                                                                | Default `5` is rarely the right cap; either too tight for real traffic or too loose for cost.                                                                                                   |
+| `autoscaling.metric`                       | Pick by traffic shape per `cpln-autoscaling-capacity` decision tree — never silently `disabled`                                                                   | `disabled` ships fixed replicas, which is wrong for almost any production HTTP workload.                                                                                                        |
+| **`readinessProbe`**                       | Explicit `httpGet` against a real health endpoint (`/healthz`, `/ready`); `periodSeconds: 10`, `failureThreshold: 3`, `initialDelaySeconds` tuned to startup time | Without it, traffic hits a replica before it's ready (deploy = brief errors). On Standard/Stateful, probes are **disabled by default** — they MUST be added explicitly.                         |
+| **`livenessProbe`**                        | Explicit `httpGet` (or `tcpSocket` if no HTTP healthcheck), looser cadence than readiness (`periodSeconds: 30`, `failureThreshold: 3`)                            | Without it, a hung process serves degraded forever. Liveness must NOT be the same probe as readiness — readiness gates traffic, liveness restarts the container.                                |
+| Firewall                                   | Set explicitly per workload purpose; never inherit defaults blindly                                                                                               | Internal default is `none` (workload can't be reached by siblings); external is disabled (no public traffic). Both are correct as defaults but wrong if the workload's job is to serve traffic. |
 
 **Required shape — when proposing or modifying a workload, output exactly this structure:**
 
@@ -389,35 +459,35 @@ When the user needs a database, cache, queue, broker, search engine, gateway, WA
 
 **Trigger words and the matching template** (ask `cpln-template-catalog` skill for the full table; this is the always-on shortlist):
 
-| User asks for… | Recommend template |
-|---|---|
-| Postgres, PostgreSQL | `postgres` (single-node) or `postgres-highly-available` (HA, Patroni + etcd) |
-| MySQL | `mysql` |
-| MariaDB | `mariadb` |
-| MongoDB, document store | `mongodb` |
-| PostGIS, geospatial Postgres | `postgis` |
-| Multi-master Postgres | `pgedge` |
-| CockroachDB, distributed SQL | `cockroach` |
-| TiDB, MySQL-compatible distributed SQL | `tidb` |
-| ClickHouse, OLAP, analytics DB | `clickhouse` |
-| Redis (cache, KV) | `redis`, `redis-cluster` (sharded), or `redis-multi-location` (cross-region failover) |
-| etcd, distributed KV | `etcd` |
-| Kafka, event streaming | `kafka` |
-| RabbitMQ, AMQP broker | `rabbitmq` |
-| NATS messaging | `nats` |
-| Full-text search, OpenSearch, Elasticsearch | `manticore` or `opensearch` |
-| Nginx, reverse proxy | `nginx` |
-| API gateway | `tyk` |
-| WAF, web application firewall | `coraza` |
-| VPN mesh, Tailscale | `tailscale` |
-| Workflow orchestration, Airflow | `airflow` |
-| Identity / auth provider | `fusionauth` |
-| S3-compatible object storage | `minio` |
-| LLM inference (Ollama / local models) | `ollama` |
-| Database admin UI | `dbeaver` |
-| Batch job runner | `cpln-task-runner` |
-| External secret syncing | `ess` or `secret-env-var-syncer` |
-| OpenTelemetry / metrics+traces+logs collector | `otel-collector` |
+| User asks for…                                | Recommend template                                                                    |
+| --------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Postgres, PostgreSQL                          | `postgres` (single-node) or `postgres-highly-available` (HA, Patroni + etcd)          |
+| MySQL                                         | `mysql`                                                                               |
+| MariaDB                                       | `mariadb`                                                                             |
+| MongoDB, document store                       | `mongodb`                                                                             |
+| PostGIS, geospatial Postgres                  | `postgis`                                                                             |
+| Multi-master Postgres                         | `pgedge`                                                                              |
+| CockroachDB, distributed SQL                  | `cockroach`                                                                           |
+| TiDB, MySQL-compatible distributed SQL        | `tidb`                                                                                |
+| ClickHouse, OLAP, analytics DB                | `clickhouse`                                                                          |
+| Redis (cache, KV)                             | `redis`, `redis-cluster` (sharded), or `redis-multi-location` (cross-region failover) |
+| etcd, distributed KV                          | `etcd`                                                                                |
+| Kafka, event streaming                        | `kafka`                                                                               |
+| RabbitMQ, AMQP broker                         | `rabbitmq`                                                                            |
+| NATS messaging                                | `nats`                                                                                |
+| Full-text search, OpenSearch, Elasticsearch   | `manticore` or `opensearch`                                                           |
+| Nginx, reverse proxy                          | `nginx`                                                                               |
+| API gateway                                   | `tyk`                                                                                 |
+| WAF, web application firewall                 | `coraza`                                                                              |
+| VPN mesh, Tailscale                           | `tailscale`                                                                           |
+| Workflow orchestration, Airflow               | `airflow`                                                                             |
+| Identity / auth provider                      | `fusionauth`                                                                          |
+| S3-compatible object storage                  | `minio`                                                                               |
+| LLM inference (Ollama / local models)         | `ollama`                                                                              |
+| Database admin UI                             | `dbeaver`                                                                             |
+| Batch job runner                              | `cpln-task-runner`                                                                    |
+| External secret syncing                       | `ess` or `secret-env-var-syncer`                                                      |
+| OpenTelemetry / metrics+traces+logs collector | `otel-collector`                                                                      |
 
 **Required shape — output exactly this structure when a request matches the table:**
 
@@ -460,15 +530,15 @@ For installation flow, configuration, and the full template list, see the `cpln-
 
 ## Boundaries
 
-| Action | CLI / API / Terraform | Console only |
-|---|:-:|:-:|
-| Create/manage orgs, GVCs, workloads, secrets, policies | Yes | Yes |
-| Push container images | Yes (CLI) | No |
-| Configure domains and routing | Yes | Yes |
-| Manage billing and payment methods | No | Yes |
-| View Grafana metrics dashboards | No | Yes |
-| Interactive debugging (exec, connect, logs) | Yes (CLI) | Yes |
-| Install templates from catalog | Yes | Yes |
+| Action                                                 | CLI / API / Terraform | Console only |
+| ------------------------------------------------------ | :-------------------: | :----------: |
+| Create/manage orgs, GVCs, workloads, secrets, policies |          Yes          |     Yes      |
+| Push container images                                  |       Yes (CLI)       |      No      |
+| Configure domains and routing                          |          Yes          |     Yes      |
+| Manage billing and payment methods                     |          No           |     Yes      |
+| View Grafana metrics dashboards                        |          No           |     Yes      |
+| Interactive debugging (exec, connect, logs)            |       Yes (CLI)       |     Yes      |
+| Install templates from catalog                         |          Yes          |     Yes      |
 
 ## Verification Checklist
 

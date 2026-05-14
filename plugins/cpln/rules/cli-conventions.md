@@ -5,7 +5,7 @@ alwaysApply: true
 
 # cpln CLI Conventions
 
-**Never write a cpln command from memory.** Verify with `cpln <command> --help` or `mcp__cpln__cpln_suggest`.
+**Never write a cpln command from memory.** Verify every verb and flag with `cpln <command> --help` (or `cpln <resource> <subcommand> --help`) before quoting any command. If you cannot cite a verified flag, state that you cannot verify the command instead of guessing.
 
 ## Command Structure
 
@@ -269,6 +269,21 @@ Flags: `--address`, `--location`, `--replica`.
 - `cpln helm install RELEASE CHART --gvc GVC` — Helm chart management
 - `cpln stack deploy --compose-file FILE --gvc GVC` — Docker Compose deployment
 
+### Volumeset Command Verbs
+
+The volumeset surface has **dedicated subcommands per operation** — there is no `cpln volumeset command create --type <kind>` form. Use the verbs below (verified against the cpln CLI source):
+
+| Operation | Command | Risk |
+|---|---|---|
+| Expand volume | `cpln volumeset expand <ref> --new-size <gb> --locations <loc> [--volume-indexes <idx>]` | Safe |
+| Create snapshot | `cpln volumeset snapshot create <ref> --snapshot-name <name> --locations <loc>` | Safe |
+| Restore snapshot | `cpln volumeset snapshot restore <ref> --snapshot-name <name> --locations <loc>` | Overwrites volume state |
+| Delete snapshot | `cpln volumeset snapshot delete <ref> --snapshot-name <name>` | Destructive |
+| Delete volume | `cpln volumeset volume delete <ref> --locations <loc> --volume-indexes <idx>` | Destructive (data loss) |
+| Shrink volume | `cpln volumeset shrink <ref> --new-size <gb> --locations <loc>` | **DESTRUCTIVE — permanent data loss** |
+
+`shrink` provisions a new volume at the smaller size and removes the old one — data is **NOT** migrated. Only safe for workloads with built-in redundancy (Kafka with proper replication factor; distributed databases like Cassandra / CockroachDB; anything where data is rebuildable from replicas). Only available on `ext4` and `xfs` filesystems (not `shared`). Apply the destructive-op confirmation shape from `cpln-guardrails.md` before running.
+
 ## Commands That DON'T Exist
 
 | Wrong | Correct |
@@ -283,6 +298,8 @@ Flags: `--address`, `--location`, `--replica`.
 | `cpln workload update --identity X` | `cpln workload update REF --set spec.identityLink=//identity/X` |
 | `cpln secret update --data '{}'` | `cpln secret edit REF` or `cpln apply --file` |
 | `cpln gvc update --location LOC` | `cpln gvc update REF --set 'spec.staticPlacement.locationLinks+=//location/LOC'` |
+| `cpln volumeset command create --type <kind>` | Use the dedicated verb — `cpln volumeset expand`, `cpln volumeset snapshot create`, `cpln volumeset volume delete`, etc. (see "Volumeset Command Verbs" above) |
+| `cpln whoami` | `cpln profile list` / `cpln profile get <profile>` |
 
 ## The Verification Rule
 
