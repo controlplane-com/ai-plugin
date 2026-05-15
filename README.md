@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://controlplane.com">
-    <img src="assets/logo-white.svg" alt="Control Plane" width="240">
+    <img src="plugins/cpln/assets/logo-white.svg" alt="Control Plane" width="240">
   </a>
 </p>
 
@@ -202,16 +202,16 @@ Report vulnerabilities by following the process in [SECURITY.md](SECURITY.md).
 
 ## Troubleshooting
 
-| Problem                                      | Check                                                                                                                                                                                                                                        |
-| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| MCP requests fail with authentication errors | Confirm `CPLN_TOKEN` is set in the AI client environment and belongs to an active service account.                                                                                                                                           |
-| MCP tools are unavailable in Codex           | Confirm the plugin was installed from `/plugins`, not only that the marketplace was added. Then restart Codex and use `/mcp` inside the session to inspect plugin-provided MCP servers.                                                      |
-| Codex `/plugins` → Control Plane shows "No plugin hooks." and guardrails are not injected | Codex gates plugin hooks behind a feature flag. Add `[features]\nplugins = true\nplugin_hooks = true` to `~/.codex/config.toml` and restart Codex. See the Codex install section above. |
-| MCP tools are unavailable in another client  | Confirm the client supports one of this repo's MCP configs (`plugins/cpln/.claude-mcp.json`, `plugins/cpln/.codex-plugin/mcp.json`, or the MCP block inside `gemini-extension.json`), or manually configured the `cpln` MCP server in that client's native MCP format. |
-| Commands are not available                   | Confirm the client supports this repo's command format. Codex should use skills/MCP rather than Claude-style slash commands.                                                                                                                 |
-| Gemini extension does not load               | Run `gemini extensions validate .` from the repository root.                                                                                                                                                                                 |
-| AI proposes an uncertain `cpln` command      | Check `plugins/cpln/rules/cli-conventions.md` and verify flags with `cpln <command> --help` or the MCP suggest tool.                                                                                                                         |
-| A write operation targets the wrong org/GVC  | Stop and confirm `CPLN_ORG`, `CPLN_GVC`, `CPLN_PROFILE`, or explicit command flags before retrying.                                                                                                                                          |
+| Problem                                                                                   | Check                                                                                                                                                                                                                                                                  |
+| ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| MCP requests fail with authentication errors                                              | Confirm `CPLN_TOKEN` is set in the AI client environment and belongs to an active service account.                                                                                                                                                                     |
+| MCP tools are unavailable in Codex                                                        | Confirm the plugin was installed from `/plugins`, not only that the marketplace was added. Then restart Codex and use `/mcp` inside the session to inspect plugin-provided MCP servers.                                                                                |
+| Codex `/plugins` → Control Plane shows "No plugin hooks." and guardrails are not injected | Codex gates plugin hooks behind a feature flag. Add `[features]\nplugins = true\nplugin_hooks = true` to `~/.codex/config.toml` and restart Codex. See the Codex install section above.                                                                                |
+| MCP tools are unavailable in another client                                               | Confirm the client supports one of this repo's MCP configs (`plugins/cpln/.claude-mcp.json`, `plugins/cpln/.codex-plugin/mcp.json`, or the MCP block inside `gemini-extension.json`), or manually configured the `cpln` MCP server in that client's native MCP format. |
+| Commands are not available                                                                | Confirm the client supports this repo's command format. Codex should use skills/MCP rather than Claude-style slash commands.                                                                                                                                           |
+| Gemini extension does not load                                                            | Run `gemini extensions validate .` from the repository root.                                                                                                                                                                                                           |
+| AI proposes an uncertain `cpln` command                                                   | Check `plugins/cpln/rules/cli-conventions.md` and verify flags with `cpln <command> --help` or the MCP suggest tool.                                                                                                                                                   |
+| A write operation targets the wrong org/GVC                                               | Stop and confirm `CPLN_ORG`, `CPLN_GVC`, `CPLN_PROFILE`, or explicit command flags before retrying.                                                                                                                                                                    |
 
 ## Contributing
 
