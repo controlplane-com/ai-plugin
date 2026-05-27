@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "skills": {
+    "access-control": { "companions": ["permissions-matrix.md", "principals.md"] },
+    "stateful-storage": { "companions": [] },
+    "native-networking": { "companions": [] },
+    "ipset-load-balancing": { "companions": [] },
+    "external-logging": { "companions": ["providers.md"] },
+    "audit-compliance": { "companions": [] },
+    "workload-security": { "companions": [] }
+  },
+  "toolSkills": {
+    "create_policy": "access-control",
+    "delete_policy": "access-control",
+    "get_permissions": "access-control",
+    "create_group": "access-control",
+    "edit_group": "access-control",
+    "delete_group": "access-control",
+    "invite_user_to_org": "access-control",
+    "add_key_to_service_account": "access-control",
+    "create_identity": "access-control",
+    "update_identity": "access-control",
+    "delete_identity": "access-control",
+    "create_cloud_account": "access-control",
+    "update_cloud_account": "access-control",
+    "delete_cloud_account": "access-control",
+
+    "mount_volumeset_to_workload": "stateful-storage",
+    "delete_volumeset": "stateful-storage",
+    "expand_volumeset": "stateful-storage",
+    "shrink_volumeset": "stateful-storage",
+    "delete_volumeset_volume": "stateful-storage",
+    "create_volumeset_snapshot": "stateful-storage",
+    "delete_volumeset_snapshot": "stateful-storage",
+    "restore_volumeset_snapshot": "stateful-storage",
+
+    "add_identity_network_resource": "native-networking",
+    "add_identity_native_network_resource": "native-networking",
+    "remove_identity_network_resource": "native-networking",
+    "create_agent": "native-networking",
+    "update_agent": "native-networking",
+    "delete_agent": "native-networking",
+
+    "create_ipset": "ipset-load-balancing",
+    "update_ipset": "ipset-load-balancing",
+    "delete_ipset": "ipset-load-balancing",
+    "add_ipset_location": "ipset-load-balancing",
+    "remove_ipset_location": "ipset-load-balancing",
+
+    "configure_external_logging": "external-logging",
+    "remove_external_logging": "external-logging",
+
+    "create_audit_context": "audit-compliance",
+    "edit_audit_context": "audit-compliance",
+
+    "create_workload": "workload-security",
+    "update_workload": "workload-security",
+    "delete_workload": "workload-security"
+  }
+}

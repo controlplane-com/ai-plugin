@@ -83,6 +83,15 @@ jq empty \
 
 Codex has no CLI validator; install the plugin and check `~/.codex/log/codex-tui.log` for `cpln`/`controlplane` warnings (there should be none).
 
+## Knowledge map (tool → skill gate)
+
+`plugins/cpln/knowledge-map.json` maps MCP tools to the skill an agent must read before calling them. The hosted MCP server fetches this file at runtime (with a bundled fallback), so gating a tool behind a skill is a one-line edit here — no server redeploy. Schema:
+
+- `skills`: the valid skill names and each one's companion files.
+- `toolSkills`: `"<tool_name>": "<skill-name>"` — the skill required before that tool runs (the skill must exist in `skills`).
+
+To gate a tool behind a skill, add an entry to `toolSkills`. The server validates entries on load and drops any that reference an unknown skill or tool, so a typo can never lock a tool.
+
 ## Versioning
 
 Driven by `scripts/bump-version.sh <X.Y.Z>`. It updates every plugin manifest and the marketplace entries in lockstep, then promotes the CHANGELOG `[Unreleased]` block. Don't edit version strings by hand.
