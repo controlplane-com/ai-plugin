@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
+### Added
+
+### Changed
+
+### Fixed
+
+### Removed
+
+## [1.4.0] - 2026-05-27
+
 ### Changed
 
 - MCP authentication moved to OAuth 2.1 — no `CPLN_TOKEN` env var required for the hosted MCP server. On first use, your AI client prompts you to sign in and pick which Control Plane organizations it may operate on.
