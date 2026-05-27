@@ -31,12 +31,13 @@ cpln image build --name my-app:v1.0 --push
 - Override builder: `--builder`/`-B`. Override buildpack: `--buildpack`/`-b`.
 - Build context directory: `--dir` (default: `.`). Skip cache: `--no-cache`.
 - Buildx fallback: single-platform builds fall back to legacy `docker build` when Buildx is unavailable; multi-platform builds require Buildx. See the **cpln-image** skill (Common Gotchas) for version history and details.
+- Avoid trailing `.` in `--name` — the simple `<name>:<tag>` form is what the CLI expects.
 
 **Image reference rules in workload specs:**
 
-| Source | Reference Format | Example |
-|--------|-----------------|---------|
-| Org registry | `//image/NAME:TAG` | `//image/my-app:v1.0` |
+| Source            | Reference Format   | Example                                    |
+| ----------------- | ------------------ | ------------------------------------------ |
+| Org registry      | `//image/NAME:TAG` | `//image/my-app:v1.0`                      |
 | External registry | Exact image string | `nginx:latest`, `gcr.io/project/image:tag` |
 
 **NEVER** prefix external images with `docker.io/`. Use `nginx:latest`, not `docker.io/library/nginx:latest`. The hostname `<org>.registry.cpln.io` is only for `docker login`, never in workload specs.
@@ -54,27 +55,37 @@ Available on nearly every command. Never list these per-command — they're alwa
 
 **`--org`** is on ~90% of commands. **`--gvc`** is on all subcommands of GVC-scoped resources (workload, identity, volumeset) plus helm, stack, apply, convert, cp, delete, and port-forward. It is NOT a flag on `cpln logs` — the GVC is specified inside the LogQL query.
 
+**Always include `--org` (and `--gvc` for GVC-scoped resources) explicitly** on mutation commands, even when a profile sets defaults — context must be reproducible.
+
+**Use `--output yaml` / `--output json`** for any output you intend to parse or feed back into automation.
+
+**When listing collections, use `--max` with a sensible cap** (or `--max 0` for "all"). Default cap on most `get` commands is 50. Omit `--max` only when targeting a specific named resource.
+
 Environment overrides: `CPLN_TOKEN`, `CPLN_ORG`, `CPLN_GVC`, `CPLN_PROFILE`.
+
+**Profiles are the primary way to supply tokens and defaults.** `CPLN_PROFILE` selects a stored profile; `--profile <name>` overrides per-command. Inspect context with `cpln profile get <profile>` — **there is no `cpln whoami` verb.** Prefer `--profile` (or `cpln profile set-default`) for humans; only export `CPLN_PROFILE` once when automation truly requires it, and explain any profile state changes so operators can revert them.
 
 ## Standard CRUD Operations
 
 Most resources support these actions with consistent flags:
 
-| Action | Syntax | Notes |
-|--------|--------|-------|
-| **List** | `cpln <resource> get` | No args = list all. **There is NO `list` subcommand.** |
-| **Get** | `cpln <resource> get REF` | |
-| **Create** | `cpln <resource> create --name NAME` | Also: `--description`, `--tag K=V` |
-| **Delete** | `cpln <resource> delete REF...` | Supports multiple refs |
-| **Edit** | `cpln <resource> edit REF` | Opens YAML in editor. Flag: `--replace` |
-| **Patch** | `cpln <resource> patch REF --file FILE` | |
-| **Tag** | `cpln <resource> tag REF... --tag K=V` | Remove: `--remove-tag K` |
-| **Update** | `cpln <resource> update REF --set PROP=VAL` | Also: `--unset PROP` |
-| **Clone** | `cpln <resource> clone REF --name NEW` | Duplicates spec only (no status/IDs). Preferred over get/edit/apply for renames. |
-| **Audit** | `cpln <resource> audit [REF]` | Flags: `--since`, `--from`, `--to` (accept ISO 8601, duration, or `now-<duration>`) |
-| **Query** | `cpln <resource> query` | See query section below |
+| Action     | Syntax                                      | Notes                                                                               |
+| ---------- | ------------------------------------------- | ----------------------------------------------------------------------------------- |
+| **List**   | `cpln <resource> get`                       | No args = list all. **There is NO `list` subcommand.**                              |
+| **Get**    | `cpln <resource> get REF`                   |                                                                                     |
+| **Create** | `cpln <resource> create --name NAME`        | Also: `--description`, `--tag K=V`                                                  |
+| **Delete** | `cpln <resource> delete REF...`             | Supports multiple refs                                                              |
+| **Edit**   | `cpln <resource> edit REF`                  | Opens YAML in editor. Flag: `--replace`                                             |
+| **Patch**  | `cpln <resource> patch REF --file FILE`     |                                                                                     |
+| **Tag**    | `cpln <resource> tag REF... --tag K=V`      | Remove: `--remove-tag K`                                                            |
+| **Update** | `cpln <resource> update REF --set PROP=VAL` | Also: `--unset PROP`                                                                |
+| **Clone**  | `cpln <resource> clone REF --name NEW`      | Duplicates spec only (no status/IDs). Preferred over get/edit/apply for renames.    |
+| **Audit**  | `cpln <resource> audit [REF]`               | Flags: `--since`, `--from`, `--to` (accept ISO 8601, duration, or `now-<duration>`) |
+| **Query**  | `cpln <resource> query`                     | See query section below                                                             |
 
 Also: `access-report REF`, `eventlog REF`, `permissions` (no args).
+
+**Pair every mutation with a verification read.** After `update` / `create` / `delete`, follow with `get` (or `get-deployments` for workloads) so the answer contains "change + confirm" in the same response.
 
 ### Query
 
@@ -86,45 +97,45 @@ cpln workload query --match any --rel gvc=my-first-gvc --rel gvc=my-second-gvc
 cpln workload query --property name=my-workload
 ```
 
-| Flag | Description |
-|------|-------------|
-| `--match` | How conditions combine: `all` (default), `any`, `none`. Single value, not repeatable. |
-| `--tag KEY=VALUE` | Filter by tag. Repeatable. |
-| `--property`/`--prop` NAME=VALUE | Filter by property, e.g. `name=X`, `status.phase=running`. Repeatable. |
-| `--rel` KIND=VALUE | Filter by relation, e.g. `gvc=my-gvc`. Repeatable. |
+| Flag                             | Description                                                                           |
+| -------------------------------- | ------------------------------------------------------------------------------------- |
+| `--match`                        | How conditions combine: `all` (default), `any`, `none`. Single value, not repeatable. |
+| `--tag KEY=VALUE`                | Filter by tag. Repeatable.                                                            |
+| `--property`/`--prop` NAME=VALUE | Filter by property, e.g. `name=X`, `status.phase=running`. Repeatable.                |
+| `--rel` KIND=VALUE               | Filter by relation, e.g. `gvc=my-gvc`. Repeatable.                                    |
 
 Some `create` commands (gvc, policy, group) accept `--query-match`, `--query-tag`, `--query-property`, `--query-rel` for dynamic targeting.
 
 ## Resource Command Map
 
-| Resource | Scope | CRUD | Non-Standard Subcommands |
-|----------|-------|------|--------------------------|
-| **workload** | gvc | Full | `connect`, `exec`, `run`, `cron` (get/run/start/stop), `replica` (get/stop), `force-redeployment`, `get-deployments`, `open`, `start`, `stop` |
-| **gvc** | org | Full | `add-location`, `remove-location`, `delete-all-workloads` |
-| **secret** | org | **No generic create** | 12 type-specific create commands (see below), `reveal` |
-| **policy** | org | Full | `add-binding`, `remove-binding` |
-| **identity** | gvc | Full | — |
-| **volumeset** | gvc | Full | `expand`, `shrink`, `snapshot` (create/delete/get/restore), `volume` (delete/get) |
-| **domain** | org | Full (no clone) | — |
-| **cloudaccount** | org | **No generic create** | `create-aws`, `create-azure`, `create-gcp`, `create-ngs` |
-| **image** | org | No create | `build`, `copy`, `docker-login` |
-| **agent** | org | Full (no clone) | `info`, `manifest`, `up` |
-| **group** | org | Full | `add-member`, `remove-member` |
-| **ipset** | org | Full | `add-location`, `remove-location`, `update-location` |
-| **serviceaccount** | org | Full (no update) | `add-key`, `remove-key` |
-| **mk8s** | org | **No create** | `dashboard`, `join`, `kubeconfig` |
-| **user** | org | No create | `invite` |
-| **org** | — | **No delete** (immutable) | — |
-| **profile** | local | get, delete, update | `login`, `set-default`, `token`. Note: `update` creates if not exists (alias: `create`) |
-| **helm** | gvc | get | `install`, `upgrade`, `template`, `rollback`, `uninstall`, `list`, `history` |
-| **stack** | gvc | — | `deploy`, `manifest`, `rm` |
-| **location** | org | Partial | `install`, `uninstall` |
-| **auditctx** | org | Full (no delete) | — |
-| **quota** | org | get, edit, patch | — |
-| **task** | org | get, delete | `complete`, `get-mine` |
-| **account** | org | get only | — |
-| **rest** | org | get, create, delete, edit, patch | `post`, `put` |
-| **operator** | — | — | `install`, `uninstall` |
+| Resource           | Scope | CRUD                             | Non-Standard Subcommands                                                                                                                      |
+| ------------------ | ----- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| **workload**       | gvc   | Full                             | `connect`, `exec`, `run`, `cron` (get/run/start/stop), `replica` (get/stop), `force-redeployment`, `get-deployments`, `open`, `start`, `stop` |
+| **gvc**            | org   | Full                             | `add-location`, `remove-location`, `delete-all-workloads`                                                                                     |
+| **secret**         | org   | **No generic create**            | 12 type-specific create commands (see below), `reveal`                                                                                        |
+| **policy**         | org   | Full                             | `add-binding`, `remove-binding`                                                                                                               |
+| **identity**       | gvc   | Full                             | —                                                                                                                                             |
+| **volumeset**      | gvc   | Full                             | `expand`, `shrink`, `snapshot` (create/delete/get/restore), `volume` (delete/get)                                                             |
+| **domain**         | org   | Full (no clone)                  | —                                                                                                                                             |
+| **cloudaccount**   | org   | **No generic create**            | `create-aws`, `create-azure`, `create-gcp`, `create-ngs`                                                                                      |
+| **image**          | org   | No create                        | `build`, `copy`, `docker-login`                                                                                                               |
+| **agent**          | org   | Full (no clone)                  | `info`, `manifest`, `up`                                                                                                                      |
+| **group**          | org   | Full                             | `add-member`, `remove-member`                                                                                                                 |
+| **ipset**          | org   | Full                             | `add-location`, `remove-location`, `update-location`                                                                                          |
+| **serviceaccount** | org   | Full (no update)                 | `add-key`, `remove-key`                                                                                                                       |
+| **mk8s**           | org   | **No create**                    | `dashboard`, `join`, `kubeconfig`                                                                                                             |
+| **user**           | org   | No create                        | `invite`                                                                                                                                      |
+| **org**            | —     | **No delete** (immutable)        | —                                                                                                                                             |
+| **profile**        | local | get, delete, update              | `login`, `set-default`, `token`. Note: `update` creates if not exists (alias: `create`)                                                       |
+| **helm**           | gvc   | get                              | `install`, `upgrade`, `template`, `rollback`, `uninstall`, `list`, `history`                                                                  |
+| **stack**          | gvc   | —                                | `deploy`, `manifest`, `rm`                                                                                                                    |
+| **location**       | org   | Partial                          | `install`, `uninstall`                                                                                                                        |
+| **auditctx**       | org   | Full (no delete)                 | —                                                                                                                                             |
+| **quota**          | org   | get, edit, patch                 | —                                                                                                                                             |
+| **task**           | org   | get, delete                      | `complete`, `get-mine`                                                                                                                        |
+| **account**        | org   | get only                         | —                                                                                                                                             |
+| **rest**           | org   | get, create, delete, edit, patch | `post`, `put`                                                                                                                                 |
+| **operator**       | —     | —                                | `install`, `uninstall`                                                                                                                        |
 
 **Scope**: org = needs `--org`, gvc = needs `--org` + `--gvc`, local = no API call.
 
@@ -139,7 +150,7 @@ cpln apply --file workload-update.yaml --ready        # apply ONE resource — f
 cpln delete --file manifest.yaml                       # delete resources in file
 ```
 
-**For multi-resource deploys, apply once via a directory or multi-doc file.** `cpln apply` walks the inter-resource dependency graph automatically when given multiple resources at once. **Splitting into multiple apply calls reintroduces the ordering problem cpln apply was designed to solve** — workloads referencing secrets that haven't been applied yet, identity bindings before the identity exists, policies referencing missing target resources. Single-file applies are for *incremental updates to ONE existing resource*, not for initial multi-resource deploys.
+**For multi-resource deploys, apply once via a directory or multi-doc file.** `cpln apply` walks the inter-resource dependency graph automatically when given multiple resources at once. **Splitting into multiple apply calls reintroduces the ordering problem cpln apply was designed to solve** — workloads referencing secrets that haven't been applied yet, identity bindings before the identity exists, policies referencing missing target resources. Single-file applies are for _incremental updates to ONE existing resource_, not for initial multi-resource deploys.
 
 **Two approaches when applying a multi-resource bundle, depending on GVC scope:**
 
@@ -151,17 +162,17 @@ cpln delete --file manifest.yaml                       # delete resources in fil
   ```yaml
   kind: workload
   name: my-app
-  gvc: prod                # ← target GVC declared inline
+  gvc: prod # ← target GVC declared inline
   description: My app
   spec: { ... }
   ---
   kind: workload
   name: my-app
-  gvc: staging             # ← same name, different GVC — routed correctly
+  gvc: staging # ← same name, different GVC — routed correctly
   description: Staging mirror
   spec: { ... }
   ---
-  kind: secret             # ← org-scoped resources ignore the gvc field/flag
+  kind: secret # ← org-scoped resources ignore the gvc field/flag
   type: opaque
   name: shared-secret
   data: { payload: ... }
@@ -193,20 +204,20 @@ cpln logs '{gvc="GVC", workload="WORKLOAD"}' --org ORG --tail
 
 `cpln secret create` does **NOT** exist. Use the type-specific variant:
 
-| Type | Command | Required Flags |
-|------|---------|---------------|
-| Opaque | `create-opaque` | `--file` or `--payload` |
-| Dictionary | `create-dictionary` | `--entry KEY=VAL` (repeatable) |
-| Username/Password | `create-userpass` | `--username`, `--password` |
-| AWS | `create-aws` | `--access-key`, `--secret-key` |
-| GCP | `create-gcp` | `--file` (service account JSON) |
-| Azure SDK | `create-azure-sdk` | `--file` |
-| Azure Connector | `create-azure-connector` | `--url`, `--code` |
-| Docker | `create-docker` | `--file` |
-| ECR | `create-ecr` | `--access-key`, `--secret-key`, `--repo` |
-| TLS | `create-tls` | `--key`, `--cert` |
-| Key Pair | `create-keypair` | `--secret` |
-| NATS | `create-nats` | `--account-id`, `--private-key` |
+| Type              | Command                  | Required Flags                           |
+| ----------------- | ------------------------ | ---------------------------------------- |
+| Opaque            | `create-opaque`          | `--file` or `--payload`                  |
+| Dictionary        | `create-dictionary`      | `--entry KEY=VAL` (repeatable)           |
+| Username/Password | `create-userpass`        | `--username`, `--password`               |
+| AWS               | `create-aws`             | `--access-key`, `--secret-key`           |
+| GCP               | `create-gcp`             | `--file` (service account JSON)          |
+| Azure SDK         | `create-azure-sdk`       | `--file`                                 |
+| Azure Connector   | `create-azure-connector` | `--url`, `--code`                        |
+| Docker            | `create-docker`          | `--file`                                 |
+| ECR               | `create-ecr`             | `--access-key`, `--secret-key`, `--repo` |
+| TLS               | `create-tls`             | `--key`, `--cert`                        |
+| Key Pair          | `create-keypair`         | `--secret`                               |
+| NATS              | `create-nats`            | `--account-id`, `--private-key`          |
 
 All also require `--name` and accept `--description`, `--tag`.
 
@@ -219,6 +230,10 @@ cpln workload create --name APP --image IMAGE --gvc GVC [flags]
 Key flags: `--type` (serverless|standard, default: standard), `--port`, `--public`, `--identity`, `--env KEY=VALUE`, `--cpu`, `--memory`/`--mem`, `--volume`, `--container-name`.
 
 Note: `stateful` and `cron` types cannot be created via CLI — use `cpln apply --file`.
+
+For public HTTP workloads that must be reachable from the internet, include `--public` and ensure `--port` matches the container's listening port (default 8080).
+
+When using `cpln workload create` directly with an internal image, provide a fully-qualified reference like `/org/<org-name>/image/<image-name>:<tag>` or `//image/image/<image-name>:<tag>`.
 
 ### cpln workload exec / connect / run
 
@@ -237,6 +252,8 @@ Note: `stateful` and `cron` types cannot be created via CLI — use `cpln apply 
 - **cron run**: One-off cron execution:
   `cpln workload cron run --image IMAGE --gvc GVC -- CMD`
   Flags: `--background`/`-b`, `--timeout`/`-t`
+
+**Replicas are pods.** Get replica names with `cpln workload replica get`, then pass explicit `--location`, `--replica`, and `--container` to `exec` / `logs` / `cp` / `port-forward`. The CLI otherwise picks the first match silently, which is risky on multi-location workloads.
 
 ### cpln policy add-binding
 
@@ -273,33 +290,33 @@ Flags: `--address`, `--location`, `--replica`.
 
 The volumeset surface has **dedicated subcommands per operation** — there is no `cpln volumeset command create --type <kind>` form. Use the verbs below (verified against the cpln CLI source):
 
-| Operation | Command | Risk |
-|---|---|---|
-| Expand volume | `cpln volumeset expand <ref> --new-size <gb> --locations <loc> [--volume-indexes <idx>]` | Safe |
-| Create snapshot | `cpln volumeset snapshot create <ref> --snapshot-name <name> --locations <loc>` | Safe |
-| Restore snapshot | `cpln volumeset snapshot restore <ref> --snapshot-name <name> --locations <loc>` | Overwrites volume state |
-| Delete snapshot | `cpln volumeset snapshot delete <ref> --snapshot-name <name>` | Destructive |
-| Delete volume | `cpln volumeset volume delete <ref> --locations <loc> --volume-indexes <idx>` | Destructive (data loss) |
-| Shrink volume | `cpln volumeset shrink <ref> --new-size <gb> --locations <loc>` | **DESTRUCTIVE — permanent data loss** |
+| Operation        | Command                                                                                  | Risk                                  |
+| ---------------- | ---------------------------------------------------------------------------------------- | ------------------------------------- |
+| Expand volume    | `cpln volumeset expand <ref> --new-size <gb> --locations <loc> [--volume-indexes <idx>]` | Safe                                  |
+| Create snapshot  | `cpln volumeset snapshot create <ref> --snapshot-name <name> --locations <loc>`          | Safe                                  |
+| Restore snapshot | `cpln volumeset snapshot restore <ref> --snapshot-name <name> --locations <loc>`         | Overwrites volume state               |
+| Delete snapshot  | `cpln volumeset snapshot delete <ref> --snapshot-name <name>`                            | Destructive                           |
+| Delete volume    | `cpln volumeset volume delete <ref> --locations <loc> --volume-indexes <idx>`            | Destructive (data loss)               |
+| Shrink volume    | `cpln volumeset shrink <ref> --new-size <gb> --locations <loc>`                          | **DESTRUCTIVE — permanent data loss** |
 
 `shrink` provisions a new volume at the smaller size and removes the old one — data is **NOT** migrated. Only safe for workloads with built-in redundancy (Kafka with proper replication factor; distributed databases like Cassandra / CockroachDB; anything where data is rebuildable from replicas). Only available on `ext4` and `xfs` filesystems (not `shared`). Apply the destructive-op confirmation shape from `cpln-guardrails.md` before running.
 
 ## Commands That DON'T Exist
 
-| Wrong | Correct |
-|-------|---------|
-| `cpln secret create` | `cpln secret create-opaque`, `create-aws`, etc. |
-| `cpln <resource> list` | `cpln <resource> get` (no args = list all) |
-| `cpln mk8s create` | `cpln apply --file mk8s-manifest.yaml` |
-| `cpln logs --follow` | `cpln logs --tail` (or `-t` or `-f`) |
-| `cpln workload log` | `cpln logs '{gvc="GVC", workload="WORKLOAD"}'` |
-| `cpln cloudaccount create` | `cpln cloudaccount create-aws`, etc. |
-| `cpln apply` (no --file) | `cpln apply --file manifest.yaml` |
-| `cpln workload update --identity X` | `cpln workload update REF --set spec.identityLink=//identity/X` |
-| `cpln secret update --data '{}'` | `cpln secret edit REF` or `cpln apply --file` |
-| `cpln gvc update --location LOC` | `cpln gvc update REF --set 'spec.staticPlacement.locationLinks+=//location/LOC'` |
+| Wrong                                         | Correct                                                                                                                                                        |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cpln secret create`                          | `cpln secret create-opaque`, `create-aws`, etc.                                                                                                                |
+| `cpln <resource> list`                        | `cpln <resource> get` (no args = list all)                                                                                                                     |
+| `cpln mk8s create`                            | `cpln apply --file mk8s-manifest.yaml`                                                                                                                         |
+| `cpln logs --follow`                          | `cpln logs --tail` (or `-t` or `-f`)                                                                                                                           |
+| `cpln workload log`                           | `cpln logs '{gvc="GVC", workload="WORKLOAD"}'`                                                                                                                 |
+| `cpln cloudaccount create`                    | `cpln cloudaccount create-aws`, etc.                                                                                                                           |
+| `cpln apply` (no --file)                      | `cpln apply --file manifest.yaml`                                                                                                                              |
+| `cpln workload update --identity X`           | `cpln workload update REF --set spec.identityLink=//identity/X`                                                                                                |
+| `cpln secret update --data '{}'`              | `cpln secret edit REF` or `cpln apply --file`                                                                                                                  |
+| `cpln gvc update --location LOC`              | `cpln gvc update REF --set 'spec.staticPlacement.locationLinks+=//location/LOC'`                                                                               |
 | `cpln volumeset command create --type <kind>` | Use the dedicated verb — `cpln volumeset expand`, `cpln volumeset snapshot create`, `cpln volumeset volume delete`, etc. (see "Volumeset Command Verbs" above) |
-| `cpln whoami` | `cpln profile list` / `cpln profile get <profile>` |
+| `cpln whoami`                                 | `cpln profile list` / `cpln profile get <profile>`                                                                                                             |
 
 ## The Verification Rule
 
