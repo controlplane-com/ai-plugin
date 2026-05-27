@@ -37,7 +37,7 @@ Add the plugin marketplace to Codex:
 codex plugin marketplace add controlplane-com/ai-plugin
 ```
 
-Then start Codex and open `/plugins`. Use the left/right arrow keys to navigate between marketplaces until you reach Control Plane, then select and install the `cpln` plugin. The Codex plugin manifest points to `.codex-plugin/mcp.json`, which installs the hosted `cpln` MCP server with `CPLN_TOKEN` as its bearer-token environment variable.
+Then start Codex and open `/plugins`. Use the left/right arrow keys to navigate between marketplaces until you reach Control Plane, then select and install the `cpln` plugin. The Codex plugin manifest points to `.codex-plugin/mcp.json`, which installs the hosted `cpln` MCP server. On first MCP call, you'll be prompted to sign in to Control Plane and choose which organizations the assistant may operate on.
 
 If you prefer the standalone marketplace installer, install the plugin artifact directly from GitHub:
 
@@ -102,40 +102,35 @@ cd ai-plugin
 
 ### Generic MCP Client
 
-If your client only needs MCP and does not consume one of this repo's plugin formats, add the `cpln` server manually using that client's MCP config format. For clients that support header interpolation:
+If your client only needs MCP and does not consume one of this repo's plugin formats, add the `cpln` server manually:
 
 ```json
 {
   "mcpServers": {
     "cpln": {
       "type": "http",
-      "url": "https://mcp.cpln.io/mcp",
-      "headers": {
-        "Authorization": "Bearer ${CPLN_TOKEN}"
-      }
+      "url": "https://mcp.cpln.io/mcp"
     }
   }
 }
 ```
 
-## Configuration
+On first use, the client prompts you to sign in to Control Plane and choose which organizations it may operate on. The issued access token is scoped to those organizations.
 
-Create a Control Plane service account token and expose it to the client environment as `CPLN_TOKEN`. Use least-privilege policies for the service account whenever possible.
+## Authentication
 
-```bash
-export CPLN_TOKEN="<your-service-account-token>"
-```
-
-Gemini CLI prompts for `CPLN_TOKEN` because `gemini-extension.json` marks it as a sensitive setting.
+MCP authentication uses OAuth 2.1 + PKCE. On first use, you sign in to Control Plane and choose which organizations the AI client may operate on; every MCP tool call is then enforced against that scope server-side. To change which orgs an AI client may use, sign in again and re-run consent — the new grant replaces the old one.
 
 ## Environment Variables
 
-| Variable       | Required                    | Sensitive | Used by                                 | Purpose                                              |
-| -------------- | --------------------------- | --------- | --------------------------------------- | ---------------------------------------------------- |
-| `CPLN_TOKEN`   | Required for MCP operations | Yes       | MCP server, Control Plane CLI workflows | Bearer token for live Control Plane API operations.  |
-| `CPLN_ORG`     | Optional                    | No        | Control Plane CLI workflows             | Default Control Plane organization for CLI commands. |
-| `CPLN_GVC`     | Optional                    | No        | Control Plane CLI workflows             | Default GVC for GVC-scoped CLI commands.             |
-| `CPLN_PROFILE` | Optional                    | No        | Control Plane CLI workflows             | Selects a local `cpln` CLI profile.                  |
+These variables affect the `cpln` CLI workflows that some skills generate (GitOps, IaC, SSO).
+
+| Variable       | Required | Sensitive | Used by                     | Purpose                                                                                |
+| -------------- | -------- | --------- | --------------------------- | -------------------------------------------------------------------------------------- |
+| `CPLN_TOKEN`   | Optional | Yes       | Control Plane CLI workflows | Service account token for `cpln` CLI invocations from CI/CD, Terraform, or Pulumi.     |
+| `CPLN_ORG`     | Optional | No        | Control Plane CLI workflows | Default Control Plane organization for CLI commands.                                   |
+| `CPLN_GVC`     | Optional | No        | Control Plane CLI workflows | Default GVC for GVC-scoped CLI commands.                                               |
+| `CPLN_PROFILE` | Optional | No        | Control Plane CLI workflows | Selects a local `cpln` CLI profile.                                                    |
 
 See `.env.example` for a local template. Do not commit real tokens.
 
@@ -182,16 +177,17 @@ This repository includes:
 
 Client-specific MCP configuration files:
 
-- Codex: `plugins/cpln/.codex-plugin/mcp.json` uses `url` and `bearer_token_env_var`.
-- Claude Code: `plugins/cpln/.claude-mcp.json` uses `type: "http"` and `headers.Authorization`.
-- Gemini CLI: `gemini-extension.json` uses `httpUrl` and `headers.Authorization`.
+- Codex: `plugins/cpln/.codex-plugin/mcp.json` points at the hosted MCP URL; Codex negotiates OAuth on first call.
+- Claude Code: `plugins/cpln/.claude-mcp.json` uses `type: "http"`; Claude Code negotiates OAuth on first call.
+- Cursor: `plugins/cpln/.cursor-plugin/mcp.json` points at the hosted MCP URL; Cursor negotiates OAuth on first call.
+- Gemini CLI: `gemini-extension.json` uses `httpUrl`; Gemini negotiates OAuth on first call.
 
-The hosted MCP server exposes live Control Plane tools for reading and mutating infrastructure. Treat MCP access as production access to the configured Control Plane organization.
+The hosted MCP server exposes live Control Plane tools for reading and mutating infrastructure. Treat MCP access as production access to the organizations you granted at consent time.
 
 ## Security and Privacy
 
-- `CPLN_TOKEN` is sent as a bearer token to `https://mcp.cpln.io/mcp` when MCP tools are used.
-- MCP tools may read or modify Control Plane resources depending on the token's permissions.
+- MCP requests to `https://mcp.cpln.io/mcp` are authorized by an OAuth 2.1 access token scoped to the organizations you granted at sign-in and to your own Control Plane permissions inside each.
+- MCP tools may read or modify Control Plane resources within those orgs, subject to your user-level RBAC.
 - The plugin itself does not store logs, secrets, prompts, or telemetry.
 - Your AI client and model provider may process prompts, command output, logs, manifests, and MCP responses according to their own retention policies.
 - Workload logs, audit events, secret metadata, and infrastructure state are only fetched when a user or agent invokes the relevant workflow/tool.
@@ -204,7 +200,8 @@ Report vulnerabilities by following the process in [SECURITY.md](SECURITY.md).
 
 | Problem                                                                                   | Check                                                                                                                                                                                                                                                                  |
 | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| MCP requests fail with authentication errors                                              | Confirm `CPLN_TOKEN` is set in the AI client environment and belongs to an active service account.                                                                                                                                                                     |
+| MCP requests fail with authentication errors                                              | Re-run sign-in (most clients prompt on the next tool call, or restart the client). Confirm you granted at least one organization at the consent screen.                                                                                                                |
+| MCP tool call returns "org not authorized"                                                | The current grant does not include that org. Sign in again and tick the missing org at the consent screen, or ask the org owner to add you to it first.                                                                                                                |
 | MCP tools are unavailable in Codex                                                        | Confirm the plugin was installed from `/plugins`, not only that the marketplace was added. Then restart Codex and use `/mcp` inside the session to inspect plugin-provided MCP servers.                                                                                |
 | Codex `/plugins` → Control Plane shows "No plugin hooks." and guardrails are not injected | Codex gates plugin hooks behind a feature flag. Add `[features]\nplugins = true\nplugin_hooks = true` to `~/.codex/config.toml` and restart Codex. See the Codex install section above.                                                                                |
 | MCP tools are unavailable in another client                                               | Confirm the client supports one of this repo's MCP configs (`plugins/cpln/.claude-mcp.json`, `plugins/cpln/.codex-plugin/mcp.json`, or the MCP block inside `gemini-extension.json`), or manually configured the `cpln` MCP server in that client's native MCP format. |

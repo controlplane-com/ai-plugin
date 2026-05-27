@@ -163,7 +163,7 @@ jobs:
             printf 'gemini extensions install https://github.com/%s.git\n' "$REPO"
             printf '# add --auto-update to opt into automatic updates for future releases\n'
             printf '```\n\n'
-            printf '**Generic MCP client** — point it at `https://mcp.cpln.io/mcp` with `Authorization: Bearer ${CPLN_TOKEN}`. See README for the per-client config snippet.\n\n'
+            printf '**Generic MCP client** — point it at `https://mcp.cpln.io/mcp`. OAuth 2.1 sign-in handles authorization on first use. See README for the config snippet.\n\n'
             if [ -n "$PREVIOUS_TAG" ]; then
               printf -- '---\n\n'
               printf '**Full changelog**: https://github.com/%s/compare/%s...%s\n' "$REPO" "$PREVIOUS_TAG" "$TAG"

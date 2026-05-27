@@ -1,8 +1,7 @@
 {
   "mcpServers": {
     "cpln": {
-      "url": "https://mcp.cpln.io/mcp",
-      "bearer_token_env_var": "CPLN_TOKEN"
+      "url": "https://mcp.cpln.io/mcp"
     }
   }
 }

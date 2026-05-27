@@ -24,7 +24,7 @@ If `CPLN_ORG`, `CPLN_GVC`, or `CPLN_PROFILE` are unset and the command needs sco
 
 - `cpln apply` always requires `--file <manifest>`. There is no implicit manifest path.
 - Secret creation uses type-specific commands: `cpln secret create-opaque`, `create-aws`, `create-tls`, `create-dictionary`, etc. Generic `cpln secret create` does not exist.
-- Bearer token (`CPLN_TOKEN`) is sent live to `https://mcp.cpln.io/mcp` for MCP operations. Treat MCP access as production access to the configured org.
+- MCP calls to `https://mcp.cpln.io/mcp` are authorized by an OAuth 2.1 access token scoped to the orgs the user granted at sign-in. Treat MCP access as production access to those orgs.
 
 ## Scale-to-zero — never the default for production
 
