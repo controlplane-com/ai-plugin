@@ -22,7 +22,7 @@ End-user install and capability docs live in `README.md`. Development principles
 | `.cursor-plugin/marketplace.json` | Cursor marketplace entry. |
 | `gemini-extension.json` + `GEMINI.md` + `hooks/hooks.json` | Gemini extension manifest, runtime guardrails, and SessionStart hook. Gemini treats the repo root as its extension dir. |
 
-Each per-client MCP config (`.claude-mcp.json`, `.codex-plugin/mcp.json`, `.cursor-plugin/mcp.json`, MCP block in `gemini-extension.json`) points at the hosted server `https://mcp.cpln.io/mcp`. Keep them in sync when changing URL or auth shape.
+Each per-client MCP config (`.claude-mcp.json`, `.codex-plugin/mcp.json`, `.cursor-plugin/mcp.json`, MCP block in `gemini-extension.json`) points at the hosted server `https://mcp.cpln.io`. Claude, Codex, and Cursor use the full endpoint `https://mcp.cpln.io/mcp`; Gemini's `httpUrl` is the bare origin `https://mcp.cpln.io` because the Gemini CLI appends the MCP path itself. Keep them in sync when changing host or auth shape — but don't add `/mcp` to the Gemini entry.
 
 ## Plugin id vs display name
 
