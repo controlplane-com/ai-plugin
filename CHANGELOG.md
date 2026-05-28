@@ -6,13 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
-### Added
-
-### Changed
-
 ### Fixed
 
-### Removed
+- Gemini CLI extension MCP URL: drop trailing `/mcp` so Gemini's transport (which appends the path itself) reaches the server instead of `/mcp/mcp`.
 
 ## [1.4.0] - 2026-05-27
 
