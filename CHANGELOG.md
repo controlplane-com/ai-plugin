@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Fixed
 
+- Gemini CLI extension MCP URL: restore the trailing `/mcp` suffix (`https://mcp.cpln.io/mcp`), reverting the 1.4.1 change.
+
 ### Removed
 
 ## [1.4.1] - 2026-05-28
