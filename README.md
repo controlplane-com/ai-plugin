@@ -6,7 +6,9 @@
 
 # Control Plane AI Plugin
 
-The AI plugin for [Control Plane](https://controlplane.com), the AI-native virtual cloud for vibe-coding enterprise infrastructure across AWS, GCP, Azure, OCI, and your own bare metal under one API built for agents and humans. It loads Control Plane domain knowledge, production guardrails, and live MCP access into Claude Code, Codex, Gemini CLI, and any MCP-capable client — so your assistant deploys workloads, grants credential-free cloud access via Universal Cloud Identity, and migrates off Kubernetes without hallucinating `cpln` commands or eyeballing manifests.
+The AI plugin for [Control Plane](https://controlplane.com) — the platform that runs your containerized workloads across AWS, GCP, Azure, OCI, and your own hardware under one API. Run containers as fully managed workloads with no cluster to operate, grouped into a **GVC (Global Virtual Cloud)** that can span multiple regions and cloud providers at once — or, when you want Kubernetes, let Control Plane provision and manage clusters (mk8s) across a dozen providers, or register the ones you already run. Either way, Control Plane handles autoscaling, multi-region routing, credential-free cloud access (Universal Cloud Identity), private-network connectivity, secrets, RBAC, observability, and compliance.
+
+This plugin loads Control Plane's domain knowledge, production guardrails, and live MCP access into Claude Code, Codex, Gemini CLI — so your assistant deploys and troubleshoots workloads, grants credential-free cloud access without IAM keys, and migrates Kubernetes, Docker Compose, and Helm projects onto Control Plane with verified `cpln` commands.
 
 ## Installation
 
@@ -27,7 +29,7 @@ Add the marketplace, install the plugin, then reload plugins:
 /reload-plugins
 ```
 
-To enable auto-update so future releases install at session start, run `/plugin`, open the **Marketplaces** tab, select **Control Plane**, and choose **Enable auto-update**. Claude Code will then refresh the marketplace and updated plugins on startup and prompt you to run `/reload-plugins`.
+To enable auto-update so future releases install at session start, run `/plugin`, open the **Marketplaces** tab, select **Control Plane**, and choose **Enable auto-update**. Claude Code will then refresh the marketplace and updated plugins on startup.
 
 ### Codex
 
@@ -42,7 +44,7 @@ Then start Codex and open `/plugins`. Use the left/right arrow keys to navigate 
 If you prefer the standalone marketplace installer, install the plugin artifact directly from GitHub:
 
 ```bash
-npx codex-marketplace add controlplane-com/ai-plugin --plugin
+npx codex-marketplace add controlplane-com/ai-plugin/plugins/cpln --plugin
 ```
 
 **Enable plugin hooks for guardrail injection (recommended).** Codex ships with the `plugin_hooks` feature off by default, which gates both display and execution of plugin-bundled hooks. The Control Plane plugin uses a `SessionStart` hook to inject the `cli-conventions` and `cpln-guardrails` rules into every Codex session so the assistant respects the production write-guardrails (typed confirmations on destructive ops, org/GVC sanity checks, no invented `cpln` flags). To enable, add this block to `~/.codex/config.toml` and restart Codex:
@@ -63,13 +65,7 @@ codex plugin marketplace upgrade controlplane
 
 ### Gemini CLI
 
-Install the extension from GitHub:
-
-```bash
-gemini extensions install https://github.com/controlplane-com/ai-plugin.git
-```
-
-To enable per-extension auto-update at install time so future releases pull automatically, add the `--auto-update` flag:
+Install the extension from GitHub with auto-update:
 
 ```bash
 gemini extensions install https://github.com/controlplane-com/ai-plugin.git --auto-update
@@ -81,14 +77,6 @@ gemini extensions install https://github.com/controlplane-com/ai-plugin.git --au
 gemini extensions update cpln
 # or
 gemini extensions update --all
-```
-
-For local development, link the checkout:
-
-```bash
-git clone https://github.com/controlplane-com/ai-plugin.git
-cd ai-plugin
-gemini extensions link .
 ```
 
 ### Fresh Clone
@@ -115,22 +103,20 @@ If your client only needs MCP and does not consume one of this repo's plugin for
 }
 ```
 
-On first use, the client prompts you to sign in to Control Plane and choose which organizations it may operate on. The issued access token is scoped to those organizations.
-
 ## Authentication
 
-MCP authentication uses OAuth 2.1 + PKCE. On first use, you sign in to Control Plane and choose which organizations the AI client may operate on; every MCP tool call is then enforced against that scope server-side. To change which orgs an AI client may use, sign in again and re-run consent — the new grant replaces the old one.
+MCP authentication uses OAuth 2.1 + PKCE. On first use, the client prompts you to sign in to Control Plane and choose which organizations it may operate on; the issued access token is scoped to those orgs, and every MCP tool call is enforced against that scope server-side. To change which orgs a client may use, trigger the MCP login again — the new grant replaces the old one. The hosted MCP server exposes live tools for reading and mutating infrastructure, so treat MCP access as production access to the organizations you granted at consent time.
 
 ## Environment Variables
 
 These variables affect the `cpln` CLI workflows that some skills generate (GitOps, IaC, SSO).
 
-| Variable       | Required | Sensitive | Used by                     | Purpose                                                                                |
-| -------------- | -------- | --------- | --------------------------- | -------------------------------------------------------------------------------------- |
-| `CPLN_TOKEN`   | Optional | Yes       | Control Plane CLI workflows | Service account token for `cpln` CLI invocations from CI/CD, Terraform, or Pulumi.     |
-| `CPLN_ORG`     | Optional | No        | Control Plane CLI workflows | Default Control Plane organization for CLI commands.                                   |
-| `CPLN_GVC`     | Optional | No        | Control Plane CLI workflows | Default GVC for GVC-scoped CLI commands.                                               |
-| `CPLN_PROFILE` | Optional | No        | Control Plane CLI workflows | Selects a local `cpln` CLI profile.                                                    |
+| Variable       | Required | Sensitive | Used by                     | Purpose                                                                            |
+| -------------- | -------- | --------- | --------------------------- | ---------------------------------------------------------------------------------- |
+| `CPLN_TOKEN`   | Optional | Yes       | Control Plane CLI workflows | Service account token for `cpln` CLI invocations from CI/CD, Terraform, or Pulumi. |
+| `CPLN_ORG`     | Optional | No        | Control Plane CLI workflows | Default Control Plane organization for CLI commands.                               |
+| `CPLN_GVC`     | Optional | No        | Control Plane CLI workflows | Default GVC for GVC-scoped CLI commands.                                           |
+| `CPLN_PROFILE` | Optional | No        | Control Plane CLI workflows | Selects a local `cpln` CLI profile.                                                |
 
 See `.env.example` for a local template. Do not commit real tokens.
 
@@ -140,13 +126,13 @@ See `.env.example` for a local template. Do not commit real tokens.
 
 Real prompts that map to the agents and skills shipped in this plugin:
 
-- "Troubleshoot why my `payments-api` workload in the `production` GVC keeps restarting — pull its events, deployments, and recent logs."
+- "Troubleshoot why my `payments-api` workload in the `production` GVC keeps restarting."
 - "Wire up `app.example.com` to my `web` workload with auto-TLS and walk me through DNS verification."
-- "My `worker` workload needs to read the `stripe-webhook-secret` opaque secret — set up the identity, the policy with `reveal`, and inject it as an env var."
+- "My `worker` workload needs to read the `stripe-webhook-secret` opaque secret as an env var."
 - "Give my `analytics` workload credential-free read access to my AWS S3 bucket `prod-event-logs` — no IAM keys, no rotation."
-- "Provision a production-grade Postgres with HA failover and S3 backups for the `production` GVC — use the template catalog, not a hand-rolled workload."
+- "Provision a production-grade Postgres with HA failover and S3 backups for the `production` GVC."
 - "Convert this `kustomization.yaml` to Control Plane manifests, flag anything that won't translate cleanly, and apply it to the `staging` GVC after I confirm."
-- "Create a least-privileged service account and policy for our GitHub Actions deploy pipeline — it should be able to apply workloads in `staging` but not touch `production`."
+- "Create a least-privileged service account and policy for our GitHub Actions deploy pipeline — it should be able to apply workloads in `staging` GVC but not touch `production` GVC."
 - "My workload needs to reach a Postgres instance inside our AWS VPC — set up a wormhole agent and configure the workload's identity to use it."
 
 ### Slash Commands
@@ -168,21 +154,12 @@ Claude Code uses the `/cpln:` prefix. Gemini CLI command names omit that prefix 
 
 This repository includes:
 
-- 23 skills covering CLI usage, access control, autoscaling, networking, observability, migration, templates, stateful storage, and workload security.
-- 8 guided agents for troubleshooting, secrets, domains, cloud identity, Kubernetes migration, access control, stateful workloads, and private-network agents.
-- 8 slash commands that route common workflows to the matching agent.
-- 8 guardrail/reference rule files for CLI conventions and manifest validation. The two `alwaysApply: true` rules are auto-injected into every Claude Code session by the plugin's `SessionStart` hook; the rest are loaded on demand by the agents and skills that cite them.
+- Skills covering CLI usage, access control, autoscaling, networking, observability, migration, templates, stateful storage, and workload security.
+- Guided agents for troubleshooting, secrets, domains, cloud identity, Kubernetes migration, access control, stateful workloads, and private-network agents.
+- Slash commands that route common workflows to the matching agent.
+- Guardrail/reference rule files for CLI conventions and manifest validation. The two `alwaysApply: true` rules are auto-injected into every Claude Code session by the plugin's `SessionStart` hook; the rest are loaded on demand by the agents and skills that cite them.
 - Claude Code hooks that block common invalid `cpln` Bash patterns (generic `cpln secret create`, `cpln apply` without `--file`).
 - MCP configuration for the hosted Control Plane MCP Server.
-
-Client-specific MCP configuration files:
-
-- Codex: `plugins/cpln/.codex-plugin/mcp.json` points at the hosted MCP URL; Codex negotiates OAuth on first call.
-- Claude Code: `plugins/cpln/.claude-mcp.json` uses `type: "http"`; Claude Code negotiates OAuth on first call.
-- Cursor: `plugins/cpln/.cursor-plugin/mcp.json` points at the hosted MCP URL; Cursor negotiates OAuth on first call.
-- Gemini CLI: `gemini-extension.json` uses `httpUrl`; Gemini negotiates OAuth on first call.
-
-The hosted MCP server exposes live Control Plane tools for reading and mutating infrastructure. Treat MCP access as production access to the organizations you granted at consent time.
 
 ## Security and Privacy
 
@@ -195,20 +172,6 @@ The hosted MCP server exposes live Control Plane tools for reading and mutating 
 - Destructive operations include deleting resources, shrinking or deleting volumes, deleting snapshots, replacing immutable workload types, and applying manifests that change production resources. Agents should present blast radius and request explicit confirmation before these operations.
 
 Report vulnerabilities by following the process in [SECURITY.md](SECURITY.md).
-
-## Troubleshooting
-
-| Problem                                                                                   | Check                                                                                                                                                                                                                                                                  |
-| ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| MCP requests fail with authentication errors                                              | Re-run sign-in (most clients prompt on the next tool call, or restart the client). Confirm you granted at least one organization at the consent screen.                                                                                                                |
-| MCP tool call returns "org not authorized"                                                | The current grant does not include that org. Sign in again and tick the missing org at the consent screen, or ask the org owner to add you to it first.                                                                                                                |
-| MCP tools are unavailable in Codex                                                        | Confirm the plugin was installed from `/plugins`, not only that the marketplace was added. Then restart Codex and use `/mcp` inside the session to inspect plugin-provided MCP servers.                                                                                |
-| Codex `/plugins` → Control Plane shows "No plugin hooks." and guardrails are not injected | Codex gates plugin hooks behind a feature flag. Add `[features]\nplugins = true\nplugin_hooks = true` to `~/.codex/config.toml` and restart Codex. See the Codex install section above.                                                                                |
-| MCP tools are unavailable in another client                                               | Confirm the client supports one of this repo's MCP configs (`plugins/cpln/.claude-mcp.json`, `plugins/cpln/.codex-plugin/mcp.json`, or the MCP block inside `gemini-extension.json`), or manually configured the `cpln` MCP server in that client's native MCP format. |
-| Commands are not available                                                                | Confirm the client supports this repo's command format. Codex should use skills/MCP rather than Claude-style slash commands.                                                                                                                                           |
-| Gemini extension does not load                                                            | Run `gemini extensions validate .` from the repository root.                                                                                                                                                                                                           |
-| AI proposes an uncertain `cpln` command                                                   | Check `plugins/cpln/rules/cli-conventions.md` and verify flags with `cpln <command> --help` or the MCP suggest tool.                                                                                                                                                   |
-| A write operation targets the wrong org/GVC                                               | Stop and confirm `CPLN_ORG`, `CPLN_GVC`, `CPLN_PROFILE`, or explicit command flags before retrying.                                                                                                                                                                    |
 
 ## Contributing
 
