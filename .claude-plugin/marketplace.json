@@ -10,7 +10,7 @@
       "name": "cpln",
       "source": "./plugins/cpln",
       "description": "Control Plane AI workflows, skills, guardrails, and MCP configuration.",
-      "version": "1.4.2",
+      "version": "1.4.3",
       "author": {
         "name": "Control Plane",
         "email": "support@controlplane.com",

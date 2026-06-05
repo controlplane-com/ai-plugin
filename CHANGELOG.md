@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Added
 
+### Changed
+
+### Fixed
+
+### Removed
+
+## [1.4.3] - 2026-06-05
+
+### Added
+
 - New `workload` skill: a single, token-efficient primer the AI reads before creating or updating a workload, with on-demand routing to the deep skills (images, scaling, networking, storage, security, metrics).
 
 ### Changed
