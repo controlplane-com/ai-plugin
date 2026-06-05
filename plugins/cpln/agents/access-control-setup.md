@@ -62,12 +62,13 @@ cpln group create --name GROUP_NAME --org ORG
 
 #### Via MCP (preferred)
 
-Use `mcp__cpln__add_member_to_group` for adding members:
+Use `mcp__cpln__edit_group` to add or remove members. It manages member links in the same call as description/tag updates — no separate add/remove tool exists.
 
-- `groupName` (required) — group to add to
-- `memberLinks` (required) — e.g., `["//user/alice@example.com", "//serviceaccount/sa-name"]`
+- `name` (required) — group to update
+- `addMemberLinks` (optional) — e.g., `["//user/alice@example.com", "//serviceaccount/sa-name"]`
+- `removeMemberLinks` (optional) — member links to detach
 
-Or use `mcp__cpln__update_group` with `addMemberLinks` to combine member changes with description/tag updates.
+Call `mcp__cpln__get_group` first to capture current membership before editing.
 
 #### Via CLI
 
@@ -109,7 +110,7 @@ Guide the user through **what resources** the policy should target.
 
 ### Target kinds
 
-For the authoritative list of valid `targetKind` values, see **rules/policy-manifest-reference.md** (verified against `cpln policy create --target-kind`). Note: `ipset` and `mk8s` are platform resources but NOT valid policy targets — access is controlled via their parent (`org` or `gvc`).
+For the authoritative list of valid `targetKind` values, fetch the policy schema with `mcp__cpln__get_resource_schema` (`kind: policy`), or verify against `cpln policy create --target-kind`. Note: `ipset` and `mk8s` are platform resources but NOT valid policy targets — access is controlled via their parent (`org` or `gvc`).
 
 ### Resource link format
 
@@ -258,11 +259,13 @@ Confirm the `targetKind`, `targetLinks` (or `target: all`), `bindings`, and `pri
 
 #### Via MCP (preferred)
 
-Use `mcp__cpln__create_service_account_key`:
+Use `mcp__cpln__add_key_to_service_account` — it creates the service account if it doesn't exist, adds a key, and optionally adds the SA to a group in one call:
 
 - `serviceAccountName` (required) — creates the SA if it doesn't exist, then adds a key
 - `keyDescription` (optional) — describe the key's purpose (e.g., "GitHub Actions deploy key")
 - `groupName` (optional) — add the SA to a group immediately
+
+(To create the SA without a key first, use `mcp__cpln__create_service_account`.)
 
 **The key is shown only once.** Instruct the user to save it immediately.
 
@@ -377,10 +380,14 @@ Every org has built-in groups and policies:
 | `mcp__cpln__list_groups`                | List all groups in an org                                        |
 | `mcp__cpln__get_group`                  | Get a specific group's details and members                       |
 | `mcp__cpln__create_group`               | Create a new group with optional initial members                 |
-| `mcp__cpln__update_group`               | Update description, tags, and members in one call                |
-| `mcp__cpln__add_member_to_group`        | Add users or service accounts to a group                         |
-| `mcp__cpln__remove_member_from_group`   | Remove users or service accounts from a group                    |
+| `mcp__cpln__edit_group`                 | Update description, tags, and add/remove member links in one call |
+| `mcp__cpln__delete_group`               | Delete a group (irreversible; strips its members from policies)  |
 | `mcp__cpln__list_service_accounts`      | List all service accounts in an org                              |
 | `mcp__cpln__get_service_account`        | Get service account details, keys, and group memberships         |
-| `mcp__cpln__create_service_account_key` | Create SA (if needed) + generate key + optional group assignment |
+| `mcp__cpln__create_service_account`     | Create a service account (no keys; issue one separately)         |
+| `mcp__cpln__add_key_to_service_account` | Create SA (if needed) + generate key + optional group assignment |
+| `mcp__cpln__update_service_account`     | Update SA metadata or revoke keys by name                        |
+| `mcp__cpln__delete_service_account`     | Delete a service account (revokes all its keys immediately)      |
 | `mcp__cpln__invite_user_to_org`         | Invite a user by email, optionally assign to a group             |
+| `mcp__cpln__list_users`                 | List users in an org (or look up one by email)                   |
+| `mcp__cpln__get_user`                   | Get a user by id or email                                        |

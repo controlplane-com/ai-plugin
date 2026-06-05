@@ -19,11 +19,13 @@ Guide through creating groups, service accounts, and policies to control who can
 ## What It Does
 
 1. Identifies the access goal (team access, CI/CD, custom policy)
-2. Creates or selects a group or service account
+2. Creates or selects a group (`mcp__cpln__create_group` / `mcp__cpln__list_groups`, member links via `mcp__cpln__edit_group`) or service account (`mcp__cpln__create_service_account`, then `mcp__cpln__add_key_to_service_account`)
 3. Determines target resources (all, specific, or tag-based)
-4. Discovers valid permissions for the target resource kind
-5. Creates the policy with correct bindings
-6. Verifies the access configuration
+4. Discovers valid permissions for the target resource kind (`mcp__cpln__get_permissions`)
+5. Creates the policy with correct bindings (`mcp__cpln__create_policy`)
+6. Verifies the access configuration (`mcp__cpln__get_policy` / `mcp__cpln__get_group`)
+
+These operations run through the MCP tools above. The `cpln` CLI is the fallback when the MCP server is unavailable or for CI/CD pipelines authenticating with a service-account `CPLN_TOKEN`.
 
 ## When to Use
 

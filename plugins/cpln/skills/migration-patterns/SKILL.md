@@ -23,6 +23,8 @@ Pick the path by source, not by destination tool — the tools are not interchan
 
 **Hand-translating Compose / Kubernetes / Helm into Control Plane YAML is forbidden as the entry point of a migration**, even when you expect the converter output to need fix-ups. Always run the conversion tool first.
 
+The conversion commands (`cpln convert`, `cpln stack`, `cpln helm`) are **CLI-exclusive — there is no MCP equivalent**; the converter must run as a CLI step. MCP enters *after* conversion: once you have the converted CPLN YAML and have worked through the fix-ups, author/create the individual resources with the typed MCP tools (`mcp__cpln__create_workload`, `mcp__cpln__create_gvc`, `mcp__cpln__create_secret`, `mcp__cpln__create_identity`, `mcp__cpln__create_volumeset`) so each resource gets production-grade defaults — or apply the whole manifest at once with `cpln apply -f`. Before hand-editing or re-authoring any converted manifest, call `mcp__cpln__get_resource_schema` for the relevant kind so the shape stays valid.
+
 | Source format | First-step command (mandatory) | Notes |
 |---|---|---|
 | Docker Compose | `cpln stack manifest --compose-file docker-compose.yml --gvc <gvc>` | Converts to CPLN YAML *without deploying* — for review + edits. Or `cpln stack deploy --compose-file docker-compose.yml --gvc <gvc>` for one-shot deploy. |
@@ -123,6 +125,8 @@ When `--protocol` is not set, each container port is resolved in this priority o
 3. Check port protocol detection (gRPC, HTTP/2)
 4. Validate Ingress → Domain route mapping
 5. Update service-to-service URLs in your app code to `<workload>.<gvc>.cpln.local[:port]`
+
+After the fix-ups, create the resources. Prefer the typed MCP tools so each gets production-grade defaults — `mcp__cpln__create_gvc` (if the target GVC does not exist), `mcp__cpln__create_secret`, `mcp__cpln__create_identity`, `mcp__cpln__create_volumeset`, then `mcp__cpln__create_workload`. Apply the converter's manifest directly with `cpln apply -f cpln-manifest.yaml --ready` when you want a one-shot apply or the MCP server is unavailable. Either way, verify the result: poll `mcp__cpln__get_workload_deployments` until each workload reports ready and pair every mutation with a read.
 
 ## Docker Compose Migration (`cpln stack`)
 
@@ -279,6 +283,15 @@ cpln helm list --org my-org        # Release list is org-scoped; --gvc is NOT ac
 - **Release state**: stored in an opaque secret per release; release list is org-scoped (no `--gvc` on `helm list`).
 - **`--history-limit`**: read per invocation (default `10`). If not re-passed on each `upgrade`, it falls back to the default — it is not persisted on the release.
 - **GVC-scoped kinds** (`workload`, `identity`, `volumeset`, `domain`) require `--gvc` or a GVC in your profile context.
+
+## Migrating to Terraform / IaC
+
+When the migration target is Infrastructure-as-Code rather than live resources, turn the converted CPLN YAML into Terraform (HCL):
+
+- `mcp__cpln__convert_to_terraform` — convert a CPLN resource manifest (the converter's YAML/JSON output) into HCL. It DRY-RUN validates the manifest against the API first, so the returned Terraform always corresponds to a schema-valid resource. Use `mcp__cpln__list_terraform_kinds` to confirm a kind is supported before converting.
+- `mcp__cpln__export_terraform` — generate HCL for resources that ALREADY exist, from a self link (single resource or bulk by path depth, e.g. `/org/acme/gvc/prod/workload`). Use this when you have already created the migrated resources and want to capture them as code. `mcp__cpln__export_terraform_batch` does several self links in one merged, de-duplicated call.
+
+This is the only IaC export path — there is no `cpln`-CLI Terraform generator beyond the `--output tf` format on read/apply commands.
 
 ## Documentation
 

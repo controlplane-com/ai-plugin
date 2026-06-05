@@ -7,10 +7,11 @@ description: "Filters, selects, and sorts Control Plane resources using the quer
 
 Control Plane has a universal query system for filtering and sorting resources. The same spec is used everywhere:
 
-- **Policy** `targetQuery` — dynamically target resources by tags/properties
-- **Group** `memberQuery` — dynamically assign users to groups
-- **GVC** `staticPlacement.locationQuery` — select locations by query instead of explicit `locationLinks`
-- **CLI** `cpln RESOURCE query` — filter resources from the command line
+- **Policy** `targetQuery` — dynamically target resources by tags/properties (authored via `mcp__cpln__create_policy` / `mcp__cpln__update_policy`)
+- **Group** `memberQuery` — dynamically assign users to groups (authored via `mcp__cpln__create_group` / `mcp__cpln__edit_group`)
+- **GVC** `staticPlacement.locationQuery` — select locations by query instead of explicit `locationLinks` (authored via `mcp__cpln__create_gvc` / `mcp__cpln__update_gvc`)
+- **MCP list/query tools** — the list tools accept the same `*_query` spec param to filter results: `mcp__cpln__list_workloads`, `mcp__cpln__list_secrets`, `mcp__cpln__list_identities`, `mcp__cpln__list_policies`, plus `mcp__cpln__query_audit_events` and `mcp__cpln__query_metrics`. **Prefer these for ad-hoc filtering.**
+- **CLI** `cpln RESOURCE query` — fallback for the command line when the MCP server is unavailable
 - **API** `POST /org/ORG/RESOURCE/-query` — filter via REST
 
 ## Query Structure
@@ -89,7 +90,16 @@ Resource-specific fields:
 | **policy** | `origin` |
 | **group** | `origin` |
 
-## CLI Usage
+## MCP-First Filtering
+
+For ad-hoc filtering, pass the query spec to the list/query MCP tools rather than reaching for the CLI:
+
+- `mcp__cpln__list_workloads`, `mcp__cpln__list_secrets`, `mcp__cpln__list_identities`, `mcp__cpln__list_policies` accept a `*_query` spec param that takes the same `match` / `terms` / `sort` shape shown above.
+- `mcp__cpln__query_audit_events` filters the audit trail; `mcp__cpln__query_metrics` filters metric series.
+
+The CLI shapes below are the fallback when the MCP server is unavailable or unauthenticated.
+
+## CLI Usage (Fallback)
 
 Every resource kind supports `cpln RESOURCE query`:
 
@@ -129,9 +139,9 @@ cpln workload query --match any --rel gvc=gvc-one --rel gvc=gvc-two
 
 **Resources supporting query:** agent, auditctx, cloudaccount, domain, group, gvc, identity, image, ipset, location, mk8s, org, policy, quota, secret, serviceaccount, task, user, volumeset, workload.
 
-## API Usage
+## API Usage (Fallback)
 
-Every resource kind exposes a `/-query` POST endpoint:
+When neither an MCP tool nor the CLI fits, every resource kind exposes a `/-query` POST endpoint:
 
 ```
 POST https://api.cpln.io/org/ORG_NAME/workload/-query

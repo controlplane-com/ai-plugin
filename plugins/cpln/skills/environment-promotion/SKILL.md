@@ -22,16 +22,21 @@ Patterns for promoting workloads across development, staging, and production env
 - **GVC-based** works when a single team owns all environments and stronger isolation is not required. Images in the same org's registry are accessible to all GVCs without pull secrets.
 - A common CI/CD pattern combines org-based isolation with manifest-based promotion via `cpln apply`.
 
+To bootstrap manifest- or IaC-based promotion from resources that already exist in one environment, export them with `mcp__cpln__export_terraform` (single resource or a path-depth scope like a whole GVC), `mcp__cpln__export_terraform_batch` (several self links in one call), or convert a hand-authored manifest with `mcp__cpln__convert_to_terraform` (dry-run validated). Check `mcp__cpln__list_terraform_kinds` first to confirm the kind is supported.
+
 ## Org-Based Promotion
 
 Each environment is a separate Control Plane org (e.g., `my-org-dev`, `my-org-staging`, `my-org-prod`). The same YAML manifests can be applied to different orgs with environment-specific secrets.
 
 ### Setup
 
-1. Create an org per environment
-2. Create matching GVCs and workloads in each org (names can be identical)
-3. Configure environment-specific secrets in each org
-4. Set up cross-org image access (pull secret or image copy)
+Lead with MCP tools for the steps that have one; the CLI is the fallback when the MCP server is unavailable, and the primary interface in CI/CD.
+
+1. Create an org per environment (org creation is account-level — done in the console)
+2. Create matching GVCs and workloads in each org, names can be identical — `mcp__cpln__create_gvc` then `mcp__cpln__create_workload` per org. CLI fallback for manifest-driven setup: call `mcp__cpln__get_resource_schema` to author an accurate manifest, then `cpln apply`
+3. Configure environment-specific secrets in each org — `mcp__cpln__create_secret`, then reference via the workload identity/policy
+4. Set up cross-org image access (pull secret or image copy — see below)
+5. Patch a promoted workload's spec to match the target environment (e.g. `firewallConfig`, env, scaling) with `mcp__cpln__update_workload`, and GVC-level settings with `mcp__cpln__update_gvc` (CLI fallback: `get_resource_schema` then `cpln apply`)
 
 ### Cross-org image access
 
@@ -39,17 +44,22 @@ Two approaches exist for using a dev org's image in staging/production:
 
 #### Option A: Pull secret (continuous access)
 
-Create a service account in the source org with image pull permission, generate a key, create a Docker secret in the target org, and attach it to the target GVC:
+Create a service account in the source org with image pull permission, generate a key, create a Docker secret in the target org, and attach it to the target GVC.
+
+**MCP path (source org `my-org-dev`):**
+
+- `mcp__cpln__add_key_to_service_account` — creates the `image-puller` service account if needed and issues a key in one call. Save the returned key value immediately (it is shown only once).
+- `mcp__cpln__create_policy` — bind the service account to image `pull` permission, with `targetKind: image` scoped to all images. Pass the principal and binding directly; there is no separate `add-binding` MCP tool.
+
+CLI fallback for the same steps:
 
 ```bash
-# Source org: create service account and policy
+# Source org: create service account, policy, and key
 cpln serviceaccount create --name image-puller --org my-org-dev
 cpln policy create --name image-pull-policy \
   --target-kind image --all --org my-org-dev
 cpln policy add-binding image-pull-policy \
   --serviceaccount image-puller --permission pull --org my-org-dev
-
-# Source org: generate key
 cpln serviceaccount add-key image-puller \
   --description "Cross-org image pull" --org my-org-dev
 # Save the "key" value from output
@@ -254,7 +264,9 @@ jobs:
 
 ### Re-deploy a previous image tag
 
-The simplest rollback: update the workload to point at the previous known-good image.
+The simplest rollback: update the workload to point at the previous known-good image. Lead with `mcp__cpln__get_workload` to capture the current image for a rollback record, then `mcp__cpln__update_workload` (PATCH semantics — only the image field changes). Verify the rollback landed with `mcp__cpln__get_workload_deployments`.
+
+CLI fallback when the MCP server is unavailable (or as the primary interface in CI/CD):
 
 ```bash
 # Update the container image to a previous version
@@ -284,6 +296,8 @@ This sets a `cpln/deployTimestamp` tag on the workload, triggering a rolling res
 
 ### Check deployment history
 
+Use `mcp__cpln__get_workload_deployments` to inspect the version chain and per-location readiness across every location the workload runs in. CLI fallback:
+
 ```bash
 # View recent deployments
 cpln workload get-deployments my-app --gvc my-gvc --org my-org
@@ -292,9 +306,9 @@ cpln workload get-deployments my-app --gvc my-gvc --org my-org
 ### Rollback checklist
 
 1. Identify the last known-good image tag (check git history or deployment logs)
-2. Update the workload image to that tag
-3. Verify the rollback with health checks
-4. If using org-based promotion, ensure the image still exists in the target org's registry
+2. Update the workload image to that tag — `mcp__cpln__update_workload` (CLI fallback: `cpln workload update`)
+3. Verify the rollback with health checks — poll `mcp__cpln__get_workload_deployments` until every location reports ready
+4. If using org-based promotion, ensure the image still exists in the target org's registry — `mcp__cpln__list_images` / `mcp__cpln__get_image`
 
 ## Quick Reference
 
@@ -315,13 +329,18 @@ cpln workload get-deployments my-app --gvc my-gvc --org my-org
 
 | Tool | Purpose |
 |:---|:---|
-| `mcp__cpln__update_workload` | Update workload properties (including image) |
-| `mcp__cpln__get_workload` | Get workload details and current image |
-| `mcp__cpln__get_workload_deployments` | View deployment history |
+| `mcp__cpln__create_gvc` / `mcp__cpln__create_workload` | Stand up a GVC and workload in a target environment |
+| `mcp__cpln__update_workload` | Patch workload properties (image, `firewallConfig`, env, scaling) |
+| `mcp__cpln__update_gvc` | Patch GVC metadata, env, or pull secrets |
+| `mcp__cpln__get_workload` | Get workload details and current image (capture before update) |
+| `mcp__cpln__get_workload_deployments` | Verify a promoted/rolled-back workload is ready across locations |
+| `mcp__cpln__get_resource_schema` | Author an accurate manifest before a `cpln apply` fallback |
+| `mcp__cpln__export_terraform` / `mcp__cpln__export_terraform_batch` | Export existing resources to Terraform for IaC promotion |
+| `mcp__cpln__convert_to_terraform` / `mcp__cpln__list_terraform_kinds` | Convert a manifest to HCL; list supported kinds |
 | `mcp__cpln__list_images` | List images in an org |
 | `mcp__cpln__get_image` | Get image details |
 
-**Note:** No MCP tool exists for image copy — use the CLI directly.
+**Note:** No MCP tool exists for image copy/build — use the CLI directly (`cpln image copy`, `cpln image build --push`).
 
 ### Related skills
 

@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 - Rewrote the AI agent operating rules to be slimmer and MCP-first, with clearer guidance on which tool or skill to use for each task.
 - Reworked and slimmed the `cpln` CLI skill, now the single home for CLI command reference.
+- Reworked every skill, agent, and command to lead with the MCP tools (CLI as the fallback) and corrected outdated MCP tool names.
 
 ### Removed
 

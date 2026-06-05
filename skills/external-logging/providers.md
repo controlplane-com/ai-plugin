@@ -2,11 +2,14 @@
 
 Companion to `skills/external-logging/SKILL.md`. Per-provider YAML manifests, prerequisites, field reference, and MCP example payloads.
 
+**MCP-first.** Configure log shipping with `mcp__cpln__configure_external_logging` (it handles primary vs extra provider placement), inspect with `mcp__cpln__get_external_logging`, and tear down with `mcp__cpln__remove_external_logging`. Provider credentials (AWS, GCP, or opaque API keys) are stored as a secret first via `mcp__cpln__create_secret`, then referenced by `//secret/NAME`. The YAML manifests below are the **CLI fallback** — used when the MCP server is unavailable: author them against the schema (`get_resource_schema`) and apply with `cpln apply -f manifest`.
+
 ## Amazon S3
 
 **Prerequisites:**
 - An S3 bucket in your AWS account.
 - An IAM user with **programmatic access** and `s3:PutObject` permission on the target bucket.
+- The IAM user's access key stored as an AWS secret in Control Plane via `mcp__cpln__create_secret` (`{"accessKey": "key", "secretKey": "secret"}`), then referenced below as `//secret/AWS_SECRET`.
 
 **Minimum IAM policy** (substitute `S3_BUCKET_NAME`):
 
@@ -50,8 +53,7 @@ spec:
 ## AWS CloudWatch
 
 **Prerequisites:**
-- An AWS IAM user with credentials stored as an AWS Secret.
-- CloudWatch Logs permissions in your AWS account.
+- An AWS IAM user with CloudWatch Logs permissions, with its access key stored as an AWS secret via `mcp__cpln__create_secret` (`{"accessKey": "key", "secretKey": "secret"}`).
 
 **YAML manifest:**
 
@@ -129,7 +131,7 @@ spec:
 
 **Host mapping:** Dashboard `us3.datadoghq.com` → intake host `http-intake.logs.us3.datadoghq.com`.
 
-**MCP payload:**
+**MCP payload** (pass to `mcp__cpln__configure_external_logging`):
 
 ```json
 {
@@ -168,7 +170,7 @@ spec:
 **Prerequisites:**
 - A GCP project with Cloud Logging enabled.
 - A GCP service account with permissions to write logs (see [GCP Secret reference](https://docs.controlplane.com/reference/secret.md)).
-- The service account key stored as a GCP Secret in Control Plane.
+- The service account key stored as a GCP secret in Control Plane via `mcp__cpln__create_secret`, then referenced as `//secret/GCP_SECRET`.
 
 **YAML manifest:**
 

@@ -7,6 +7,8 @@ description: "Manages Control Plane resources as Kubernetes CRDs and sets up Arg
 
 The Control Plane Kubernetes Operator lets you manage platform resources as Kubernetes Custom Resource Definitions (CRDs) from within any Kubernetes cluster.
 
+**When to use this vs. MCP tools:** Reach for the operator (or `cpln apply`) only when resources must be **GitOps-managed** — declared in Git and reconciled by ArgoCD/Flux. For direct, imperative provisioning, prefer the typed MCP tools (`mcp__cpln__create_workload`, `mcp__cpln__update_workload`, `mcp__cpln__create_gvc`, and the rest of the typed catalog) — they validate inputs and apply production-grade defaults server-side. There is no generic passthrough tool; each resource kind has its own typed tool. When you do author a CRD manifest, fetch the exact field shape first with `mcp__cpln__get_resource_schema` so the `spec` block is schema-valid.
+
 ## Where to Get It
 
 | Resource         | Location                                                              |
@@ -161,6 +163,8 @@ Both are required: the label tells the operator to watch the secret, and the ann
 Agent, AuditCtx, CloudAccount, Domain, Group, GVC, Identity, IPSet, Location, MK8s, Org, Policy, Secret, ServiceAccount, VolumeSet, Workload
 
 ## Export Existing Resources as CRDs
+
+CRD-format export (`-o crd`) is CLI-only — no MCP tool emits CRD YAML. Use the typed read tools (`mcp__cpln__get_workload`, `mcp__cpln__get_gvc`, `mcp__cpln__get_secret`, `mcp__cpln__list_workloads`) to discover and inspect the resources first, then export the chosen ones:
 
 ```bash
 cpln workload get my-app --gvc my-gvc -o crd > workload-crd.yaml

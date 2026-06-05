@@ -102,7 +102,7 @@ Control Plane provides a managed Grafana instance per org, accessible via **Metr
 
 ### Observability Settings
 
-Configure retention and default alert recipients at the org level:
+Configure retention and default alert recipients at the org level. No typed MCP tool edits the org `observability` block, so apply it via the CLI: call `mcp__cpln__get_resource_schema` for the `org` kind to confirm the shape, then `cpln apply -f org.yaml`.
 
 ```yaml
 kind: org
@@ -152,11 +152,11 @@ Export metrics to external Prometheus via the `/federate` endpoint at `metrics.c
 
 ### Setup Steps
 
-**1. Create Service Account in source org:**
+**1. Create Service Account in source org** — `mcp__cpln__add_key_to_service_account` (creates the SA if needed, adds a key, returns the token):
 - Name: `prometheus-federate`
-- Generate a key and save the token
+- Save the returned key — it is shown only once
 
-**2. Create Policy granting `readMetrics`:**
+**2. Create Policy granting `readMetrics`** — `mcp__cpln__create_policy`:
 
 ```yaml
 kind: policy
@@ -206,9 +206,8 @@ View metrics from multiple orgs in a single Grafana instance by adding Prometheu
 ### Setup: Add org-2 metrics to org-1 Grafana
 
 **In org-2 (source):**
-1. Create Service Account: `grafana-data-source`
-2. Generate key and save token
-3. Create policy:
+1. Create Service Account `grafana-data-source` with a key — `mcp__cpln__add_key_to_service_account` (save the returned token; shown only once)
+2. Create policy — `mcp__cpln__create_policy`:
 
 ```yaml
 kind: policy
@@ -243,6 +242,8 @@ Import the pre-built multi-source dashboard:
 ## Custom Metrics
 
 Expose Prometheus-formatted metrics from workloads for monitoring and autoscaling.
+
+The container `metrics` block lives inside the workload spec. Set it at creation with `mcp__cpln__create_workload` or add it later with `mcp__cpln__update_workload` (PATCH semantics — call `mcp__cpln__get_workload` first to capture current state). If the typed tool doesn't surface the nested `metrics` field you need, fall back to the CLI: `mcp__cpln__get_resource_schema` for the `workload` kind, then `cpln apply -f workload.yaml`.
 
 ### Configuration
 
@@ -368,12 +369,15 @@ Query built-in metrics in Grafana Explore. Key metrics to monitor:
 
 ### MCP Tools
 
-There is no first-party MCP tool for metric queries — run PromQL via Grafana (Console > Metrics) or against `metrics.cpln.io` with a `readMetrics` service-account token.
+Query metrics with the typed MCP tools — no Grafana round-trip needed. Grafana stays the path for dashboards, visual exploration, and alerting.
 
 | Tool | Use |
 |:---|:---|
+| `mcp__cpln__list_metrics` | Discover metric names and real label values (built-in + custom) before querying, so PromQL filters are grounded |
+| `mcp__cpln__query_metrics` | Run a PromQL query (Prometheus-compatible) against Control Plane metrics |
 | `mcp__cpln__get_workload_logs` | Correlate a metric spike with workload logs (see **cpln-logql-observability**) |
-| `mcp__cpln__cpln_resource_operation` | Read/update the org `observability` block or workload `metrics` block via generic passthrough |
+
+No typed MCP tool edits the org `observability` block or a workload's `metrics` block. To change either, fall back to the CLI: call `mcp__cpln__get_resource_schema` for the `org` (or `workload`) kind, author the manifest, then `cpln apply -f manifest`.
 
 ### Metrics Endpoint
 

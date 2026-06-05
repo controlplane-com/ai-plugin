@@ -18,6 +18,8 @@ queue_depth 42
 
 ### Configuration
 
+The `metrics` block lives in the container spec. Apply it via MCP — `mcp__cpln__create_workload` for a new workload or `mcp__cpln__update_workload` to add scraping to an existing one — then confirm the spec took with `mcp__cpln__get_workload`. Because adding or changing the `metrics` block redeploys the workload, poll `mcp__cpln__get_workload_deployments` until every location reports ready. (Fallback when MCP is unavailable, or in CI/CD: `cpln apply -f manifest.yaml`.)
+
 ```yaml
 spec:
   containers:
@@ -55,6 +57,8 @@ Custom metrics are available via the Control Plane Prometheus endpoint at `metri
 sum(my_app_queue_depth{gvc="GVC_NAME", workload="WORKLOAD_NAME"})
 ```
 
+Before wiring a KEDA trigger to a custom metric, confirm the platform is actually scraping it: call `mcp__cpln__list_metrics` to see the metric name and labels the scraper picked up (custom metrics show up alongside the built-in defaults), then run `mcp__cpln__query_metrics` with your PromQL to verify the signal returns data. If the metric is missing, the `metrics` block above is misconfigured — scaling on a metric that never resolves keeps the workload pinned at `minScale`.
+
 ## Resource Allocation & Scaling Interaction
 
 ### CPU/Memory and Autoscaling
@@ -68,7 +72,7 @@ sum(my_app_queue_depth{gvc="GVC_NAME", workload="WORKLOAD_NAME"})
 
 - GPU workloads cannot use Capacity AI.
 - GPU models: **Nvidia T4** (1–4 per replica), **Nvidia A10g** (1 per replica).
-- GPU workloads have strict minimum CPU/memory requirements (see `rules/workload-manifest-reference.md`).
+- GPU workloads have strict minimum CPU/memory requirements (fetch the exact constraints with `mcp__cpln__get_resource_schema`, `kind: workload`).
 - No additional GPU charges — standard CPU/memory/egress billing applies.
 
 ### Stateful Resource Optimization

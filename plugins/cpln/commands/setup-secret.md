@@ -17,12 +17,13 @@ Orchestrate the mandatory 3-step secret access chain for a workload.
 
 ## What It Does
 
-1. Creates the secret (or identifies an existing one)
-2. Creates an identity and links it to the workload
-3. Creates a policy granting `reveal` permission on the secret
-4. Injects the secret as an environment variable or volume mount
-5. Verifies the complete chain works
-6. Redeploys the workload with `--ready`
+Each step leads with the MCP tool; the CLI is the fallback when the MCP server is unavailable.
+
+1. Creates the secret (`mcp__cpln__create_secret`) or identifies an existing one (`mcp__cpln__list_secrets` / `mcp__cpln__get_secret`)
+2. Grants the workload access — ensures an identity and a `reveal` policy in one call with `mcp__cpln__workload_reveal_secret` (or do it manually: `mcp__cpln__create_identity` + `mcp__cpln__create_policy`, refining with `mcp__cpln__update_identity` / `mcp__cpln__update_policy`)
+3. Injects the secret reference (`cpln://secret/NAME`) into the workload's env or volume mounts with `mcp__cpln__update_workload` (read current state first via `mcp__cpln__get_workload`)
+4. Verifies the complete chain — break-glass plaintext check with `mcp__cpln__reveal_secret` only when needed
+5. Redeploys and confirms readiness (CLI fallback: `cpln apply --ready`)
 
 ## Why This Exists
 

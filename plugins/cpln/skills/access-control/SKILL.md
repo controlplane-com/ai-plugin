@@ -58,7 +58,7 @@ bindings:                       # max 50 bindings
 
 The `targetKind` field specifies which resource type this policy applies to. Common kinds: `secret`, `workload`, `gvc`, `identity`, `domain`, `image`, `serviceaccount`, `group`, `org`.
 
-For the full authoritative list (verified against `cpln policy create --target-kind`), see **rules/policy-manifest-reference.md**. Note: `ipset` and `mk8s` are platform resources but are NOT valid policy targets — access is controlled via their parent (`org` or `gvc`).
+For the full authoritative list, fetch the policy schema with `mcp__cpln__get_resource_schema` (`kind: policy`), or verify against `cpln policy create --target-kind`. Note: `ipset` and `mk8s` are platform resources but are NOT valid policy targets — access is controlled via their parent (`org` or `gvc`).
 
 ### Target Scope
 
@@ -128,6 +128,8 @@ bindings:
 Short format (org from context): `//user/USER_EMAIL`
 
 ## Common RBAC Patterns
+
+Create these with the MCP tools first — `mcp__cpln__create_policy` (target kind, scope, and bindings), `mcp__cpln__create_group` / `mcp__cpln__edit_group` for principals, and `mcp__cpln__add_key_to_service_account` for CI/CD principals. The YAML below is the equivalent `cpln apply -f manifest` shape — reach for it when the MCP server is unavailable or when applying policy-as-code from CI/CD (service-account `CPLN_TOKEN`). Either way, confirm permission names against `mcp__cpln__get_permissions` for the target kind.
 
 ### Org Admin — Full Access to Everything
 
@@ -235,6 +237,8 @@ bindings:
 
 ### Workload Identity Secret Access
 
+The identity must exist in the GVC before you can bind it — create it with `mcp__cpln__create_identity` (read it back with `mcp__cpln__get_identity`, or discover existing ones via `mcp__cpln__list_identities`), then attach it to the workload via `spec.identityLink`. For the full secret-access flow (identity + policy + injection), see the **cpln:setup-secret** skill.
+
 ```yaml
 kind: policy
 name: app-secret-access
@@ -276,7 +280,7 @@ bindings:
 
 ## Gotchas
 
-- **Policies fail silently when wrong.** A typo in `targetKind`, a missing principal link, or an invalid permission name produces a policy that exists but grants nothing. Always verify with `cpln policy access-report POLICY_NAME` after creation.
+- **Policies fail silently when wrong.** A typo in `targetKind`, a missing principal link, or an invalid permission name produces a policy that exists but grants nothing. Always verify after creation — read the policy back with `mcp__cpln__get_policy` (or `cpln policy access-report POLICY_NAME` from the CLI) and confirm the bindings and target resolved as intended.
 - **Built-in policies cannot be modified or deleted.** Origins `builtin` are read-only; create your own with `default` origin.
 - **`reveal` (not `read`) is the permission for accessing secret values.** This is the most common permission-name mistake.
 - **Identity links are GVC-scoped.** Use `//gvc/GVC/identity/NAME`, not `//identity/NAME`.
@@ -297,16 +301,19 @@ bindings:
 | `mcp__cpln__get_permissions` | List grantable permissions for a kind | `kind` |
 | `mcp__cpln__list_groups` | List all groups in an org | `limit` (optional) |
 | `mcp__cpln__get_group` | Get group details and members | `name` |
-| `mcp__cpln__create_group` | Create a group | `name`, `memberLinks` |
-| `mcp__cpln__add_member_to_group` | Add users/SAs to a group | `groupName`, `memberLinks` |
-| `mcp__cpln__remove_member_from_group` | Remove users/SAs from a group | `groupName`, `memberLinks` |
-| `mcp__cpln__update_group` | Update group description/tags/members | `name`, `addMemberLinks`, `removeMemberLinks`, `tags` |
+| `mcp__cpln__create_group` | Create a group, optionally seed member links | `name`, `memberLinks` |
+| `mcp__cpln__edit_group` | Update group description/tags AND add/remove member links in one call | `name`, `addMemberLinks`, `removeMemberLinks`, `description`, `tags` |
 | `mcp__cpln__delete_group` | Delete a group | `name` |
 | `mcp__cpln__list_service_accounts` | List all service accounts in an org | `limit` (optional) |
 | `mcp__cpln__get_service_account` | Get service account details, keys, and group memberships | `name` |
-| `mcp__cpln__create_service_account_key` | Create SA + add key | `serviceAccountName`, `keyDescription`, `groupName` |
+| `mcp__cpln__create_service_account` | Create a service account (no keys yet) | `name`, `description` |
+| `mcp__cpln__add_key_to_service_account` | Create the SA if needed, add a key, optionally add to a group | `name`, `keyDescription`, `groupName` |
+| `mcp__cpln__update_service_account` | Update SA metadata or revoke keys by name | `name`, `description`, `tags` |
+| `mcp__cpln__delete_service_account` | Delete a service account (revokes all keys) | `name` |
+| `mcp__cpln__list_users` | List users in an org | `email` (optional) |
+| `mcp__cpln__get_user` | Get a user by id or email | `id`/`email` |
 | `mcp__cpln__invite_user_to_org` | Invite user by email | `email`, `groupName` |
-| `mcp__cpln__cpln_resource_operation` | Fallback CRUD for any resource | `kind`, `operation`, `name`, `body` |
+| `mcp__cpln__delete_user` | Remove a user from the org | `id`/`email` |
 
 ### CLI Commands
 

@@ -9,7 +9,7 @@ description: "Recommends and installs production-ready templates from the Contro
 
 Whenever a user needs a database, cache, queue, broker, search engine, gateway, WAF, identity provider, S3-compatible storage, LLM inference, or any other component listed below, the catalog template is the **default recommendation** — not the fallback. Templates are versioned OCI artifacts published by Control Plane with production-tested defaults: persistent storage wired up, credentials generated as Control Plane secrets, sensible firewall posture, HA variants where applicable, and Helm-style upgrade/rollback. Hand-rolled workload + volumeset + secret + firewall combinations for these components routinely ship without backups, with permissive networking, or with a single-replica DB on a public service.
 
-**Lead with the template.** Name the exact OCI artifact and `cpln helm install` command on first mention, note whether an HA variant exists and when to choose it, and call out one real tradeoff so the user can decide. Move to a custom workload only when the user gives a hard reason — unusual extension, legacy image they must reuse, or a feature the template doesn't expose. The full anti-pattern list and required response shape live in `rules/cpln-guardrails.md → "Template Catalog First — Don't Reinvent Common Infra"`.
+**Lead with the template.** Discover and install via the catalog MCP tools — `mcp__cpln__browse_templates` to find a fit, `mcp__cpln__get_template` for versions and the example `values.yaml`, `mcp__cpln__preview_template` to dry-run, then `mcp__cpln__install_template`. Name the matching template on first mention, note whether an HA variant exists and when to choose it, and call out one real tradeoff so the user can decide. Move to a custom workload only when the user gives a hard reason — unusual extension, legacy image they must reuse, or a feature the template doesn't expose. The full anti-pattern list and required response shape live in `rules/cpln-guardrails.md → "Template Catalog First — Don't Reinvent Common Infra"`.
 
 ## Template Selection
 
@@ -73,9 +73,27 @@ Whenever a user needs a database, cache, queue, broker, search engine, gateway, 
 
 ## Installation Methods
 
-### CLI (OCI)
+### MCP (preferred)
 
-Templates are published as OCI artifacts at `oci://ghcr.io/controlplane-com/templates/<TEMPLATE>`. The OCI slug matches the template name used in the tables above (e.g., `cockroach`, `ess`, `otel-collector`).
+The catalog is MCP-native — drive discovery and the full install lifecycle through these tools:
+
+| Step | Tool |
+|:---|:---|
+| Browse the catalog (name, category, latest version, owns-GVC flag) | `mcp__cpln__browse_templates` |
+| Inspect a template's versions, prerequisites, and example `values.yaml` | `mcp__cpln__get_template` |
+| Dry-run render the resources an install would create | `mcp__cpln__preview_template` |
+| Install a template as a new release | `mcp__cpln__install_template` |
+| Show an installed release's status, revision, and created resources | `mcp__cpln__get_installed_template` |
+| List installed releases in the org | `mcp__cpln__list_installed_templates` |
+| Upgrade a release to a new version / values | `mcp__cpln__upgrade_template` |
+| Roll a release back to a prior revision | `mcp__cpln__rollback_template` |
+| Uninstall a release (destructive — confirm blast radius first) | `mcp__cpln__uninstall_template` |
+
+Read `mcp__cpln__get_template` first to copy and edit the example `values.yaml`, validate it with `mcp__cpln__preview_template`, then `mcp__cpln__install_template` (pass `name`, `template`, optional `version`, the `values` YAML, and `gvc` unless the template creates its own). Installs are asynchronous — confirm with `mcp__cpln__get_installed_template` afterwards. `upgrade_template` reads the template and GVC from the installed release, so you pass only `name` (plus the new `version`/`values`).
+
+### CLI (OCI) — fallback / CI-CD
+
+Use the `cpln helm` CLI when the MCP server is unavailable, or as the primary interface in CI/CD pipelines (service-account `CPLN_TOKEN`). Templates are published as OCI artifacts at `oci://ghcr.io/controlplane-com/templates/<TEMPLATE>`. The OCI slug matches the template name used in the tables above (e.g., `cockroach`, `ess`, `otel-collector`).
 
 ```bash
 # Install a template (omit --version for latest)
@@ -128,7 +146,7 @@ These are natively distributed — the standard templates already provide HA thr
 
 ## Configuration
 
-Templates are configured at install time via a `values.yaml` file (`-f`) and/or inline `--set key=value` overrides. To change configuration after install, run `cpln helm upgrade <RELEASE> oci://... -f values.yaml` with the updated values.
+Templates are configured at install time via the `values` YAML you pass to `mcp__cpln__install_template` (or a `values.yaml` file with `-f` / inline `--set key=value` overrides on the CLI). To change configuration after install, call `mcp__cpln__upgrade_template` with the updated `values` (the template and GVC are read from the installed release, so pass only `name`); the CLI equivalent is `cpln helm upgrade <RELEASE> oci://... -f values.yaml`.
 
 Common configuration points (vary per template):
 - Credentials (username, password, initial database)
@@ -150,11 +168,12 @@ cpln apply -f secret.yaml
 ## Post-Installation
 
 After installing a template:
-1. Verify all workloads are healthy: `cpln workload get --gvc my-gvc`
-2. Check operational secrets were created: `cpln secret get`
-3. Configure firewall rules if workloads need external access
-4. Set up backup schedule for production databases
-5. Monitor via Grafana dashboards
+1. Confirm the release succeeded and inspect the resources it created with `mcp__cpln__get_installed_template` (CLI fallback: `cpln helm get all <RELEASE>`).
+2. Verify the created workloads are healthy with `mcp__cpln__get_workload_deployments` (CLI fallback: `cpln workload get --gvc my-gvc`).
+3. Check operational secrets were created with `mcp__cpln__list_secrets` (CLI fallback: `cpln secret get`).
+4. Configure firewall rules if workloads need external access.
+5. Set up backup schedule for production databases.
+6. Monitor via Grafana dashboards.
 
 ## Documentation
 

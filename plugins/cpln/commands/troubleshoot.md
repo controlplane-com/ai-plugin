@@ -17,7 +17,9 @@ Diagnose why a Control Plane workload is unhealthy, crashing, or not starting.
 
 ## What It Does
 
-1. Fetches workload status, events, and deployment history
+Diagnosis is read-only and MCP-first. Lead with the MCP tools below; fall back to the `cpln` CLI (`cpln workload get`, `cpln logs`) only when the MCP server is unavailable, and use interactive `cpln workload exec` / `cpln connect` when you need a live shell rather than a single command.
+
+1. Fetches workload status, events, and deployment history — `mcp__cpln__get_workload_deployments` is the PRIMARY readiness check across all locations; pair with `mcp__cpln__get_workload_events` and `mcp__cpln__get_workload_logs`. For a partial failure where one location is unhealthy, drill in with `mcp__cpln__list_deployments` / `mcp__cpln__get_deployment`. Capture the spec via `mcp__cpln__get_workload` (and `mcp__cpln__list_workloads` to confirm the target).
 2. Checks for common failure patterns (most common first):
    - Insufficient memory / OOMKilled (the #1 customer issue)
    - Image pull errors (wrong reference, missing pull secret, wrong platform)
@@ -32,8 +34,9 @@ Diagnose why a Control Plane workload is unhealthy, crashing, or not starting.
    - Volume mount failures (identity, cloud access, reserved paths)
    - Service-to-service communication (internal firewall, endpoint format)
    - Dedicated load balancer and domain issues (TCP, Host header, DNS propagation)
-3. Presents diagnosis with exact fix commands
-4. Offers to apply the fix
+3. Drills deeper when needed: `mcp__cpln__list_metrics` then `mcp__cpln__query_metrics` for resource pressure (OOM, CPU, latency); `mcp__cpln__reveal_secret` to confirm a referenced secret value (requires reveal permission); and as a last resort `mcp__cpln__list_workload_replicas` then `mcp__cpln__workload_exec` to run a single command inside a live replica (highest-risk — it executes in a production container and is audit-logged).
+4. Presents diagnosis with exact fix commands. When the fix needs a manifest, call `mcp__cpln__get_resource_schema` first, then apply with `cpln apply -f manifest`.
+5. Offers to apply the fix
 
 ## Examples
 

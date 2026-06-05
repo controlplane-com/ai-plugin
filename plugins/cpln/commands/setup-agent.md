@@ -18,11 +18,13 @@ Deploy and configure a Control Plane wormhole agent to connect workloads to serv
 
 ## What It Does
 
-1. Evaluates if PrivateLink or Private Service Connect can be used instead
-2. Creates an agent resource and generates the bootstrap config
+1. Evaluates if PrivateLink or Private Service Connect can be used instead (cloud-native routing via `mcp__cpln__add_identity_native_network_resource`)
+2. Creates an agent resource and captures the one-time bootstrap config (`mcp__cpln__create_agent`)
 3. Guides deployment to the target environment (K8s, Docker, AWS, Azure, GCP)
-4. Configures identity network resources for workload routing
-5. Verifies the agent tunnel is active and reachable
+4. Configures identity network resources for workload routing — agent-based wormhole via `mcp__cpln__add_identity_network_resource` (`mcp__cpln__create_identity` first if the workload has no identity)
+5. Verifies the agent tunnel is active and reachable (`mcp__cpln__get_agent_info`, `mcp__cpln__get_agent_eventlog`)
+
+Steps run through the MCP tools above. CLI is the fallback when MCP is unavailable or in CI/CD; agent runtime deployment (`cpln agent up`, `cpln agent manifest`) is always CLI.
 
 ## When to Use
 

@@ -1,6 +1,8 @@
 # Agent Deployment — Per-Platform Reference
 
-Companion to `agents/agent-setup.md`. Pick the platform and follow the section. Each section assumes you have already saved the bootstrap config JSON from Step 1 of the parent agent.
+Companion to `agents/agent-setup.md`. Pick the platform and follow the section. Each section assumes you have already saved the bootstrap config JSON from Step 1 of the parent agent (`mcp__cpln__create_agent`, or `cpln agent create` as the CLI fallback).
+
+> **MCP vs CLI here:** the per-platform steps below (`cpln agent manifest`, `cpln agent up`, pasting the bootstrap JSON into VM user-data) are deployment mechanics with no MCP equivalent — they stay CLI/console. The surrounding lifecycle is MCP-first: create the agent with `mcp__cpln__create_agent`, inspect it with `mcp__cpln__get_agent` / `mcp__cpln__list_agents`, verify connectivity with `mcp__cpln__get_agent_info` / `mcp__cpln__get_agent_eventlog`, and wire up identity network resources with `mcp__cpln__add_identity_network_resource` (agent-based) / `mcp__cpln__add_identity_native_network_resource` (PrivateLink / PSC) per Step 4 of the parent agent.
 
 ## Kubernetes
 
@@ -51,7 +53,7 @@ cpln agent up --bootstrap-file AGENT_NAME-bootstrap.json
 
 **Note:** On Windows, configure Docker to NOT use the WSL 2 based engine and run the command from a Windows command prompt (not WSL).
 
-**Important:** When running locally, the agent runs inside a Docker container. When configuring identity network resources, use the IP of the network adapter that Docker installed on the local machine — not `localhost` or `127.0.0.1`.
+**Important:** When running locally, the agent runs inside a Docker container. When configuring identity network resources (`mcp__cpln__add_identity_network_resource`, with `IPs` set), use the IP of the network adapter that Docker installed on the local machine — not `localhost` or `127.0.0.1`.
 
 ## AWS (VM)
 

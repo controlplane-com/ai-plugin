@@ -65,12 +65,20 @@ The `spec.firewall` array contains allow-list rules. Each rule has `sourceCIDR` 
 
 ### Create mk8s Cluster
 
+Prefer the MCP server. Each provider has its own create tool — pick the one matching your infrastructure: `mcp__cpln__create_mk8s_aws`, `mcp__cpln__create_mk8s_azure`, `mcp__cpln__create_mk8s_gcp`, `mcp__cpln__create_mk8s_digitalocean`, `mcp__cpln__create_mk8s_hetzner`, `mcp__cpln__create_mk8s_linode`, `mcp__cpln__create_mk8s_oblivus`, `mcp__cpln__create_mk8s_lambdalabs`, `mcp__cpln__create_mk8s_paperspace`, `mcp__cpln__create_mk8s_triton`, or `mcp__cpln__create_mk8s_generic`. Supply at least one node pool to get worker capacity. Several providers need a credential secret first (`mcp__cpln__create_secret`): Azure (`sdkSecretLink`), GCP (`saKeyLink`), DigitalOcean / Hetzner / Linode / Oblivus / Lambdalabs / Paperspace (`tokenSecretLink`), Triton (`connection.privateKeySecretLink`). AWS uses an assumed `deployRoleArn` instead of a secret.
+
+Inspect with `mcp__cpln__get_mk8s` and `mcp__cpln__list_mk8s`. Update an existing cluster with the per-provider `mcp__cpln__update_mk8s_<provider>` tool (merge-patch — supply only the fields to change; provided `nodePools`/`firewall` replace the existing values). Delete with `mcp__cpln__delete_mk8s` (destructive — confirm the blast radius first).
+
+Fallback (MCP unavailable, or CI/CD): create via `cpln apply` with a YAML manifest. Author it from the live schema with `mcp__cpln__get_resource_schema` (kind `mk8s`).
+
 ```bash
-# mk8s clusters must be created via cpln apply with a YAML manifest
+# Fallback: create/update a cluster via cpln apply with a YAML manifest
 cpln apply --file mk8s-cluster.yaml
 ```
 
 ### mk8s CLI Commands
+
+For read/update/delete, prefer the MCP tools above (`get_mk8s`, `list_mk8s`, `update_mk8s_<provider>`, `delete_mk8s`). The CLI is the fallback when MCP is unavailable and the only interface for the operations below that have no MCP equivalent (`kubeconfig`, `dashboard`, `join`, `eventlog`, `clone`).
 
 | Command | Description |
 |:--------|:------------|
@@ -85,7 +93,7 @@ cpln apply --file mk8s-cluster.yaml
 | `cpln mk8s eventlog <ref>` | Show cluster event log (alias: `log`) |
 | `cpln mk8s clone <ref>` | Clone cluster spec (alias: `copy`) |
 
-There is no `cpln mk8s create` command. Use `cpln apply --file mk8s.yaml` to create clusters.
+There is no `cpln mk8s create` command. Create clusters with the `mcp__cpln__create_mk8s_<provider>` tools, or fall back to `cpln apply --file mk8s.yaml`.
 
 `cpln mk8s update --set` only accepts `description`, `tags.<key>`, and `spec.version`. To edit provider or add-on fields, use `cpln mk8s edit` or `cpln apply`.
 
@@ -146,12 +154,14 @@ To remove a BYOK cluster, use `cpln location uninstall <ref>` and run the printe
 ### Post-Installation
 
 After the agent connects:
-1. Add the BYOK location to your GVC
+1. Add the BYOK location to your GVC — `mcp__cpln__add_gvc_locations`
 2. Deploy workloads that target the new location
-3. Verify workload health across all locations
+3. Verify workload health across all locations — `mcp__cpln__get_workload_deployments` (poll until ready), then `mcp__cpln__get_workload`
+
+The BYOK location create/install/uninstall steps above are CLI-only (no MCP equivalent). Once the location exists, prefer MCP for the GVC and workload work:
 
 ```bash
-# Simpler form using the dedicated subcommand
+# Fallback for adding the location via CLI
 cpln gvc add-location my-gvc --location my-cluster
 
 # Or, equivalently, via the generic update + `+=` append operator

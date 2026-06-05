@@ -40,6 +40,8 @@ An IP set reserves a **static public IP address in each location** of a GVC. Use
 
 ### Create an IP Set
 
+Prefer the MCP tool `mcp__cpln__create_ipset` — pass `name`, optional `link` (workload/GVC), and `locations[]`. Read existing sets with `mcp__cpln__list_ipsets` / `mcp__cpln__get_ipset`. Fall back to `cpln apply` only when the MCP server is unavailable, or in CI/CD where `cpln apply` is the primary interface.
+
 ```yaml
 kind: ipset
 name: my-static-ips
@@ -53,11 +55,11 @@ spec:
       retentionPolicy: keep
 ```
 
-Apply with `cpln apply -f ipset.yaml --org MY_ORG`.
+Apply the manifest with `cpln apply -f ipset.yaml --org MY_ORG`.
 
 ### Release an IP
 
-Set `retentionPolicy: free` to release an allocated IP and stop charges:
+Set `retentionPolicy: free` to release an allocated IP and stop charges. Prefer `mcp__cpln__add_ipset_location` with `retentionPolicy: free` (it overwrites the policy of an already-configured location); fall back to `cpln apply` with the manifest below:
 
 ```yaml
 spec:
@@ -68,7 +70,19 @@ spec:
 
 An IP address is not released until it is no longer in use (no linked workload, GVC location not active).
 
-### CLI Commands
+### Manage an IP Set
+
+Prefer the typed MCP tools — they map one-to-one to these operations:
+
+- Create: `mcp__cpln__create_ipset`
+- View allocated IPs: `mcp__cpln__get_ipset` (one set) / `mcp__cpln__list_ipsets` (all sets)
+- Add a location: `mcp__cpln__add_ipset_location`
+- Update retention policy: `mcp__cpln__add_ipset_location` with `retentionPolicy: free` (overwrites an existing location's policy)
+- Edit description / tags / bound link (or detach with `removeLink: true`): `mcp__cpln__update_ipset`
+- Remove a location: `mcp__cpln__remove_ipset_location`
+- Delete (DESTRUCTIVE — releases every reserved IP): `mcp__cpln__delete_ipset`
+
+Fall back to the CLI when the MCP server is unavailable or unauthenticated:
 
 ```bash
 # Create
@@ -304,8 +318,12 @@ Use a dedicated load balancer with an IP set at the GVC level — all workloads 
 | Tool                              | Purpose                                                                                             |
 | :-------------------------------- | :-------------------------------------------------------------------------------------------------- |
 | `mcp__cpln__create_ipset`         | Create an IP set with optional `link` (workload/GVC) and `locations[]` (`name`, `retentionPolicy`). |
+| `mcp__cpln__list_ipsets`          | List all IP sets with locations, retention policies, and allocated IPs (read-only).                 |
+| `mcp__cpln__get_ipset`            | Inspect one IP set: bound link, locations, retention, allocated IPs (`bound`/`unbound`), status.    |
 | `mcp__cpln__add_ipset_location`   | Add new locations or overwrite the retentionPolicy of existing ones (use `free` to release an IP).  |
-| `mcp__cpln__remove_ipset_location`| Drop one or more locations from the IP set entirely.                                                |
+| `mcp__cpln__remove_ipset_location`| Drop one or more locations from the IP set entirely (DESTRUCTIVE).                                   |
+| `mcp__cpln__update_ipset`         | Edit description, tags, or bound workload/GVC link; pass `removeLink: true` to detach.               |
+| `mcp__cpln__delete_ipset`         | Delete an IP set, releasing every reserved IP (DESTRUCTIVE — confirm blast radius first).            |
 
 Location names accept friendly names (`"frankfurt"`, `"tel aviv"`), location IDs (`"aws-us-west-2"`), or full links (`"//location/aws-us-west-2"`). The MCP server resolves friendly names automatically.
 

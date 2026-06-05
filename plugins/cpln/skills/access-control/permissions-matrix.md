@@ -32,3 +32,5 @@ Every org starts with:
 | Policies | `viewers-RESOURCE` | One per resource kind granting `view` to `viewers` group |
 
 Built-in policies have origin `builtin` and **cannot be modified or deleted** — create your own with origin `default`.
+
+Inspect these built-ins with the read MCP tools (CLI fallback `cpln RESOURCE get NAME` when the MCP server is unavailable): `mcp__cpln__list_groups` / `mcp__cpln__get_group` for `superusers` and `viewers`; `mcp__cpln__list_policies` / `mcp__cpln__get_policy` for the `superusers-RESOURCE` / `viewers-RESOURCE` policies; `mcp__cpln__get_service_account` for `controlplane`.

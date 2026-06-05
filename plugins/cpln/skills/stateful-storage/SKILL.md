@@ -35,7 +35,9 @@ When `fileSystemType` is `shared`, performance class is **automatically set to `
 
 ## VolumeSet Configuration
 
-### CLI Creation
+Prefer the MCP tools for volumeset lifecycle — `mcp__cpln__create_volumeset` (explicit performance class, filesystem, initial capacity, snapshot policy, autoscaling), `mcp__cpln__get_volumeset`, `mcp__cpln__list_volumesets`, `mcp__cpln__update_volumeset` (mutable fields only — filesystem and performance class are immutable). Fall back to the CLI (`cpln volumeset` / `cpln apply`) when the MCP server is unavailable or in CI/CD pipelines driven by a service-account `CPLN_TOKEN`.
+
+### CLI Creation (fallback)
 
 ```bash
 cpln volumeset create \
@@ -52,7 +54,7 @@ cpln volumeset create \
   --schedule "0 2 * * *"
 ```
 
-### YAML Manifest
+### YAML Manifest (fallback / IaC)
 
 ```yaml
 kind: volumeset
@@ -215,7 +217,7 @@ wait $APPLY_PID
 cpln workload get <workload> --gvc <gvc>
 ```
 
-If the watcher killed the apply, or `--ready` exited non-zero, or step 6 reveals an unhealthy state, the next move is **diagnose** — `cpln workload get-deployments <workload> --gvc <gvc>` (shows the failed deployment with exact error), `cpln logs '{gvc="<gvc>", workload="<workload>"}' --org <org>` for stderr where most startup failures land, and re-read the manifest for the culprit the error message points at (DSN format, secret refs, port, image tag, env). **Then fix and re-apply with the safety net wrapped again** — re-applying a broken manifest plain costs more wall-clock and obscures the actual issue. Restore from `<workload>.bak.yaml` if the new deploy is unrecoverable.
+If the watcher killed the apply, or `--ready` exited non-zero, or step 6 reveals an unhealthy state, the next move is **diagnose** — call `mcp__cpln__get_workload_deployments` (shows the failed deployment with exact error, CLI fallback `cpln workload get-deployments <workload> --gvc <gvc>`), `mcp__cpln__get_workload_logs` for stderr where most startup failures land (CLI fallback `cpln logs '{gvc="<gvc>", workload="<workload>"}' --org <org>`), and re-read the manifest for the culprit the error message points at (DSN format, secret refs, port, image tag, env). **Then fix and re-apply with the safety net wrapped again** — re-applying a broken manifest plain costs more wall-clock and obscures the actual issue. Restore from `<workload>.bak.yaml` if the new deploy is unrecoverable.
 
 For waits on operations that lack a `--ready` flag (e.g. verifying after `cpln workload force-redeployment`), use a shell-level wait loop with `timeout`, never an AI polling loop:
 
@@ -252,7 +254,16 @@ snapshots:
   schedule: "0 */6 * * *"      # Cron expression, minimum once per hour
 ```
 
-### CLI Commands
+### Manual Snapshots
+
+Prefer the MCP tools for on-demand snapshot operations:
+
+- `mcp__cpln__create_volumeset_snapshot` — point-in-time snapshot (the safety net before any shrink/restore/volume-delete)
+- `mcp__cpln__list_volumeset_snapshots` — find a snapshot before restoring (filter by location, volumeIndex, or snapshotName)
+- `mcp__cpln__restore_volumeset_snapshot` — restore a volume (destructive — see below)
+- `mcp__cpln__delete_volumeset_snapshot` — delete a snapshot (destructive — removes a recovery path)
+
+Fall back to the CLI when the MCP server is unavailable or in CI/CD pipelines driven by a service-account `CPLN_TOKEN`:
 
 ```bash
 # Create a snapshot
@@ -286,7 +297,7 @@ cpln volumeset snapshot delete my-data \
 
 ### Expand
 
-Increase volume size (allowed once every 6 hours):
+Increase volume size (live operation, no downtime; allowed once every 6 hours). Available for all filesystem types. Prefer `mcp__cpln__expand_volumeset`; fall back to the CLI when the MCP server is unavailable or in CI/CD:
 
 ```bash
 cpln volumeset expand my-data \
@@ -300,7 +311,7 @@ Use `--timeout-seconds` to override the default 600s wait.
 
 ### Shrink
 
-**WARNING: Shrink causes permanent data loss.** Only available for ext4/xfs.
+**WARNING: Shrink causes permanent data loss.** Only available for ext4/xfs. Snapshot first with `mcp__cpln__create_volumeset_snapshot`, then use `mcp__cpln__shrink_volumeset` — a destructive operation, so present the blast radius and get explicit user confirmation first (see `rules/cpln-guardrails.md`). Fall back to the CLI when the MCP server is unavailable or in CI/CD:
 
 ```bash
 cpln volumeset shrink my-data \
@@ -311,6 +322,8 @@ cpln volumeset shrink my-data \
 ```
 
 ## Volume Management
+
+Inspect volumes via `mcp__cpln__get_volumeset` — its status reports per-location volume counts, bound workload, and snapshot counts. To delete a single volume (permanent data loss, ext4/xfs only), snapshot first with `mcp__cpln__create_volumeset_snapshot`, then call `mcp__cpln__delete_volumeset_volume` — a destructive operation, so confirm the blast radius with the user first. Fall back to the CLI when the MCP server is unavailable or in CI/CD:
 
 ```bash
 # List volumes for a volumeset
@@ -330,8 +343,12 @@ cpln volumeset volume delete my-data \
 
 ### PostgreSQL with ext4
 
+1. Create the volumeset with `mcp__cpln__create_volumeset` (ext4, initial capacity, autoscaling, snapshot policy). CLI fallback below.
+2. Mount it to a stateful workload with `mcp__cpln__mount_volumeset_to_workload` (path `/var/lib/postgresql/data`).
+
+CLI fallback for step 1 (MCP server unavailable or CI/CD):
+
 ```bash
-# 1. Create volumeset
 cpln volumeset create \
   --name pg-data --gvc my-gvc \
   --file-system-type ext4 \
@@ -339,9 +356,6 @@ cpln volumeset create \
   --enable-autoscaling --max-capacity 200 \
   --min-free-percentage 20 --scaling-factor 1.5 \
   --retention-duration 7d --schedule "0 2 * * *"
-
-# 2. Mount to workload (or use mcp__cpln__mount_volumeset_to_workload)
-# Volume path: /var/lib/postgresql/data
 ```
 
 ### Shared File Storage
@@ -359,6 +373,12 @@ spec:
 Multiple workloads can mount `cpln://volumeset/shared-uploads`. Shared volumes only support `expand` — no shrink, no volume delete, no snapshots.
 
 ### Backup Workflow
+
+1. Before maintenance, take a named snapshot with `mcp__cpln__create_volumeset_snapshot`.
+2. Perform the maintenance / migration.
+3. If rollback is needed, find the snapshot with `mcp__cpln__list_volumeset_snapshots` and restore with `mcp__cpln__restore_volumeset_snapshot` (destructive — discards everything written since the snapshot; confirm first).
+
+CLI fallback (MCP server unavailable or CI/CD):
 
 ```bash
 # 1. Create a named snapshot before maintenance
@@ -438,14 +458,17 @@ For Bring Your Own Kubernetes clusters:
 
 | Tool | Purpose |
 |:---|:---|
+| `mcp__cpln__create_volumeset` | Create a volumeset (filesystem, perf class, capacity, snapshot policy) |
 | `mcp__cpln__mount_volumeset_to_workload` | Mount volumeset to workload (creates volumeset if needed) |
+| `mcp__cpln__update_volumeset` | Update mutable fields (capacity, snapshot policy, autoscaling, tags) |
 | `mcp__cpln__delete_volumeset` | Delete a volumeset |
 | `mcp__cpln__list_volumesets` | List volumesets in a GVC |
-| `mcp__cpln__get_volumeset` | Get volumeset details |
+| `mcp__cpln__get_volumeset` | Get volumeset details (spec + per-location status) |
 | `mcp__cpln__expand_volumeset` | Increase volume capacity |
 | `mcp__cpln__shrink_volumeset` | Decrease volume capacity (data loss) |
 | `mcp__cpln__delete_volumeset_volume` | Delete a specific volume (data loss) |
 | `mcp__cpln__create_volumeset_snapshot` | Create a point-in-time snapshot |
+| `mcp__cpln__list_volumeset_snapshots` | List snapshots across a volumeset's volumes |
 | `mcp__cpln__delete_volumeset_snapshot` | Delete a snapshot |
 | `mcp__cpln__restore_volumeset_snapshot` | Restore volume from snapshot |
 

@@ -53,7 +53,13 @@ Both ext4 and xfs require **stateful** workload type.
 
 > **Skip this step** if using `mcp__cpln__mount_volumeset_to_workload` in Step 3 — it creates the volumeset automatically.
 
-#### Via CLI
+#### Via MCP (preferred)
+
+Use `mcp__cpln__create_volumeset` with explicit `fileSystemType`, `performanceClass`, `initialCapacity`, and (for ext4/xfs) a snapshot policy + optional autoscaling. Filesystem type and performance class are **immutable** — choose carefully. Confirm with `mcp__cpln__get_volumeset` after creation.
+
+#### Via CLI (fallback)
+
+Use the CLI when the MCP server is unavailable, or when you need flags the tool does not expose.
 
 **ext4/xfs:**
 
@@ -249,7 +255,9 @@ cpln workload get-deployments my-database --gvc my-gvc
 
 #### Configure Snapshots (ext4/xfs Only)
 
-If not configured during volumeset creation, update the volumeset:
+If not configured during volumeset creation, update the volumeset's snapshot policy with `mcp__cpln__update_volumeset` (mutable fields: snapshot policy, autoscaling, `initialCapacity`, description, tags).
+
+Or via CLI (fallback):
 
 ```bash
 cpln volumeset update my-data --gvc my-gvc \
@@ -314,9 +322,15 @@ The mount tool creates the volumeset automatically if it does not exist.
 | `mcp__cpln__get_workload` | Get workload details |
 | `mcp__cpln__get_workload_deployments` | Check deployment status |
 | `mcp__cpln__get_workload_events` | Diagnose deployment issues |
+| `mcp__cpln__create_volumeset` | Create a volumeset (filesystem type + performance class are immutable) |
 | `mcp__cpln__get_volumeset` | Get volumeset details |
 | `mcp__cpln__list_volumesets` | List volumesets in a GVC |
-| `mcp__cpln__expand_volumeset` | Increase volume capacity |
+| `mcp__cpln__update_volumeset` | Update mutable fields (snapshot policy, autoscaling, initialCapacity, tags) |
+| `mcp__cpln__expand_volumeset` | Increase volume capacity (once per 6h) |
 | `mcp__cpln__create_volumeset_snapshot` | Create point-in-time snapshot (ext4/xfs only) |
-| `mcp__cpln__restore_volumeset_snapshot` | Restore volume from snapshot (ext4/xfs only) |
-| `mcp__cpln__delete_volumeset` | Delete a volumeset (permanent data loss) |
+| `mcp__cpln__list_volumeset_snapshots` | List snapshots (find one before restore) |
+| `mcp__cpln__restore_volumeset_snapshot` | **Destructive** — restore volume from snapshot (ext4/xfs only) |
+| `mcp__cpln__delete_volumeset_snapshot` | **Destructive** — delete a snapshot |
+| `mcp__cpln__shrink_volumeset` | **Destructive** — shrink a volume (permanent data loss; snapshot first) |
+| `mcp__cpln__delete_volumeset_volume` | **Destructive** — delete a single volume (snapshot first) |
+| `mcp__cpln__delete_volumeset` | **Destructive** — delete a volumeset (permanent data loss) |

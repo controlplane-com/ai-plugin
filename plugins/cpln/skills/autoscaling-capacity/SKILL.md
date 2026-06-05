@@ -232,8 +232,12 @@ spec:
 | `mcp__cpln__get_workload_deployments` | Check deployment status and replica counts |
 | `mcp__cpln__get_workload_events` | View scaling events and errors |
 | `mcp__cpln__get_workload_logs` | View workload logs to diagnose scaling issues |
+| `mcp__cpln__list_metrics` | Discover the metric names/labels (default + custom) available to drive scaling — call before `query_metrics` so you never guess |
+| `mcp__cpln__query_metrics` | Run a PromQL query to confirm a scaling signal exists (CPU/memory utilization, RPS, custom Prometheus metric) before/while debugging why a workload isn't scaling |
 
 ### CLI Commands
+
+Prefer the MCP tools above. Reach for the CLI when the MCP server is unavailable or unauthenticated, and as the primary interface in CI/CD (service-account `CPLN_TOKEN` + `cpln apply --ready`).
 
 | Command | Purpose |
 |:---|:---|
@@ -248,7 +252,7 @@ spec:
 
 | Symptom | Check |
 |:---|:---|
-| Not scaling up | Verify metric is being generated; check `maxScale` limit; check readiness probe |
+| Not scaling up | Verify the scaling signal exists (`mcp__cpln__list_metrics` then `mcp__cpln__query_metrics`); check `maxScale` limit; check readiness probe via `mcp__cpln__get_workload_deployments` |
 | Not scaling down | Standard: 5-minute stabilization window; check `minScale` |
 | Slow cold starts | Increase `minScale`; optimize container startup; use readiness probe |
 | KEDA not triggering | Verify KEDA enabled on GVC; check trigger credentials; verify firewall allows KEDA access |

@@ -42,6 +42,10 @@ Private registries (Docker Hub private, ECR, GCR, ACR, GAR, GHCR, other Control 
 
 **Attaching a pull secret to a GVC:**
 
+Prefer the MCP tool `mcp__cpln__update_gvc` — it merges pull secrets into `spec.pullSecretLinks` (existing links are preserved); read first with `mcp__cpln__get_gvc` to capture current state for rollback.
+
+CLI fallback when the MCP server is unavailable, or as the primary interface in CI/CD:
+
 ```bash
 cpln gvc update my-gvc \
   --set spec.pullSecretLinks+=my-pull-secret \
@@ -57,6 +61,10 @@ Images are org-scoped. To use an image from another org (e.g., dev org's image i
 ### Option 1: Pull secret (preferred for continuous access)
 
 #### Step 1: Source-org service account with image-pull permission
+
+Prefer the MCP tools: create the service account and its first key with `mcp__cpln__add_key_to_service_account` (creates the SA if it doesn't exist, adds a key, optional group), then grant pull access with `mcp__cpln__create_policy` (target kind `image`, target all or specific links, bind the SA principal with permission `pull`). To tighten an existing policy later, read it with `mcp__cpln__get_policy` then `mcp__cpln__update_policy`.
+
+CLI fallback when the MCP server is unavailable, or as the primary interface in CI/CD:
 
 ```bash
 # Create a service account in the source org
@@ -80,6 +88,10 @@ To restrict the policy to specific images instead of all images, replace `--all`
 Adding the service account to the `superusers` group also works but grants full org access — a scoped policy is preferred.
 
 #### Step 2: Generate a service account key
+
+If you used `mcp__cpln__add_key_to_service_account` in Step 1, the key is already in that tool's response — grab the `key` value and skip to Step 3. To add another key (rotation, separate consumer), call `mcp__cpln__add_key_to_service_account` again for the same service account.
+
+CLI fallback when the MCP server is unavailable, or as the primary interface in CI/CD:
 
 ```bash
 cpln serviceaccount add-key image-puller \
@@ -114,6 +126,10 @@ Create `docker-config.json` using the service account key:
 
 The username is the literal string `<token>` — do not replace it with the token itself.
 
+Prefer the MCP tool `mcp__cpln__create_secret` with the docker shape — `{"username": "<token>", "secret": "SERVICE_ACCOUNT_KEY_VALUE", "email": "ops@example.com"}` for registry `dev-org.registry.cpln.io`.
+
+CLI fallback when the MCP server is unavailable, or as the primary interface in CI/CD:
+
 ```bash
 cpln secret create-docker --name dev-registry-pull \
   --file docker-config.json \
@@ -121,6 +137,10 @@ cpln secret create-docker --name dev-registry-pull \
 ```
 
 #### Step 4: Add the pull secret to the target GVC
+
+Prefer the MCP tool `mcp__cpln__update_gvc` — it merges the new link into `spec.pullSecretLinks` (existing links preserved); read first with `mcp__cpln__get_gvc` to capture current state for rollback.
+
+CLI fallback when the MCP server is unavailable, or as the primary interface in CI/CD:
 
 ```bash
 cpln gvc update staging-gvc \
@@ -134,7 +154,9 @@ The reference format for another org's registry is `<source-org>.registry.cpln.i
 
 **Option A: Update the workload in place**
 
-Look up the container name first (`cpln workload get <workload> --gvc <gvc> --org <org> -o yaml-slim`, find `spec.containers[].name`), then:
+Prefer the MCP tool `mcp__cpln__update_workload` (PATCH semantics — change only the container image); read first with `mcp__cpln__get_workload` to find the container name (`spec.containers[].name`) and capture state for rollback.
+
+CLI fallback when the MCP server is unavailable, or as the primary interface in CI/CD — look up the container name first (`cpln workload get <workload> --gvc <gvc> --org <org> -o yaml-slim`, find `spec.containers[].name`), then:
 
 ```bash
 cpln workload update my-app \
@@ -241,7 +263,11 @@ Image-specific permissions for Control Plane policies:
 
 ### Minimum policy for push
 
-Bind the `create` permission to the principal pushing the image. Target all images (`--all`) or use a `targetQuery` with `property: repository`.
+Bind the `create` permission to the principal pushing the image. Target all images or use a `targetQuery` with `property: repository`.
+
+Prefer the MCP tool `mcp__cpln__create_policy` — target kind `image`, target all, and a binding with permission `create` bound to the CI service-account principal. To amend an existing policy, read it with `mcp__cpln__get_policy` then `mcp__cpln__update_policy` (use `addBindings` to merge the new principal). Discover grantable image permissions with `mcp__cpln__get_permissions`.
+
+CLI fallback when the MCP server is unavailable, or as the primary interface in CI/CD:
 
 ```bash
 cpln policy create --name image-push-policy \
@@ -257,7 +283,9 @@ cpln policy add-binding image-push-policy \
 
 ### Minimum policy for pull
 
-Bind the `pull` permission the same way. For scoped pull policies that target specific image names (not all images), use `cpln apply` with a YAML manifest that includes a `targetQuery`:
+Bind the `pull` permission the same way via `mcp__cpln__create_policy` (or `mcp__cpln__update_policy` to add a binding to an existing policy).
+
+For scoped pull policies that target specific image names by `targetQuery` (a property-match the typed MCP tool does not express), fall back to the CLI: call `mcp__cpln__get_resource_schema` for the `policy` kind, then `cpln apply` a YAML manifest that includes the `targetQuery`:
 
 ```yaml
 kind: policy

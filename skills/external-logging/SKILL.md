@@ -36,9 +36,15 @@ For the YAML manifest of each provider (S3, CloudWatch, Coralogix, Datadog, Logz
 | Syslog | `syslog` | None | `host` | Standards-based syslog |
 | OpenTelemetry | `opentelemetry` | Opaque (optional) | `endpoint` | OTLP-based pipelines |
 
-## Configuration via CLI
+## Configuration
 
-**There is no dedicated CLI subcommand for external logging.** Use the get-edit-apply workflow:
+**Preferred path — MCP tools.** External logging has dedicated MCP tools that handle primary vs extra placement for you:
+
+- `mcp__cpln__get_external_logging` — inspect the current configuration first.
+- `mcp__cpln__configure_external_logging` — add or update a provider (auto-places it as primary or extra).
+- `mcp__cpln__remove_external_logging` — remove a provider (promotes the first extra to primary if you remove the primary).
+
+**Fallback — CLI.** Use this only when the MCP server is unavailable or unauthenticated. **There is no dedicated CLI subcommand for external logging**, so use the get-edit-apply workflow against the org's `spec.logging` block:
 
 ```bash
 # 1. Get current org config as YAML (slim output is designed for cpln apply)
@@ -52,19 +58,19 @@ cpln apply -f org.yaml --org ORG_NAME
 
 ## Credential Setup
 
-Each provider requires a secret created **before** configuring logging.
+Each provider requires a secret created **before** configuring logging. Create it with `mcp__cpln__create_secret` (CLI fallback: `cpln secret create-*` or the Console, when MCP is unavailable).
 
-| Provider | Secret Type | How to Create |
-|:---|:---|:---|
-| S3, CloudWatch | AWS | `cpln secret create-aws` or Console → Secrets → New → AWS |
-| Coralogix, Datadog, Logz.io | Opaque | `cpln secret create-opaque` or Console → Secrets → New → Opaque |
-| Stackdriver | GCP | `cpln secret create-gcp` or Console → Secrets → New → GCP |
+| Provider | Secret Type | MCP `create_secret` payload | CLI fallback |
+|:---|:---|:---|:---|
+| S3, CloudWatch | AWS | `{"accessKey": "...", "secretKey": "..."}` | `cpln secret create-aws` |
+| Coralogix, Datadog, Logz.io | Opaque | `{"encoding": "plain", "payload": "API_KEY"}` | `cpln secret create-opaque` |
+| Stackdriver | GCP | GCP service-account JSON key | `cpln secret create-gcp` |
 
-Credentials are referenced in YAML as `//secret/SECRET_NAME`.
+Credentials are referenced in the `configure_external_logging` `credentials` field (or in YAML) as `//secret/SECRET_NAME`.
 
 ## Multiple Providers
 
-Each `logging` block supports **exactly one provider** (`.xor()` constraint). To ship to multiple providers, use `spec.extraLogging`:
+Each `logging` block supports **exactly one provider** (`.xor()` constraint). To ship to multiple providers, add each one with a separate `mcp__cpln__configure_external_logging` call — it places the first as primary (`spec.logging`) and the rest as extras (`spec.extraLogging`) automatically. The equivalent manifest for the CLI fallback looks like:
 
 ```yaml
 kind: org

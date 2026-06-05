@@ -85,7 +85,12 @@ To **create** a custom audit context, use `mcp__cpln__create_audit_context`:
 }
 ```
 
-For other audit context operations (list, get, update, patch, delete), use the generic `mcp__cpln__cpln_resource_operation` tool with `kind: "auditctx"`.
+For other audit context operations:
+
+- **List** all contexts: `mcp__cpln__list_audit_contexts`
+- **Get** one context: `mcp__cpln__get_audit_context` (confirm a context exists before granting write access to it)
+- **Edit** description/tags: `mcp__cpln__edit_audit_context` (the `origin` field is immutable; built-in `cpln` cannot be edited)
+- **Delete** a context: no MCP tool exists — fall back to the CLI (`cpln auditctx delete my-app-audit --org my-org`)
 
 ### Per-resource audit trail (CLI)
 
@@ -169,7 +174,7 @@ Terminology note: the `origin` enum uses `builtin` for the `cpln` context and `d
 
 ### Creating custom audit contexts
 
-Create custom contexts to separate audit streams for different workloads or systems:
+Create custom contexts to separate audit streams for different workloads or systems. Prefer `mcp__cpln__create_audit_context` (see [Viewing audit events → MCP](#mcp-preferred-for-agents) for the input shape); the CLI below is the fallback when the MCP server is unavailable or unauthenticated, or as the primary interface in CI/CD:
 
 ```bash
 # Create a custom audit context
@@ -194,10 +199,11 @@ cpln auditctx create --name my-app-audit \
 
 To write custom audit events from a workload:
 
-1. **Create an audit context** for your workload
-2. **Create an identity** with `writeAudit` permission on the audit context
-3. **Assign the identity** to the workload
-4. **POST events** to the internal audit endpoint from within the workload:
+1. **Create an audit context** for your workload — `mcp__cpln__create_audit_context`
+2. **Create an identity** for the workload — `mcp__cpln__create_identity`
+3. **Grant the identity `writeAudit`** on the audit context — `mcp__cpln__create_policy` with `targetKind: "auditctx"`, the context in `targetLinks`, and a binding of permission `writeAudit` to the identity (see the **cpln-access-control** skill for binding shape)
+4. **Assign the identity** to the workload via `spec.identityLink` (`mcp__cpln__update_workload`)
+5. **POST events** to the internal audit endpoint from within the workload:
 
 ```bash
 curl -H "Content-Type: application/json" \
@@ -219,6 +225,8 @@ The internal endpoint (`127.0.0.1:43000`) is available to every workload via the
 | `writeAudit` | Write events to this context           | `view`                                                        |
 
 ### Managing audit contexts (CLI)
+
+For agents, prefer the MCP tools: `mcp__cpln__list_audit_contexts` (list), `mcp__cpln__get_audit_context` (get), and `mcp__cpln__edit_audit_context` (update description/tags). The CLI below is the fallback when MCP is unavailable, for query/access-report/permissions (no MCP equivalent), and for delete (no MCP tool).
 
 ```bash
 # List all audit contexts
@@ -326,7 +334,10 @@ Use the Console UI Audit Trail with filters to review all actions across the org
 
 - **`mcp__cpln__query_audit_events`** — query audit events (see the [MCP (preferred for agents)](#mcp-preferred-for-agents) section for input shape and examples)
 - **`mcp__cpln__create_audit_context`** — create a custom audit context (inputs: `name`, optional `org`, `description`, `tags`)
-- **`mcp__cpln__cpln_resource_operation`** with `kind: "auditctx"` — other operations on audit contexts (`list`, `get`, `update`, `patch`, `delete`)
+- **`mcp__cpln__list_audit_contexts`** — list all audit contexts in the org
+- **`mcp__cpln__get_audit_context`** — get one audit context (confirm it exists before granting write access)
+- **`mcp__cpln__edit_audit_context`** — update an audit context's description and tags
+- Granting write access: **`mcp__cpln__create_identity`** + **`mcp__cpln__create_policy`** (`targetKind: "auditctx"`, `writeAudit` binding). Deleting a context has no MCP tool — use `cpln auditctx delete` (CLI).
 
 ### Related Skills
 

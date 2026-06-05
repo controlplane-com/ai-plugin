@@ -227,6 +227,8 @@ resource "cpln_domain_route" "route" {
 
 Use `terraform import` to bring existing Control Plane resources under Terraform management. See the Terraform Registry for import syntax per resource type.
 
+To generate both the HCL and the matching `import {}` blocks in one step, call `mcp__cpln__export_terraform` (or `mcp__cpln__export_terraform_batch` for several resources) with `generateImports` set — see [Scaffold from Existing Resources](#scaffold-from-existing-resources).
+
 ## Pulumi Provider
 
 ### Registry
@@ -363,7 +365,7 @@ Update the `version` and/or `values.yaml`, then re-apply. Only affected workload
 ### Secret Handling
 
 - Use `CPLN_TOKEN` environment variable for authentication — never hardcode tokens in HCL/Pulumi code.
-- For CI/CD, create a dedicated service account with minimal permissions.
+- For CI/CD, create a dedicated service account with minimal permissions — `mcp__cpln__add_key_to_service_account` creates the service account if needed and issues a key in one call; scope it with `mcp__cpln__create_policy`.
 - Mark sensitive Pulumi config with `--secret`: `pulumi config set --secret cpln:token <token>`.
 - Terraform marks secret values as sensitive automatically when using the `cpln_secret` resource.
 
@@ -401,7 +403,16 @@ export CPLN_TOKEN=<service-account-token>
 
 ### Scaffold from Existing Resources
 
-The `cpln` CLI can emit existing resources in multiple formats, useful for bootstrapping IaC or `cpln apply` workflows:
+To generate Terraform (HCL) for resources that already exist in Control Plane, prefer the MCP exporter — it produces merged, de-duplicated HCL and can emit `import {}` blocks:
+
+- `mcp__cpln__export_terraform` — HCL for a single resource (`/org/acme/gvc/prod/workload/api`) or in bulk by path depth (`/org/acme` exports the whole org). Set `generateImports` to emit `import {}` blocks.
+- `mcp__cpln__export_terraform_batch` — HCL for several self links in one call; prefer this over many `export_terraform` calls.
+- `mcp__cpln__convert_to_terraform` — convert a manifest (YAML/JSON) you already have into HCL. The manifest is dry-run validated against the API first, so the returned HCL always corresponds to a schema-valid resource.
+- `mcp__cpln__list_terraform_kinds` — list the resource kinds the exporter supports; call before `export_terraform` / `convert_to_terraform`.
+
+When authoring a manifest by hand for `cpln apply`, call `mcp__cpln__get_resource_schema` first to get the exact object schema and REST endpoints for the kind.
+
+**CLI fallback** (when the MCP server is unavailable, or as the primary interface in CI/CD): the `cpln` CLI can emit existing resources in multiple formats, useful for bootstrapping IaC or `cpln apply` workflows:
 
 ```bash
 # YAML manifest (for cpln apply / K8s operator)

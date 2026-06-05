@@ -234,9 +234,19 @@ For full load balancer configuration, static IP reservation, and dedicated LB se
 
 ## Quick Reference
 
-### Recommended: CLI
+### Recommended: MCP
 
-Edit the workload manifest and apply it:
+`firewallConfig` (and `loadBalancer`) live in the **workload spec** — patch them with the typed workload tools, no generic passthrough needed:
+
+1. `mcp__cpln__get_workload` — read the current `spec.firewallConfig` / `spec.loadBalancer` so you have a rollback baseline (`update_workload` is PATCH semantics — only the fields you send change).
+2. `mcp__cpln__update_workload` — set `firewallConfig` (external inbound/outbound, internal, header filters) and/or `loadBalancer`.
+3. `mcp__cpln__get_workload_deployments` — poll until ready; rules apply within about a minute and trigger a new deployment.
+
+Use `mcp__cpln__create_workload` when standing up a new workload with firewall rules from the start. Reserve static IPs for Direct/Dedicated LBs with `mcp__cpln__create_ipset` / `mcp__cpln__get_ipset` (see **cpln-ipset-load-balancing**).
+
+### Fallback: CLI
+
+When the MCP server is unavailable or unauthenticated, edit the workload manifest and apply it. Call `mcp__cpln__get_resource_schema` (or `cpln workload --help`) first to ground the spec shape:
 
 ```bash
 cpln workload get WORKLOAD_NAME --gvc GVC_NAME -o yaml > workload.yaml
@@ -246,14 +256,15 @@ cpln apply --file workload.yaml --gvc GVC_NAME
 
 Rules apply within about a minute and trigger a new deployment.
 
-## Quick Reference
-
 ### MCP Tools
 
 | Tool | Purpose |
 |:-----|:--------|
-| `mcp__cpln__get_workload` | Inspect current `spec.firewallConfig` and `spec.loadBalancer`. |
-| `mcp__cpln__cpln_resource_operation` | Patch `firewallConfig` / `loadBalancer` on a workload (use `kind: workload`, `operation: patch`). |
+| `mcp__cpln__get_workload` | Inspect current `spec.firewallConfig` and `spec.loadBalancer` before changing them. |
+| `mcp__cpln__update_workload` | Patch `firewallConfig` / `loadBalancer` on an existing workload (PATCH semantics — only sent fields change). |
+| `mcp__cpln__create_workload` | Create a new workload with firewall rules and load balancer config from the start. |
+| `mcp__cpln__create_ipset` / `mcp__cpln__get_ipset` | Reserve and inspect static public IPs for Direct/Dedicated load balancers and IP allow-lists. |
+| `mcp__cpln__get_workload_deployments` | Poll deployment readiness after a firewall change lands. |
 | `mcp__cpln__get_workload_logs` | Query workload logs to diagnose connectivity issues. |
 
 ### Related Skills

@@ -24,6 +24,8 @@ Your SAML provider must supply: Entity ID, SSO URL, and Certificate.
 
 After SSO, user access is determined by their [group](https://docs.controlplane.com/reference/group.md) membership and [policies](https://docs.controlplane.com/reference/policy.md).
 
+There is no typed MCP tool for the org-level SSO/SAML configuration block. SAML enablement goes through Control Plane support; for any other org-level config edit, fall back to the CLI — `get_resource_schema` (kind `org`) to author the manifest, then `cpln apply -f manifest.yaml`. To wire SSO users into the right access, manage their groups and policies via `mcp__cpln__edit_group`, `mcp__cpln__create_policy`, and `mcp__cpln__invite_user_to_org`.
+
 ## CLI Authentication
 
 **Interactive login** (opens browser):
@@ -64,6 +66,10 @@ For CI/CD, automation, and programmatic access:
 
 ### 1. Create the service account and generate a key
 
+Prefer the MCP tools: `mcp__cpln__add_key_to_service_account` creates the service account if it does not yet exist, adds a key, and can optionally add it to a group in one call. To create the account on its own first (no key yet), use `mcp__cpln__create_service_account` — service account names are immutable, so renaming means delete + recreate, which invalidates every existing key.
+
+CLI fallback (use when the MCP server is unavailable, or in CI/CD where the CLI is the primary interface):
+
 ```bash
 cpln serviceaccount create --name SA_NAME --org ORG
 cpln serviceaccount add-key SA_NAME --description "What this key is for" --org ORG
@@ -83,7 +89,7 @@ Extract the value from the `key` property — that is the token. The key is show
 
 ### 2. Grant permissions
 
-Add the service account to a group (or create a policy with the service account as a principal). See **cpln-access-control** for policies, bindings, and group membership.
+Add the service account to a group (`mcp__cpln__edit_group` manages member links — there is no separate add-member tool) or create a policy with the service account as a principal (`mcp__cpln__create_policy`). See **cpln-access-control** for policies, bindings, and group membership.
 
 ### 3. Use the key as a token
 

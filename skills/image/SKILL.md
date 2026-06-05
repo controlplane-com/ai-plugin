@@ -52,6 +52,10 @@ Workload option that triggers automatic redeployment when a tag's underlying dig
 
 ### Updating a workload's image
 
+Prefer the MCP tool `mcp__cpln__update_workload` (PATCH semantics — change only the container image); read first with `mcp__cpln__get_workload` to find the container name (`spec.containers[].name`, immutable workload type/name) and capture state for rollback.
+
+CLI fallback when the MCP server is unavailable, or as the primary interface in CI/CD:
+
 ```bash
 cpln workload update WORKLOAD \
   --set spec.containers.<container-name>.image=//image/my-app:v1.0 \
@@ -100,11 +104,10 @@ The container name varies per workload — look it up with `cpln workload get WO
 
 ### MCP Tools
 
-- `mcp__cpln__list_images` — List images in an org.
-- `mcp__cpln__get_image` — Inspect a specific image including manifest, layers, and platform.
-- `mcp__cpln__cpln_resource_operation` — Generic CRUD for images (use `kind: image`).
+- `mcp__cpln__list_images` — List images in an org (read).
+- `mcp__cpln__get_image` — Inspect a specific image including tags, digest, and manifest details (read).
 
-There is no MCP tool for `cpln image build` or `cpln image copy` — use the CLI directly.
+Images are read-only over MCP. There is **no** create/update/delete-image MCP tool: build and push via `cpln image build --push` (CLI, exclusive), copy across orgs via `cpln image copy` (CLI). For workload image updates, use `mcp__cpln__update_workload`.
 
 ### CLI Commands
 

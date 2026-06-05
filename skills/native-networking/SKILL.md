@@ -78,7 +78,7 @@ In the AWS Console: VPC -> Endpoint Services -> select your service -> Pending e
 
 **Step 6 - Configure identity:**
 
-Add a `nativeNetworkResources` entry to your identity:
+Add a `nativeNetworkResources` entry to the identity attached to your workload. MCP-first: call `mcp__cpln__add_identity_native_network_resource` (seed it at creation with `mcp__cpln__create_identity`). CLI fallback when the MCP server is unavailable: `cpln identity create`/`cpln identity edit`.
 
 ```yaml
 nativeNetworkResources:
@@ -156,7 +156,7 @@ The allowed consumer project must be `cpln-prod01`. The service attachment is fo
 
 1. Contact `support@controlplane.com` with your **service attachment** and **region**
 2. Control Plane creates the consumer-side endpoint (no manual acceptance needed for Cloud SQL)
-3. Configure identity:
+3. Configure identity — MCP-first via `mcp__cpln__add_identity_native_network_resource` (or seed at creation with `mcp__cpln__create_identity`); CLI fallback `cpln identity edit`:
 
 ```yaml
 nativeNetworkResources:
@@ -189,10 +189,10 @@ Agents provide tunneled TCP/UDP connectivity from Control Plane workloads to end
 
 ### How It Works
 
-1. Create an agent resource in Control Plane (generates a bootstrap config)
-2. Deploy the agent inside the target network (VM, container, or K8s)
-3. Agent establishes outbound connection to Control Plane hub
-4. Configure identity `networkResources` linking the agent to specific endpoints
+1. Create an agent resource in Control Plane (generates a bootstrap config) — MCP: `mcp__cpln__create_agent`
+2. Deploy the agent inside the target network (VM, container, or K8s) — uses the bootstrap config; deployment artifacts come from the `cpln agent` CLI (see the agent CLI table below)
+3. Agent establishes outbound connection to Control Plane hub — verify with `mcp__cpln__get_agent_info`
+4. Configure identity `networkResources` linking the agent to specific endpoints — MCP: `mcp__cpln__add_identity_network_resource` (or seed at creation with `mcp__cpln__create_identity`)
 5. Workload traffic is tunneled: workload -> Control Plane -> agent -> private endpoint
 
 Agents run in **active-passive** mode. If an active agent misses heartbeats, it is replaced by a redundant agent.
@@ -256,6 +256,8 @@ aws ec2 describe-instance-types \
 | n1-standard-1 | 199.9 | 409.3 |
 
 ## Agent CLI Commands
+
+MCP-first: manage the agent resource itself with the agent MCP tools in the Quick Reference below (`create_agent`, `get_agent`, `get_agent_info`, `get_agent_eventlog`, `update_agent`, `delete_agent`). Reach for the CLI for the deployment-artifact steps the MCP server does not cover — `cpln agent manifest`, `cpln agent up`, `cpln agent edit` — and when the MCP server is unavailable or unauthenticated.
 
 | Command | Description |
 |:--------|:------------|
@@ -332,11 +334,12 @@ Each `networkResource` must have exactly one of `IPs` or `FQDN`.
 | `mcp__cpln__list_agents` | List all agents in an org |
 | `mcp__cpln__get_agent` | Get agent details (registration token hidden) |
 | `mcp__cpln__create_agent` | Create agent and return bootstrap config |
+| `mcp__cpln__update_agent` | Update agent description/tags (bootstrap config and token are immutable) |
 | `mcp__cpln__delete_agent` | Delete an agent |
 | `mcp__cpln__get_agent_info` | Real-time agent status: active/inactive, lastActive, peerCount, serviceCount |
 | `mcp__cpln__get_agent_eventlog` | Agent event log for troubleshooting connectivity |
 
-**Identity tools (for network resource configuration):** see the **cpln-agent-setup** agent, Step 4 — it documents `create_identity`, `update_identity`, `add_identity_network_resource`, `add_identity_native_network_resource`, `remove_identity_network_resource`, and `list_identity_network_resources` with JSON input examples.
+**Identity tools (for network resource configuration):** see the **cpln-agent-setup** agent, Step 4 — it documents `create_identity`, `update_identity`, `add_identity_network_resource`, `add_identity_native_network_resource`, `remove_identity_network_resource`, and `list_identity_network_resources` with JSON input examples. To inspect what is attached, read with `mcp__cpln__get_identity` or `mcp__cpln__list_identity_network_resources` (lists both `networkResources` and `nativeNetworkResources`).
 
 ### Related Skills
 

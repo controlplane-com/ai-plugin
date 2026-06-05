@@ -7,8 +7,8 @@ description: "Queries workload logs and builds log dashboards on Control Plane. 
 
 Control Plane uses LogQL (Grafana Loki query language) for log queries. Two ways to run queries:
 
-- **MCP tool (agents):** `mcp__cpln__get_workload_logs` — structured params (`gvc`, `workload`, `container`, `location`, `filter`, `since`, `from`, `to`, `limit`, `order`) or a raw `query`. Default limit 100, max 500.
-- **CLI (humans/scripts):** `cpln logs <query>` — see examples below.
+- **MCP tool (agents, primary):** `mcp__cpln__get_workload_logs` — structured params (`gvc`, `workload`, `container`, `location`, `filter`, `since`, `from`, `to`, `limit`, `order`) or a raw `query`. Available labels: `gvc`, `workload`, `container`, `location`, `provider`, `replica`, `stream`. Default limit 100, max 500.
+- **CLI (fallback):** `cpln logs <query>` — for interactive debugging (live `--tail` follow), scripting, or when the MCP server is unavailable. See examples below.
 
 ## Log Query Syntax
 
@@ -114,7 +114,7 @@ JobExecutionStatus = {
 - **`replica` is `optional()`** in the schema. In practice it's set for any execution that actually got a pod; if it's missing, the run never reached the running phase and there are no logs to fetch — diagnose via `containers[].message` and the parent workload events instead.
 - **`completionTime: null` is server-stripped** by a custom Joi transform (`if (value.completionTime == null) delete value.completionTime`). So in the wire JSON the field is either present with a real timestamp or absent — never literal `null`. `jq` filters using `// empty` handle this correctly.
 
-**Step 1 — list executions and pick one.** `cpln workload get-deployments` returns deployments per location, each with `status.jobExecutions[]`:
+**Step 1 — list executions and pick one.** Agents call `mcp__cpln__get_workload_deployments` to fetch deployment status across all locations; each location's `status.jobExecutions[]` holds the per-execution metadata. The CLI equivalent is `cpln workload get-deployments`, which returns the same shape:
 
 ```bash
 # Per-execution metadata for a cron workload (defensive against list-envelope vs bare-array response shapes)
@@ -124,7 +124,7 @@ cpln workload get-deployments WL --gvc GVC -o json \
 
 Pick the execution whose logs you want — usually the most recent failed one, or one identified by the user as misbehaving. Filter with `select(.status == "failed")` etc.
 
-**Step 2 — pull logs for just that execution.** Use the `replica` label and time-bound the query to the execution window. Add a small buffer on each side so log indexing slack doesn't truncate the result:
+**Step 2 — pull logs for just that execution.** Agents call `mcp__cpln__get_workload_logs` with the `replica` label set (structured params `gvc`, `workload`, `location`, plus a raw `query` carrying the `replica` selector, or `from`/`to` for the execution window). The CLI form below uses the `replica` label and time-bounds the query to the execution window. Add a small buffer on each side so log indexing slack doesn't truncate the result:
 
 ```bash
 cpln logs \
@@ -196,7 +196,7 @@ Ship logs to external providers for long-term retention or compliance:
 | Logz.io | ELK-based logging |
 | Google Stackdriver | GCP native logging |
 
-Configure at the org level. Default retention is 30 days (adjustable per org).
+Configure at the org level with `mcp__cpln__configure_external_logging` (inspect current settings with `mcp__cpln__get_external_logging`; tear a provider down with `mcp__cpln__remove_external_logging`). Default retention is 30 days (adjustable per org). For full provider field requirements and retention details, see the **cpln-external-logging** skill.
 
 ## Quick Reference
 

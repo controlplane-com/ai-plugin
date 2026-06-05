@@ -68,7 +68,11 @@ If Private Service Connect is not available, proceed with an agent.
 
 ## Step 1: Create the Agent Resource
 
-Create an agent in the user's org. The output is a bootstrap config JSON — **it must be saved immediately** because it cannot be retrieved later.
+Create an agent in the user's org. The output is a bootstrap config JSON — **it must be saved immediately** because it cannot be retrieved later. First check whether an agent already exists with `mcp__cpln__list_agents` before creating a new one.
+
+**Preferred — MCP:** call `mcp__cpln__create_agent` with the org and agent name (plus optional `description` / `tags`). It returns the full bootstrap config in the response — copy it out immediately.
+
+**Fallback — CLI** (offline, no MCP auth, or when you want the bootstrap piped straight to a file):
 
 ```bash
 cpln agent create --name AGENT_NAME --org ORG_NAME > AGENT_NAME-bootstrap.json
@@ -79,7 +83,7 @@ cpln agent create --name AGENT_NAME --org ORG_NAME > AGENT_NAME-bootstrap.json
 - `--description` / `--desc` — optional description
 - `--tag` — optional tags (e.g., `--tag env=production`)
 
-Via MCP: `mcp__cpln__create_agent`.
+To inspect or rename an existing agent later, use `mcp__cpln__get_agent` (registration token is hidden) and `mcp__cpln__update_agent` (description/tags only — the bootstrap config and registration token are immutable; rotating them means delete + recreate).
 
 **Warning: Save the bootstrap config JSON immediately. It contains the `registrationToken`, `agentId`, `agentLink`, and `hubEndpoint`. It will not be accessible again after creation. If lost, delete and recreate the agent.**
 
@@ -256,6 +260,12 @@ cpln workload update my-workload \
 
 ### Check Agent Status
 
+**Preferred — MCP:**
+- `mcp__cpln__get_agent_info` — real-time status (active/inactive, `lastActive`, `peerCount`, `serviceCount`). Use this to confirm the agent is connected after deployment.
+- `mcp__cpln__get_agent_eventlog` — connection events, errors, and state transitions for troubleshooting connectivity.
+
+**Fallback — CLI:**
+
 ```bash
 # Agent info — shows lastActive, instanceId, peerCount, serviceCount
 cpln agent info my-agent --org my-org
@@ -263,10 +273,6 @@ cpln agent info my-agent --org my-org
 # Event log — shows connection events and errors
 cpln agent eventlog my-agent --org my-org
 ```
-
-Via MCP:
-- `mcp__cpln__get_agent_info` — real-time status (active/inactive, peerCount, serviceCount).
-- `mcp__cpln__get_agent_eventlog` — connection events and errors.
 
 For identity network resource management, see Step 4 — Option A.
 
@@ -313,10 +319,10 @@ Agents run in **active-passive** mode — if the active agent misses heartbeats,
 
 ### Expired or Invalid Bootstrap
 
-The bootstrap config contains a `registrationToken` that is generated at agent creation time. If the agent cannot register:
+The bootstrap config contains a `registrationToken` that is generated at agent creation time. If the agent cannot register, delete and recreate the agent (the token cannot be rotated in place):
 
-1. Delete the agent: `cpln agent delete AGENT_NAME --org ORG_NAME`.
-2. Recreate: `cpln agent create --name AGENT_NAME --org ORG_NAME > new-bootstrap.json`.
+1. Delete the agent: `mcp__cpln__delete_agent` (DESTRUCTIVE — every identity routing through this agent loses connectivity; confirm the blast radius with the user first). CLI fallback: `cpln agent delete AGENT_NAME --org ORG_NAME`.
+2. Recreate: `mcp__cpln__create_agent` (CLI fallback: `cpln agent create --name AGENT_NAME --org ORG_NAME > new-bootstrap.json`).
 3. Redeploy with the new bootstrap config.
 
 ## Common Mistakes

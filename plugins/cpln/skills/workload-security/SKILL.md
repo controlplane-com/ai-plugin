@@ -67,6 +67,8 @@ spec:
 - If the workload genuinely has no HTTP healthcheck, use `tcpSocket` against the listening port as a baseline — never ship without probes.
 - Tune `initialDelaySeconds` to real cold-start time (warm-up loads, JIT compilation, dependency wait). Too low = LB pulls a healthy replica during boot; too high = traffic delays.
 
+After creating or updating a workload with probes (`mcp__cpln__create_workload` / `mcp__cpln__update_workload`), poll `mcp__cpln__get_workload_deployments` until every location reports ready — this is the PRIMARY readiness monitor and surfaces probe failures per container. When a probe keeps failing, pair it with `mcp__cpln__get_workload_events` (probe reason/message) and `mcp__cpln__get_workload_logs` (app-side error) to triangulate. To inspect a live replica, list pods with `mcp__cpln__list_workload_replicas` then run a one-off command via `mcp__cpln__workload_exec` (interactive shells are CLI-only — `cpln workload exec`).
+
 ## JWT Authentication
 
 JWT Authentication validates JSON Web Tokens at the infrastructure level (Envoy sidecar) before requests reach the workload. Configured under `sidecar.envoy` in the workload or GVC spec.
@@ -435,22 +437,31 @@ spec:
 
 ## Quick Reference
 
-### MCP Tools
+### MCP Tools (use these first)
 
 | Tool | Purpose |
 |:-----|:--------|
 | `mcp__cpln__create_workload` | Create a workload with security, LB, and rollout settings |
-| `mcp__cpln__update_workload` | Update workload security, LB, or rollout configuration |
-| `mcp__cpln__get_workload` | Inspect current workload configuration |
-| `mcp__cpln__get_workload_logs` | View workload logs to diagnose security issues |
+| `mcp__cpln__update_workload` | Update workload security, LB, or rollout configuration (PATCH — only specified fields change) |
+| `mcp__cpln__get_workload` | Inspect current workload configuration (read before any update for rollback) |
+| `mcp__cpln__list_workloads` | Find workloads in a GVC before targeting one |
+| `mcp__cpln__delete_workload` | Delete a workload (destructive — confirm blast radius first) |
+| `mcp__cpln__get_workload_deployments` | PRIMARY post-deploy readiness monitor — poll until ready, surfaces probe failures per location |
+| `mcp__cpln__get_workload_events` | Probe/liveness reason + message when a deploy fails |
+| `mcp__cpln__get_workload_logs` | App-side logs to diagnose security/probe issues |
+| `mcp__cpln__list_workload_replicas` | List running replicas before exec |
+| `mcp__cpln__workload_exec` | Run a one-off command inside a replica (audited; targets live traffic) |
+| `mcp__cpln__workload_start_cron` | Trigger an out-of-band run of a cron workload |
 
-### CLI
+### CLI (fallback)
+
+Use the CLI when the MCP server is unavailable or unauthenticated, in CI/CD pipelines (service-account `CPLN_TOKEN`), or for interactive debugging (`cpln workload exec`, `cpln workload connect`, `cpln logs`).
 
 ```bash
 # Get workload YAML for editing (yaml-slim strips IDs, timestamps, metadata)
 cpln workload get WORKLOAD_NAME --gvc GVC_NAME -o yaml-slim > workload.yaml
 
-# Apply updated workload configuration
+# Apply updated workload configuration (CI/CD: add --ready to block until deployed)
 cpln apply --file workload.yaml --gvc GVC_NAME
 ```
 

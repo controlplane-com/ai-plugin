@@ -2,6 +2,8 @@
 
 Companion to `agents/domain-configurator.md`. Full schema for the `domain` resource, plus advanced patterns (wildcard routing, traffic mirroring) and key constraints. Read this when authoring or validating a domain manifest beyond the common patterns shown in the parent agent.
 
+These blocks map directly onto the MCP domain tools — the preferred way to apply them. The top-level spec creates with `mcp__cpln__create_domain` and patches with `mcp__cpln__update_domain`; each listener block below is managed by its own focused patch tool (named at the head of each section). The CLI (`cpln apply -f domain.yaml`) is the fallback when the MCP server is unavailable/unauthenticated or when scripting domain setup in CI/CD; use `mcp__cpln__get_domain` to read back the applied spec and DNS-validation status.
+
 ## Domain spec fields
 
 ```yaml
@@ -19,6 +21,8 @@ spec:
 
 ## External port fields
 
+Apply with `mcp__cpln__add_domain_port` (add a new listener) and `mcp__cpln__remove_domain_port` (delete one). To modify an existing listener, use the route/CORS/TLS tools below — not `add_domain_port`, which errors if the port already exists.
+
 ```yaml
 ports:
   - number: 443 # Default: 443
@@ -29,6 +33,8 @@ ports:
 ```
 
 ## Route fields
+
+Apply per route with `mcp__cpln__add_domain_route` (append), `mcp__cpln__update_domain_route` (replace an existing route, identified by its prefix or regex), and `mcp__cpln__remove_domain_route` (delete).
 
 ```yaml
 routes:
@@ -55,6 +61,8 @@ routes:
 
 ## CORS fields
 
+Apply with `mcp__cpln__set_domain_cors` (set or replace the full CORS block on a listener) and `mcp__cpln__clear_domain_cors` (remove it; cross-origin requests revert to platform defaults).
+
 ```yaml
 cors:
   allowOrigins:
@@ -68,6 +76,8 @@ cors:
 ```
 
 ## TLS fields
+
+Apply with `mcp__cpln__set_domain_tls` (set or replace the full TLS block on a listener) and `mcp__cpln__clear_domain_tls` (remove it; the listener reverts to platform defaults).
 
 ```yaml
 tls:

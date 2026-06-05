@@ -2,6 +2,8 @@
 
 Companion to `skills/image/SKILL.md`. Read this when actually building an image — choosing between `cpln image build` and direct Docker, configuring buildpacks per language, or hitting platform-mismatch errors.
 
+Building and pushing images is **CLI-exclusive** — there is no create/update/delete-image MCP tool. Build/push via `cpln image build --push`, copy across orgs via `cpln image copy`. The only image MCP tools are read-only: `mcp__cpln__list_images` and `mcp__cpln__get_image` (use the latter to verify a build, below).
+
 ## Choosing Between `cpln image build` and Docker
 
 | Path | When to use |
@@ -72,7 +74,7 @@ All Control Plane managed locations run `linux/amd64`. Wrong platform causes `ex
 
 - The default platform for `cpln image build` is `linux/amd64` — safe on any host including Apple Silicon.
 - For direct `docker buildx build`, always pass `--platform=linux/amd64`.
-- Verify after building: `cpln image get my-app:v1.0 --org my-org -o json`.
+- Verify after building with the MCP tool `mcp__cpln__get_image` (inspect tags, digest, manifest). CLI fallback when the MCP server is unavailable: `cpln image get my-app:v1.0 --org my-org -o json`.
 
 ## Buildpacks (no Dockerfile)
 

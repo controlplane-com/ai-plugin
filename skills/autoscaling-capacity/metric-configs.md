@@ -2,6 +2,8 @@
 
 Companion to `skills/autoscaling-capacity/SKILL.md`. Each section below shows the full YAML for one autoscaling metric. Read this when actually authoring `spec.defaultOptions.autoscaling`.
 
+**Applying these configs:** the `autoscaling` block lives in the workload spec, so set it with `mcp__cpln__create_workload` (new workload) or `mcp__cpln__update_workload` (existing — PATCH semantics, call `mcp__cpln__get_workload` first to capture state). After any change, poll `mcp__cpln__get_workload_deployments` until the workload reports ready and the replica count reflects the new scaling. Fall back to the CLI (`cpln apply --file manifest.yaml`) when the MCP server is unavailable/unauthenticated, and as the primary interface in CI/CD (service-account `CPLN_TOKEN`).
+
 ## Concurrency (Serverless Only)
 
 Tracks average in-flight requests per replica. Best for workloads where request duration varies.
@@ -188,3 +190,5 @@ spec:
 ```
 
 Requires a service account with `readMetrics` permission. See the [export metrics guide](https://docs.controlplane.com/guides/export-metrics.md).
+
+Before wiring a PromQL trigger, confirm the metric exists and the query returns a signal: call `mcp__cpln__list_metrics` to discover the available metric names and labels (default plus custom metrics your workload emits) without guessing, then `mcp__cpln__query_metrics` to run the PromQL and verify it produces the value KEDA will scale on.

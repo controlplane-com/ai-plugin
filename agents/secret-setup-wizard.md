@@ -76,7 +76,15 @@ Parameters:
 
 This tool does NOT modify the workload's env vars or volumes — you still need Step 4 below to inject the secret reference.
 
-#### Via CLI (manual — when MCP is not available)
+#### Via individual MCP tools (when you need granular control over identity/policy)
+
+If you want to manage the identity and policy yourself instead of the composite `workload_reveal_secret`:
+
+- `mcp__cpln__create_identity` (or `mcp__cpln__get_identity` to reuse an existing one) — create the identity in the GVC.
+- `mcp__cpln__update_workload` — set `spec.identityLink` so the workload uses that identity.
+- `mcp__cpln__create_policy` with target kind `secret` and a `reveal` binding for the identity. Capture current state with `mcp__cpln__get_policy` before `mcp__cpln__update_policy` when amending an existing policy.
+
+#### Via CLI (fallback — when the MCP server is unavailable or unauthenticated)
 
 **Create identity and link to workload:**
 
@@ -112,7 +120,9 @@ cpln policy add-binding WORKLOAD-secret-access \
 
 ### Step 4: Inject Secret into Workload
 
-**As environment variable:**
+Use `mcp__cpln__update_workload` to add the `cpln://secret/NAME` reference to the container's env or volumes (call `mcp__cpln__get_workload` first to capture current state for rollback). Fall back to the CLI shapes below when the MCP server is unavailable.
+
+**As environment variable (CLI fallback):**
 
 ```bash
 cpln workload update WORKLOAD --gvc GVC --org ORG \
@@ -169,8 +179,10 @@ Max 15 volumes per container. Volumes are read-only (except Azure Files). Reserv
 
 ### Step 5: Verify the Chain
 
-1. Confirm identity is linked: `cpln workload get WORKLOAD --gvc GVC -o json | grep identityLink`
-2. Confirm policy grants reveal: `cpln policy get POLICY -o json` or use `mcp__cpln__get_permissions`
+Prefer the MCP read tools; the CLI greps below are the fallback.
+
+1. Confirm identity is linked: `mcp__cpln__get_workload` and check `spec.identityLink` (CLI: `cpln workload get WORKLOAD --gvc GVC -o json | grep identityLink`). Inspect the identity itself with `mcp__cpln__get_identity` if needed.
+2. Confirm policy grants reveal: `mcp__cpln__get_policy` (or `mcp__cpln__get_permissions` for the available permission set). CLI: `cpln policy get POLICY -o json`.
 3. Confirm secret reference format: must start with `cpln://secret/`
 
 ### Step 6: Redeploy
@@ -194,7 +206,13 @@ The `--ready` flag blocks until the workload is healthy with the new secret conf
 | `mcp__cpln__reveal_secret` | Reveal actual secret data (break-glass, requires `reveal` permission) |
 | `mcp__cpln__update_secret` | Update an existing secret |
 | `mcp__cpln__delete_secret` | Delete a secret |
+| `mcp__cpln__create_identity` | Create an identity (manual approach) |
+| `mcp__cpln__get_identity` | Get an identity (reuse an existing one) |
 | `mcp__cpln__create_policy` | Create a policy (manual approach) |
+| `mcp__cpln__get_policy` | Get a policy's bindings (capture state before update) |
+| `mcp__cpln__update_policy` | Update a policy's bindings or targets |
+| `mcp__cpln__get_permissions` | List available permissions for a resource kind |
+| `mcp__cpln__get_workload` | Get workload spec (capture state, check identityLink) |
 | `mcp__cpln__update_workload` | Update workload spec (set identityLink, env vars) |
 
 ## Common Mistakes to Prevent

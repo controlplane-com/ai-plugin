@@ -5,11 +5,15 @@ description: "Sets up CI/CD pipelines and GitOps workflows for Control Plane. Us
 
 # GitOps & CI/CD Patterns
 
+In CI/CD the **CLI is the primary interface** — pipelines authenticate non-interactively with a service-account `CPLN_TOKEN`, build and push images with `cpln image build --push`, and apply manifests with `cpln apply --ready`. The MCP tools are for the authoring and verification work around the pipeline: discover manifest shapes before you write them (`mcp__cpln__get_resource_schema`), generate or import Terraform for IaC pipelines (`mcp__cpln__export_terraform`, `mcp__cpln__convert_to_terraform`), and confirm a deploy landed (`mcp__cpln__get_workload_deployments`).
+
 ## Service Account Authentication
 
 All CI/CD pipelines require a service account for non-interactive authentication.
 
 ### 1. Create a service account and generate a key
+
+The fastest path is the MCP tool `mcp__cpln__add_key_to_service_account` — it creates the service account if it does not exist, adds a key, and can add it to a group in one call (read state first with `mcp__cpln__list_service_accounts` / `mcp__cpln__get_service_account`). The CLI equivalent, useful when scripting key rotation inside the pipeline itself:
 
 ```bash
 cpln serviceaccount create --name ci-deployer --org my-org
@@ -52,6 +56,8 @@ Set these in your CI/CD platform's settings (not in the pipeline script):
 
 ## Applying Manifests
 
+Before you commit a manifest to the repo, confirm its shape with `mcp__cpln__get_resource_schema` for the kind you are authoring (workload, gvc, identity, policy, …) so the YAML/JSON is schema-valid on the first `cpln apply`. The pipeline itself then applies with the CLI.
+
 The `cpln apply` command handles resource ordering automatically. You do not need to worry about applying resources in a specific order — the CLI resolves dependencies internally.
 
 You can pass:
@@ -66,6 +72,8 @@ Add `--ready` to block until workloads are healthy:
 ```bash
 cpln apply --file ./manifests/ --ready
 ```
+
+For an out-of-band readiness check — for example a post-deploy verification step or an agent confirming a rollout from outside the pipeline — use `mcp__cpln__get_workload_deployments`; it reports per-location readiness for the workload.
 
 ## GitHub Actions Example
 
@@ -111,6 +119,8 @@ Control Plane provides example repositories for popular CI/CD platforms:
 - [Google Cloud Build](https://github.com/controlplane-com/google-cloud-build-example-cli)
 
 ### Using Terraform
+
+To seed a Terraform-based pipeline, generate HCL with the MCP tools instead of hand-writing it: `mcp__cpln__export_terraform` emits HCL (and optional `import {}` blocks) for resources that already exist in an org, and `mcp__cpln__convert_to_terraform` turns a manifest you authored into schema-validated HCL.
 
 - [GitHub Actions](https://github.com/controlplane-com/github-actions-example-terraform)
 - [GitLab CI](https://gitlab.com/controlplane-com/gitlab-pipeline-example-terraform)

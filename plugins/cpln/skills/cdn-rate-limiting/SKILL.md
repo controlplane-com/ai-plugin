@@ -31,7 +31,7 @@ Generate an **Origin Certificate** under SSL/TLS > Origin Server:
 
 #### Step 2 -- TLS Secret at Control Plane
 
-Create a [TLS secret](https://docs.controlplane.com/reference/secret.md) using the Cloudflare origin certificate and private key. Leave the TLS Chain empty (self-signed).
+Create a [TLS secret](https://docs.controlplane.com/reference/secret.md) using the Cloudflare origin certificate and private key. Leave the TLS Chain empty (self-signed). Use `mcp__cpln__create_secret` with a `tls` payload; fall back to `cpln secret create-tls` when the MCP server is unavailable.
 
 ```yaml
 kind: secret
@@ -56,6 +56,8 @@ data:
 | Routing Mode | As desired |
 | Configure TLS | Enabled |
 | Custom Server Certificate | Select the TLS secret from Step 2 |
+
+Provision the domain with `mcp__cpln__create_domain` (or `mcp__cpln__update_domain` to adjust an existing one), then read back the required DNS-validation records with `mcp__cpln__get_domain`. Set the listener's TLS block via `mcp__cpln__set_domain_tls` and route traffic to the GVC or workload endpoint with `mcp__cpln__add_domain_route`. For DNS records emitted by the platform, fall back to `cpln domain get DOMAIN -o yaml` when the MCP server is unavailable.
 
 **The APEX domain must be verified before configuring a subdomain.**
 
@@ -113,10 +115,9 @@ Client request
 
 ### Step 1 -- Deploy the Rate Limit Stack
 
-Apply the [rate limiting manifest](https://raw.githubusercontent.com/controlplane-com/examples/main/examples/rate-limiting/rate-limiting.yaml) to a GVC named `ratelimit`:
+Create the dedicated GVC with `mcp__cpln__create_gvc` (name it `ratelimit`). The stack itself ships as a multi-resource manifest that bundles workloads, a secret, an identity, and a policy in one file — there is no typed MCP tool for a bundled apply, so apply the [rate limiting manifest](https://raw.githubusercontent.com/controlplane-com/examples/main/examples/rate-limiting/rate-limiting.yaml) via the CLI fallback (`cpln apply`):
 
 ```bash
-cpln gvc create --name ratelimit --org ORG_NAME
 cpln apply --file rate-limiting.yaml --org ORG_NAME --gvc ratelimit
 ```
 
@@ -128,7 +129,7 @@ The manifest creates:
 
 ### Step 2 -- Configure Rate Limit Rules
 
-Edit the `ratelimit-config` opaque secret. The config follows the [Envoy ratelimit configuration format](https://github.com/envoyproxy/ratelimit#configuration).
+Edit the `ratelimit-config` opaque secret with `mcp__cpln__update_secret` (the config follows the [Envoy ratelimit configuration format](https://github.com/envoyproxy/ratelimit#configuration)). Fall back to `cpln secret update` when the MCP server is unavailable.
 
 Valid `unit` values: `second`, `minute`, `hour`, `day`.
 
@@ -158,7 +159,7 @@ After editing the secret, **Force Redeploy** the `ratelimit` workload to reload 
 
 ### Step 3 -- Enable Rate Limiting on a Workload
 
-Add the following **tags** to the target workload:
+Add the following **tags** to the target workload with `mcp__cpln__update_workload` (or `mcp__cpln__create_workload` to include them at creation time); fall back to the `cpln` get-edit-apply workflow in the Quick Reference when the MCP server is unavailable:
 
 | Tag | Required | Default | Description |
 |:----|:--------:|:--------|:------------|
@@ -212,7 +213,7 @@ Internet --> CDN (Cloudflare/CloudFront)
 **Configuration order:**
 
 1. **CDN** -- Set up Cloudflare or CloudFront as described above
-2. **Firewall** -- Restrict `inboundAllowCIDR` to CDN provider IPs so direct access is blocked. See the **cpln-firewall-networking** skill for firewall patterns
+2. **Firewall** -- Restrict the workload's `inboundAllowCIDR` to CDN provider IPs so direct access is blocked (edit the firewall block via `mcp__cpln__update_workload`). See the **cpln-firewall-networking** skill for firewall patterns
 3. **Rate limiting** -- Deploy the ratelimit stack and tag the workload
 
 **Key considerations:**
@@ -224,6 +225,8 @@ Internet --> CDN (Cloudflare/CloudFront)
 ## Quick Reference
 
 ### CLI Commands
+
+Prefer the MCP tools below for typed operations (secret edits, workload tags). Use these `cpln` commands as the fallback when the MCP server is unavailable, and for the bundled-manifest apply and force-redeployment, which have no typed MCP tool.
 
 ```bash
 # Deploy rate limiting stack
@@ -243,9 +246,11 @@ cpln workload force-redeployment my-api --gvc my-gvc
 
 ### MCP Tools
 
-Rate limiting is configured via workload **tags**. Use the existing MCP workload tools:
-- **`mcp__cpln__update_workload`** -- Set `cpln/rateLimit*` tags on a workload
+Rate limiting is configured via workload **tags** and an opaque config secret. Use the typed MCP tools:
+- **`mcp__cpln__update_workload`** -- Set `cpln/rateLimit*` tags (or the `inboundAllowCIDR` firewall block) on a workload
 - **`mcp__cpln__create_workload`** -- Include rate limiting tags at creation time
+- **`mcp__cpln__update_secret`** -- Edit the `ratelimit-config` rules secret
+- **`mcp__cpln__create_gvc`** / **`mcp__cpln__create_domain`** / **`mcp__cpln__set_domain_tls`** / **`mcp__cpln__add_domain_route`** -- Stand up the ratelimit GVC and wire CDN domain routing/TLS
 
 ### Related Skills
 

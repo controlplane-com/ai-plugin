@@ -80,9 +80,13 @@ To get the org's ID: `cpln org get ORG_NAME -o json` and look for the `id` field
 
 ## Step 3: Create the Domain
 
-Domains are created via `cpln domain create` or `cpln apply` with a YAML manifest.
+Prefer the MCP tool `mcp__cpln__create_domain` — it provisions the domain, maps routes to workloads, and returns the DNS records required for validation in one call. Fall back to the CLI (`cpln domain create` or `cpln apply`) when the MCP server is unavailable/unauthenticated, or when you are scripting domain creation as part of a CI/CD pipeline.
 
-### Option A: `cpln domain create`
+### Option A: `mcp__cpln__create_domain` (recommended)
+
+Call `mcp__cpln__create_domain` with the domain name, DNS mode, and ports/routes (or `gvcLink` for subdomain routing). Run it in the org that will own the domain. Then call `mcp__cpln__get_domain` to read the pending DNS-validation records and per-location cert status. The manifest shapes below map directly onto the create_domain inputs.
+
+### Option B: `cpln domain create` (CLI fallback)
 
 ```bash
 cpln domain create --name app.example.com --org my-org
@@ -90,9 +94,9 @@ cpln domain create --name app.example.com --org my-org
 
 The `cpln domain create` command only takes `--name` (required), `--description`, and `--tag`. It creates a domain with default settings (`dnsMode: cname`, port 443, protocol http2). You then configure routing and spec separately by exporting, editing, and applying.
 
-### Option B: `cpln apply` with a manifest (recommended)
+### Option C: `cpln apply` with a manifest (CLI fallback)
 
-Create a YAML manifest with the full domain spec, then apply it. Common patterns below; see `references/domain-configurator/manifest-reference.md` for the full schema, advanced routing (wildcard, traffic mirroring), CORS, and TLS options.
+Create a YAML manifest with the full domain spec, then apply it — the primary path in CI/CD, where a service-account `CPLN_TOKEN` drives `cpln apply`. Common patterns below; see `references/domain-configurator/manifest-reference.md` for the full schema, advanced routing (wildcard, traffic mirroring), CORS, and TLS options. The same `spec` shapes are the inputs to `mcp__cpln__create_domain`.
 
 **Path-based routing (CNAME mode):**
 
@@ -186,7 +190,7 @@ The CLI will either create the domain or output the DNS records needed (ownershi
 
 ## Step 4: Set DNS Records
 
-After the domain is created, check its status for the required DNS records:
+After the domain is created, read its status for the required DNS records with `mcp__cpln__get_domain` (returns spec, pending DNS-validation records, and per-location cert status). CLI fallback:
 
 ```bash
 cpln domain get app.example.com --org my-org -o yaml
@@ -213,7 +217,7 @@ app  NS  1800  ns2.cpln.live
 
 After DNS records propagate, Control Plane automatically provisions TLS certificates via Let's Encrypt.
 
-Check the domain status:
+Poll the domain status with `mcp__cpln__get_domain` until certificates issue. CLI fallback:
 
 ```bash
 cpln domain get app.example.com --org my-org -o yaml
@@ -248,13 +252,31 @@ Look at `status.status`:
 
 ## MCP Tools Reference
 
+Prefer these tools for every domain operation; fall back to `cpln domain` / `cpln apply` only when the MCP server is unavailable/unauthenticated or you are scripting in CI/CD.
+
+**Domain lifecycle:**
+
 | Tool                       | Purpose                                                          |
 | :------------------------- | :--------------------------------------------------------------- |
 | `mcp__cpln__list_domains`  | List all domains in an organization                              |
-| `mcp__cpln__get_domain`    | Get detailed domain configuration (DNS mode, ports, routes, TLS) |
+| `mcp__cpln__get_domain`    | Get detailed domain configuration (DNS mode, ports, routes, TLS), pending DNS records, per-location cert status |
 | `mcp__cpln__create_domain` | Create a domain with DNS mode, ports, routes, and TLS settings   |
-| `mcp__cpln__update_domain` | Update domain description, tags, or spec fields (partial patch)  |
-| `mcp__cpln__delete_domain` | Delete a domain by name                                          |
+| `mcp__cpln__update_domain` | Update metadata (description, tags), top-level spec flags (`acceptAllHosts`, `acceptAllSubdomains`), or GVC binding |
+| `mcp__cpln__delete_domain` | Delete a domain by name (destructive — confirm blast radius)     |
+
+**Modify an existing domain's listeners (use these instead of `update_domain` for ports/routes/TLS/CORS):**
+
+| Tool                            | Purpose                                                                |
+| :------------------------------ | :--------------------------------------------------------------------- |
+| `mcp__cpln__add_domain_port`    | Add a new port listener (number, protocol, optional routes/cors/tls)   |
+| `mcp__cpln__remove_domain_port` | Remove a port listener (destructive — live traffic on that port stops) |
+| `mcp__cpln__add_domain_route`   | Append a prefix/regex route to an existing port listener               |
+| `mcp__cpln__update_domain_route`| Replace an existing route entry on a port listener                     |
+| `mcp__cpln__remove_domain_route`| Delete a route entry (matched traffic returns 404 until re-routed)     |
+| `mcp__cpln__set_domain_tls`     | Set or replace the TLS block (cipher suites, min protocol) on a listener |
+| `mcp__cpln__clear_domain_tls`   | Remove the TLS block; listener reverts to platform defaults            |
+| `mcp__cpln__set_domain_cors`    | Set or replace the CORS block on a listener (full shape overwrites)    |
+| `mcp__cpln__clear_domain_cors`  | Remove CORS; cross-origin requests revert to platform defaults         |
 
 ## Common Mistakes
 

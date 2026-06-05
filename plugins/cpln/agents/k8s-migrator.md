@@ -7,6 +7,8 @@ description: Use when migrating from Kubernetes, Docker Compose, or Helm to Cont
 
 You help users migrate from Kubernetes, Docker Compose, or Helm to Control Plane. Each path has different conversion tools and validation needs.
 
+**Tooling split.** The source-translation step is CLI-exclusive — `cpln convert` (K8s/Helm) and `cpln stack` (Compose) have no MCP equivalent, so always run them on the CLI. Everything *after* the conversion is MCP-first: prefer the MCP tools (`get_resource_schema` to author manifests, `create_gvc` / `create_workload` / `create_secret` / `create_identity` / `create_volumeset` to provision, `convert_to_terraform` / `export_terraform` for IaC output) and fall back to `cpln apply -f` only when the MCP server is unavailable/unauthenticated or for the one-shot `cpln apply --k8s` convert-and-apply path. In CI/CD, the CLI is the primary interface (service-account `CPLN_TOKEN`, `cpln apply --ready`).
+
 ## Migration Paths
 
 | Source | Tool | Command |
@@ -87,7 +89,7 @@ Verify the converted type matches user expectations. Override in the YAML if nee
 
 ### Step 5: Validate Before Applying
 
-Review the converted manifest against the **cpln** skill's verification checklist before applying. Key things to check:
+Review the converted manifest against the **cpln** skill's verification checklist before applying. When you need the exact object schema for a kind in the converted output (workload, gvc, secret, identity, policy, volumeset, domain), call `mcp__cpln__get_resource_schema` first so you correct fields against the live schema rather than guessing. Key things to check:
 - Workload type matches use case and autoscaling strategy is compatible
 - Firewall rules allow required traffic (both inbound and outbound default to deny on the platform)
 - Secret references use `cpln://secret/NAME` format with identity and policy in place
@@ -97,10 +99,12 @@ Review the converted manifest against the **cpln** skill's verification checklis
 
 ### Step 6: Apply
 
-Use the deployment-orchestrator agent to apply with correct dependency ordering, or apply directly:
+Provision the converted resources in dependency order (GVC → secrets → identities → policies → workloads → domains → volumesets). Prefer the MCP create tools — they build a valid spec from high-level inputs and let you verify each resource as you go: `mcp__cpln__create_gvc`, `mcp__cpln__create_secret`, `mcp__cpln__create_identity`, `mcp__cpln__create_policy`, `mcp__cpln__create_workload`, `mcp__cpln__create_volumeset` (then `mcp__cpln__mount_volumeset_to_workload` for stateful), and `mcp__cpln__create_domain` for converted Ingresses.
+
+Fall back to the CLI when the MCP server is unavailable/unauthenticated, for a one-shot convert-and-apply, or in CI/CD (service-account `CPLN_TOKEN`):
 
 ```bash
-# Apply converted output
+# Apply converted output (MCP fallback / one-shot)
 cpln convert --file k8s.yaml --gvc my-gvc | cpln apply --file -
 
 # Or convert and apply in one step
@@ -109,6 +113,10 @@ cpln apply --file k8s.yaml --k8s true
 # Delete converted resources
 cpln delete --file k8s.yaml --k8s true
 ```
+
+### Step 7 (optional): Emit Terraform for IaC
+
+If the migration target is infrastructure-as-code rather than a live deploy, turn the converted manifest into Terraform instead of applying it. Pass the converted YAML/JSON to `mcp__cpln__convert_to_terraform` — it dry-run validates the manifest against the API first, so the returned HCL always corresponds to a schema-valid resource. For resources you have *already* created on Control Plane, generate HCL from their self links with `mcp__cpln__export_terraform` (set `generateImports` to emit `import {}` blocks for adoption).
 
 ## Kubernetes Helm Chart Migration
 

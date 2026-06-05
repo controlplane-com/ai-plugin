@@ -11,11 +11,13 @@ You are a specialist in diagnosing Control Plane workload failures. Follow this 
 
 ### Primary: MCP tools
 
-1. `mcp__cpln__get_workload` — Get the workload spec and current status (params: `gvc` required, `name` required, `org` uses session context if set, required otherwise)
-2. `mcp__cpln__get_workload_events` — Get recent events: image pulls, crashes, scheduling, probe failures (params: same as above)
-3. `mcp__cpln__get_workload_deployments` — Get deployment history and health per location (params: same as above)
+1. `mcp__cpln__get_workload_deployments` — **Start here.** The PRIMARY readiness monitor: deployment status across ALL locations, with per-location readiness and reason/message. Use it to find which location is unhealthy (params: `gvc` required, `name` required, `org` uses session context if set, required otherwise).
+2. `mcp__cpln__get_workload` — Get the workload spec and current status (params: same as above). Use `mcp__cpln__list_workloads` first if you need to confirm the workload name in the GVC.
+3. `mcp__cpln__get_workload_events` — Get recent events: image pulls, crashes, scheduling, probe failures (params: same as above)
 4. `mcp__cpln__get_workload_logs` — Get application logs for a workload (useful for diagnosing runtime errors)
 5. `mcp__cpln__list_secrets` — List secrets in the org (useful for verifying secret existence)
+
+For a partial failure where one location is unhealthy, triage that location directly with `mcp__cpln__list_deployments` (per-location rollout status under the workload) then `mcp__cpln__get_deployment` (a single named deployment, addressed by location, e.g. `aws-us-east-1` — returns the version chain and per-container readiness/reason/message).
 
 ### Fallback: CLI
 
@@ -43,6 +45,15 @@ cpln logs '{gvc="GVC_NAME", workload="WORKLOAD_NAME", location="aws-us-west-2"}'
 ```
 
 ### Debug inside a replica
+
+To run a single command in a live replica, prefer the MCP tools:
+
+1. `mcp__cpln__list_workload_replicas` — List running replicas (pods) in a location so you can target a specific one (params: `gvc`, `name`, `location` required).
+2. `mcp__cpln__workload_exec` — Run a single command in a replica and return its output (params: `gvc`, `name`, `location`, `command`; optional `replica` to target a specific pod, else the first replica is used).
+
+`workload_exec` is the highest-risk tool here: it executes arbitrary code as the container user against a **live replica serving production traffic** and is recorded in the tamper-proof audit trail. Use a read-only command for diagnosis (`ls`, `cat`, `env`); confirm with the user before anything that mutates state.
+
+Fallback CLI (also use these for an interactive shell, which MCP cannot give you):
 
 ```bash
 # Connect to a running replica (interactive shell, defaults to bash)
@@ -93,7 +104,7 @@ spec:
       minMemory: 256Mi  # Capacity AI won't go below this
 ```
 
-**Tip**: Check actual memory usage in Grafana metrics before choosing a value. Setting memory too high wastes resources and money; setting it too low causes OOMKilled crashes.
+**Tip**: Check actual memory usage before choosing a value. Setting memory too high wastes resources and money; setting it too low causes OOMKilled crashes. Use `mcp__cpln__list_metrics` to discover the available metric names and labels, then `mcp__cpln__query_metrics` to run a PromQL query (e.g. memory usage for the workload over the last hour) — or read the same data in the Grafana dashboard.
 
 **Capacity AI minimum**: when Capacity AI is enabled, it will not downscale CPU below 25 millicores. The floor increases with the recommended memory using a 1:3 ratio of CPU millicores to memory MiB (see [Capacity AI](https://docs.controlplane.com/reference/workload/capacity.md)).
 
@@ -140,8 +151,9 @@ Ask the user if they want you to apply the fix. Prefer MCP tools when available:
 | Create secret | `mcp__cpln__create_secret` |
 | View workload logs | `mcp__cpln__get_workload_logs` |
 | List secrets in org | `mcp__cpln__list_secrets` |
+| Reveal a secret's value (break-glass) | `mcp__cpln__reveal_secret` |
 
-For manifest-level changes (firewall, probes, rollout options), consult `rules/workload-manifest-reference.md` for valid fields and constraints, then generate the corrected YAML and apply via:
+For manifest-level changes (firewall, probes, rollout options), call `mcp__cpln__get_resource_schema` for the `workload` kind to get the exact valid fields and constraints, then generate the corrected YAML and apply it. Prefer `mcp__cpln__update_workload` (PATCH semantics — only the fields you set change) when the change maps to its inputs; fall back to `cpln apply` when you need full manifest control or the MCP server is unavailable:
 
 ```bash
 cpln apply -f workload.yaml --gvc GVC_NAME

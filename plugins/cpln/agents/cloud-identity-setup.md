@@ -40,9 +40,14 @@ cpln cloudaccount create-azure --how --org my-org
 
 **Always run `--how` first.** The output contains org-specific values (account IDs, external IDs, service account emails) that are required for the cloud-side setup. Do not guess these values.
 
-Use the MCP tools for the same information:
+**MCP-first.** Get the same provider-specific onboarding steps from the MCP server — pick the tool by provider:
 
-- `mcp__cpln__get_cloud_account_setup_guide` (pass `provider`: `aws`, `gcp`, or `azure`)
+- AWS: `mcp__cpln__how_to_create_aws_cloud_account`
+- GCP: `mcp__cpln__how_to_create_gcp_cloud_account`
+- Azure: `mcp__cpln__how_to_create_azure_cloud_account`
+- NATS NGS: `mcp__cpln__how_to_create_ngs_cloud_account`
+
+Reach for the `cpln cloudaccount create-<provider> --how` CLI only as a fallback when the MCP server is unavailable.
 
 ## Step 2: Cloud-Provider-Side Setup
 
@@ -81,12 +86,12 @@ Based on the `--how` output:
 
 ### NATS NGS
 
-1. Create a NATS account secret (type `nats-account`) containing your NATS account credentials
+1. Create a NATS account secret (type `nats-account`) containing your NATS account credentials — via `mcp__cpln__create_secret`, or `cpln secret create` as the fallback
 2. The secret name will be referenced when creating the NGS cloud account
 
 ## Step 3: Register Cloud Account in Control Plane
 
-After completing the cloud-provider-side setup, register the cloud account:
+After completing the cloud-provider-side setup, register the cloud account. **MCP-first: use `mcp__cpln__create_cloud_account`** (provider `aws`, `gcp`, `azure`, or `ngs`). The CLI below is the fallback when the MCP server is unavailable.
 
 ```bash
 # AWS — requires the role ARN from step 2
@@ -120,16 +125,14 @@ cpln cloudaccount create-ngs \
   --org my-org
 ```
 
-Via MCP: `mcp__cpln__create_cloud_account`
-
-**Additional MCP tools for cloud account management:**
+**MCP tools for cloud account management:**
 
 | Tool | Action |
 |:---|:---|
 | `mcp__cpln__list_cloud_accounts` | List all cloud accounts in an organization |
 | `mcp__cpln__get_cloud_account` | Get detailed info about a specific cloud account |
 | `mcp__cpln__create_cloud_account` | Create a cloud account (aws, gcp, azure, or ngs) |
-| `mcp__cpln__get_cloud_account_setup_guide` | Get provider-specific setup instructions |
+| `mcp__cpln__update_cloud_account` | Update a cloud account's description, tags, or provider data (provider itself is immutable) |
 | `mcp__cpln__delete_cloud_account` | Delete a cloud account (irreversible) |
 
 Verify the cloud account was created:
@@ -140,13 +143,13 @@ cpln cloudaccount get my-aws-account --org my-org -o yaml
 
 ## Step 4: Create Identity and Configure Cloud Access
 
-First, create the identity:
+First, create the identity. **MCP-first: use `mcp__cpln__create_identity`** (the CLI below is the fallback):
 
 ```bash
 cpln identity create --name my-app-identity --gvc my-gvc --org my-org
 ```
 
-Then configure cloud access on the identity. The `cpln identity create` command creates an empty identity without cloud access — the spec must be edited and applied separately.
+Then configure cloud access on the identity. Creating an identity (via MCP or CLI) yields an empty identity without cloud access — the `aws` / `gcp` / `azure` / `ngs` cloud-access block must be applied separately, and **neither `mcp__cpln__create_identity` nor `mcp__cpln__update_identity` accepts these blocks** (they handle only `name`, `description`, `tags`, `networkResources`, `nativeNetworkResources`). Cloud access therefore goes through the CLI fallback below.
 
 **Via CLI: Export, edit, and apply**
 
@@ -237,27 +240,9 @@ Apply the updated identity:
 cpln apply --file identity.yaml --gvc my-gvc --org my-org
 ```
 
-**Via MCP:** The typed `mcp__cpln__create_identity` / `mcp__cpln__update_identity` tools do **not** accept `aws` / `gcp` / `azure` / `ngs` sections — only `name`, `description`, `tags`, `networkResources`, `nativeNetworkResources`. To set cloud access via MCP, use the generic `mcp__cpln__cpln_resource_operation` tool with a PATCH, e.g.:
+**No MCP path for cloud-access blocks.** There is no MCP tool that sets the `aws` / `gcp` / `azure` / `ngs` cloud-access spec on an identity (and there is no generic passthrough tool). The CLI `cpln apply` flow shown above is the path. To author the manifest accurately, call `mcp__cpln__get_resource_schema` (kind `identity`) first to confirm the exact `spec` shape, then `cpln apply -f identity.yaml`. Replace the `aws` block with `gcp`, `azure`, or `ngs` as needed.
 
-```json
-{
-  "kind": "identity",
-  "operation": "patch",
-  "org": "my-org",
-  "gvc": "my-gvc",
-  "name": "my-app-identity",
-  "body": {
-    "aws": {
-      "cloudAccountLink": "//cloudaccount/my-aws-account",
-      "policyRefs": ["aws::AmazonS3ReadOnlyAccess"]
-    }
-  }
-}
-```
-
-Replace the `aws` block with `gcp`, `azure`, or `ngs` as needed; the body mirrors the YAML `spec` content shown above.
-
-After applying, verify the identity's cloud access status:
+After applying, verify the identity's cloud access status with `mcp__cpln__get_identity` (CLI fallback below):
 
 ```bash
 cpln identity get my-app-identity --gvc my-gvc --org my-org -o yaml
@@ -266,6 +251,8 @@ cpln identity get my-app-identity --gvc my-gvc --org my-org -o yaml
 Check `status.aws.usable` (or `status.gcp.usable`, `status.azure.usable`) — it should be `true`. If `false`, check `status.<provider>.lastError` for details.
 
 ## Step 5: Link Identity to Workload
+
+**MCP-first: use `mcp__cpln__update_workload`** to set `identityLink` (CLI fallback below):
 
 ```bash
 cpln workload update my-app \
@@ -278,7 +265,7 @@ cpln workload update my-app \
 
 From within the workload, cloud SDKs automatically pick up credentials through the Control Plane credential vending process — no SDK configuration needed.
 
-To verify, check the identity status first:
+To verify, check the identity status first with `mcp__cpln__get_identity` (CLI fallback below):
 
 ```bash
 cpln identity get my-app-identity --gvc my-gvc --org my-org -o yaml

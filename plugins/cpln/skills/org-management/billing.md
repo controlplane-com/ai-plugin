@@ -26,6 +26,8 @@ A billing account manages user access, invoices, payment methods, and spending a
 
 **Billing roles vs org policies:** Billing roles control account-level access (invoices, payment, org creation). Org-level policies control resource-level access (workloads, secrets, etc.). They are **completely independent** — a `billing_admin` has zero implicit permissions on any org resource.
 
+> Billing-account access is **Console-only** — there is no MCP tool or `cpln` command for billing roles. Do not confuse it with org-level access: org users, groups, and service accounts are managed via MCP tools (`mcp__cpln__invite_user_to_org`, `mcp__cpln__list_users` / `mcp__cpln__get_user` / `mcp__cpln__delete_user`, `mcp__cpln__create_group` / `mcp__cpln__edit_group`, `mcp__cpln__create_service_account` / `mcp__cpln__add_key_to_service_account`) — see `skills/org-management/SKILL.md`.
+
 ## Initial Billing Account Creation Flow (Console Only)
 
 The initial billing account can only be created via the Console. The creation form collects:
@@ -43,6 +45,8 @@ The initial billing account can only be created via the Console. The creation fo
 4. Edit existing user: click **Edit**, modify roles, click **Confirm**.
 
 A user must have at least one role (`billing_admin`, `billing_viewer`, or `org_creator`). Users gain immediate access once added.
+
+> These are **billing-account** users, not org members. To add or remove a user inside an org, use the org-level MCP tools (`mcp__cpln__invite_user_to_org`, `mcp__cpln__delete_user`), not this billing dashboard.
 
 ## Spend Threshold Alerts
 

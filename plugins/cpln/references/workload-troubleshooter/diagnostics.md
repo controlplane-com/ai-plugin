@@ -2,18 +2,22 @@
 
 Companion to `agents/workload-troubleshooter.md`. Read this when you've narrowed the diagnosis to one of categories A–L. Each section gives symptoms, what to check, and the fix.
 
+**Diagnose with MCP, fall back to CLI.** Across every category, the readiness/triage reads are MCP tools: `mcp__cpln__get_workload_deployments` (PRIMARY readiness monitor across all locations), `mcp__cpln__get_workload_events`, and `mcp__cpln__get_workload_logs`; for a single failing location use `mcp__cpln__list_deployments` / `mcp__cpln__get_deployment`. Apply spec fixes with `mcp__cpln__update_workload`. The CLI is the fallback when the MCP server is unavailable or unauthenticated, for interactive debugging (`cpln workload connect` / `exec` / `logs`), and as the primary interface in CI/CD. For manifest-level fixes, call `mcp__cpln__get_resource_schema` to author a valid spec, then `cpln apply -f workload.yaml --gvc GVC_NAME`.
+
 ## A. Image Pull Failures
 
 **Symptoms**: Events show `ImagePullBackOff`, `ErrImagePull`, or deployment stuck.
 
+Confirm the symptom with `mcp__cpln__get_workload_events` (image-pull errors surface here); use `mcp__cpln__get_workload_deployments` to see which locations are stuck.
+
 Check:
 
-- **Image reference format** — Use `//image/IMAGE_NAME:TAG` for org private registry images. Use just `IMAGE:TAG` for Docker Hub public images (no `docker.io/` prefix). Use full registry URL for other external registries.
+- **Image reference format** — Use `//image/IMAGE_NAME:TAG` for org private registry images. Use just `IMAGE:TAG` for Docker Hub public images (no `docker.io/` prefix). Use full registry URL for other external registries. For org images, confirm the tag exists with `mcp__cpln__get_image` / `mcp__cpln__list_images`.
 - **Architecture** — Images must be `linux/amd64` for Control Plane managed locations. BYOK locations support additional platforms.
-- **Private registry access** — If pulling from a private external registry (Docker Hub private, ECR, GCR, ACR, GHCR), a pull secret must be created and added to the GVC's `pullSecretLinks`. Only Docker, ECR, and GCP secret types work as pull secrets.
+- **Private registry access** — If pulling from a private external registry (Docker Hub private, ECR, GCR, ACR, GHCR), a pull secret must be created and added to the GVC's `pullSecretLinks`. Confirm the GVC's pull secrets with `mcp__cpln__get_gvc` and that the secret exists with `mcp__cpln__list_secrets` / `mcp__cpln__get_secret`. Only Docker, ECR, and GCP secret types work as pull secrets.
 - **Org registry** — Images from your own org's private registry (`//image/...`) do NOT need pull secrets.
 
-Fix: If pull secret is missing:
+Fix: If the pull secret is missing, create it with `mcp__cpln__create_secret` (a `docker` secret), then attach it to the GVC's `pullSecretLinks` with `mcp__cpln__update_gvc`. CLI fallback:
 
 ```bash
 # Create a Docker pull secret
@@ -29,9 +33,9 @@ cpln gvc update MY_GVC --set spec.pullSecretLinks+=my-pull-secret
 
 The 3-step rule is defined in **rules/cpln-guardrails.md → Secret Access**. All three steps must be in place for a workload to access a secret at runtime — check each:
 
-1. **Identity exists and is linked to workload** — Check `spec.identityLink` in workload spec.
-2. **Policy exists granting identity `reveal` permission on the secret** — A policy with `targetKind: secret` targeting the specific secret, with a binding granting `reveal` to the identity.
-3. **Secret reference uses correct format** — Format varies by secret type (see below).
+1. **Identity exists and is linked to workload** — Check `spec.identityLink` via `mcp__cpln__get_workload`; confirm the identity itself with `mcp__cpln__get_identity`.
+2. **Policy exists granting identity `reveal` permission on the secret** — A policy with `targetKind: secret` targeting the specific secret, with a binding granting `reveal` to the identity. List/inspect with `mcp__cpln__list_policies` / `mcp__cpln__get_policy`.
+3. **Secret reference uses correct format** — Format varies by secret type (see below). Confirm the secret exists with `mcp__cpln__get_secret`; as a break-glass check that the chain actually resolves, `mcp__cpln__reveal_secret` returns the live value (requires `reveal` permission, recorded in the audit trail — use sparingly).
 
 **Secret reference formats by type:**
 
@@ -86,9 +90,9 @@ Rules by workload type:
 | Stateful | May expose 0 or multiple ports. |
 | Cron | MUST NOT expose any ports. |
 
-Check:
+Check (read the spec with `mcp__cpln__get_workload`):
 
-- The port in the workload spec MUST match the port the container actually listens on.
+- The port in the workload spec MUST match the port the container actually listens on. To confirm what the process is bound to inside a live replica, list replicas with `mcp__cpln__list_workload_replicas`, then run a read-only command (e.g. `netstat -tlnp` or `ss -tln`) with `mcp__cpln__workload_exec`.
 - The `PORT` environment variable is injected at runtime. If you set a custom PORT env var on an exposed container, its value MUST match the exposed port number.
 - Default protocol is `http` when using `ports`, `http2` when using deprecated `port` field.
 - TCP protocol requires a [Dedicated Load Balancer](https://docs.controlplane.com/reference/gvc.md) on the GVC and a custom Domain with TCP port configured — TCP does NOT work on default endpoints.
@@ -108,6 +112,8 @@ All firewall rules are deny-by-default:
 | External inbound | Disabled | No internet traffic can reach the workload |
 | External outbound | Disabled | Workload can't call external APIs/services |
 | Internal | `none` | Workloads can't communicate with each other |
+
+Apply any of these `firewallConfig` changes with `mcp__cpln__update_workload` (PATCH — pass only the firewall block); the YAML below is the shape, or use `cpln apply -f workload.yaml --gvc GVC_NAME` as the fallback.
 
 **Fix external inbound:**
 
@@ -157,6 +163,8 @@ Internal endpoint format: `WORKLOAD_NAME.GVC_NAME.cpln.local:PORT`
 
 **Symptoms**: Events show probe failures, workload marked unready, replicas restarting.
 
+Confirm probe failures with `mcp__cpln__get_workload_events` and check per-location readiness with `mcp__cpln__get_workload_deployments` (or `mcp__cpln__get_deployment` for one location). Apply probe changes with `mcp__cpln__update_workload`.
+
 Default behavior by type:
 
 | Type | Default Probes |
@@ -185,6 +193,8 @@ Common issues:
 ## F. Resource Limits
 
 **Symptoms**: Workload not scheduling, OOMKilled, throttled performance, or Capacity AI not working.
+
+Confirm OOMKilled / scheduling failures with `mcp__cpln__get_workload_events`. Before changing a resource value, check actual CPU/memory usage with `mcp__cpln__query_metrics` (discover the available metric names and PromQL templates first with `mcp__cpln__list_metrics`) so you size to real demand rather than guessing. Apply the new resources with `mcp__cpln__update_workload`.
 
 Check:
 
@@ -218,7 +228,7 @@ Check:
 - **Disallowed env var names** — `K_SERVICE`, `K_CONFIGURATION`, `K_REVISION` are reserved and cannot be set.
 - **Env var value limit** — max 4096 characters per value.
 - **Deprecated `port` field** — prefer the `ports` array. If the deprecated single-port field is used, the default protocol is `http2`.
-- **Workload is suspended** — check `spec.defaultOptions.suspend`. If `true`, the workload is stopped (equivalent to min/max scale 0).
+- **Workload is suspended** — check `spec.defaultOptions.suspend` (read with `mcp__cpln__get_workload`). If `true`, the workload is stopped (equivalent to min/max scale 0). Clear it by setting `spec.defaultOptions.suspend: false` via `mcp__cpln__update_workload`, or use the CLI fallback:
 
 ```bash
 # Unsuspend a workload
@@ -228,6 +238,8 @@ cpln workload start WORKLOAD_NAME --gvc GVC_NAME
 ## H. Autoscaling Misconfiguration
 
 **Symptoms**: Workload won't scale, 502s during scale-up, scale-to-zero doesn't work, or error creating workload with invalid autoscaling combo.
+
+Inspect the live replica count vs. target across locations with `mcp__cpln__get_workload_deployments`, and the scaling-signal metric (RPS, concurrency, CPU) with `mcp__cpln__query_metrics` (list candidates via `mcp__cpln__list_metrics`). Apply autoscaling spec changes with `mcp__cpln__update_workload`.
 
 Documented strategy restrictions (see [Autoscaling](https://docs.controlplane.com/reference/workload/autoscaling.md)):
 
@@ -246,9 +258,11 @@ Scale to zero: only serverless workloads can scale to zero, and only with the `r
 
 **Symptoms**: Requests fail during deployments or scale-down, 502/503 errors during rollout, containers killed abruptly.
 
+Correlate the failures with rollout timing using `mcp__cpln__get_workload_events` and `mcp__cpln__get_workload_logs`. Spec changes (preStop hook, `terminationGracePeriodSeconds`) apply via `mcp__cpln__update_workload`.
+
 Common causes:
 
-- **Missing `sleep` binary** — If the `sleep` executable is not available in ANY container of the workload, ALL containers receive SIGKILL immediately on termination. Requests may still route to the dying replica before the load balancer updates. Fix: ensure your container image includes `sleep` (most minimal/distroless images don't), or add a custom `preStop` hook.
+- **Missing `sleep` binary** — If the `sleep` executable is not available in ANY container of the workload, ALL containers receive SIGKILL immediately on termination. Requests may still route to the dying replica before the load balancer updates. Confirm by running `which sleep` in a live replica via `mcp__cpln__list_workload_replicas` + `mcp__cpln__workload_exec`. Fix: ensure your container image includes `sleep` (most minimal/distroless images don't), or add a custom `preStop` hook.
 - **Custom preStop hook error** — If a custom `preStop` hook throws an error in ANY container, ALL containers receive SIGKILL immediately. Fix: ensure the hook command exists and succeeds.
 - **App ignores SIGINT/SIGTERM** — After the preStop hook completes (default: `sleep 45`), the container receives SIGINT. If the app doesn't handle it, it gets SIGKILL after `terminationGracePeriodSeconds` (default: 90s). Fix: handle SIGINT/SIGTERM in your app.
 - **`terminationGracePeriodSeconds` too low** — The total budget for preStop + graceful shutdown. Default is 90s. The default preStop hook sleeps for half of this (45s). If your app needs more time, increase it.
@@ -257,9 +271,11 @@ Common causes:
 
 **Symptoms**: Container can't read mounted files, permission denied on volume, or cloud storage volume empty.
 
+To confirm what is actually mounted inside a replica, list replicas with `mcp__cpln__list_workload_replicas` and run a read-only `ls -la MOUNT_PATH` via `mcp__cpln__workload_exec`.
+
 Check:
 
-- **Secret volumes** require the same identity + policy chain as env vars (identity linked to workload, policy with `reveal` permission on the secret).
+- **Secret volumes** require the same identity + policy chain as env vars (identity linked to workload, policy with `reveal` permission on the secret) — verify it the same way as Section B (`mcp__cpln__get_identity`, `mcp__cpln__get_policy`).
 - **Cloud storage volumes** (S3, GCS, Azure Blob/Files) require:
   1. Identity linked to workload.
   2. Cloud access policy on the identity for the provider (e.g., `AmazonS3ReadOnlyAccess` for S3).
@@ -273,9 +289,11 @@ Check:
 
 **Symptoms**: Workload can't reach another workload internally, connection refused or timeout on internal calls.
 
+Read both workloads' specs with `mcp__cpln__get_workload` (list candidates via `mcp__cpln__list_workloads`). To test the path live, run a read-only `curl`/`wget` against the internal endpoint from the caller replica using `mcp__cpln__list_workload_replicas` + `mcp__cpln__workload_exec`.
+
 Check:
 
-1. **Target workload internal firewall** — must be set to `same-gvc`, `same-org`, or `workload-list` (default is `none` = no access).
+1. **Target workload internal firewall** — must be set to `same-gvc`, `same-org`, or `workload-list` (default is `none` = no access). Fix via `mcp__cpln__update_workload` (or `cpln apply`).
 2. **Endpoint format** — must use `http://WORKLOAD_NAME.GVC_NAME.cpln.local:PORT` (use `http://`, NOT `https://` — the sidecar handles mTLS automatically).
 3. **Port** — if omitted, defaults to the first port in the target workload's container array. Only ports listed in the workload containers array are accessible internally.
 4. **Cross-GVC calls** — the target must allow `same-org` or list the caller in `workload-list`. Cross-GVC traffic may span locations and incurs egress charges.
@@ -283,6 +301,8 @@ Check:
 ## L. Dedicated Load Balancer and Domain Issues
 
 **Symptoms**: Workload becomes unreachable after enabling dedicated LB, TCP traffic doesn't work, wrong Host header.
+
+Inspect the GVC load-balancer settings with `mcp__cpln__get_gvc` and the domain's ports/routes and per-location cert status with `mcp__cpln__get_domain` (`mcp__cpln__list_domains` to find it).
 
 Check:
 

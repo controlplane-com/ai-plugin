@@ -50,6 +50,8 @@ Org (top-level boundary)
 | `domainAutoMembers` | string[] | — | Email domains for automatic org membership |
 | `samlOnly` | boolean | `false` | Restrict authentication to SAML only |
 
+> **Editing org-level spec blocks** (`logging`, `observability`, `authConfig`, `security`, `sessionTimeoutSeconds`) has **no typed MCP tool**. Fall back to the CLI: call `mcp__cpln__get_resource_schema` (kind `org`) to author an accurate manifest, then apply it with `cpln apply -f org.yaml` (or `cpln org edit ORG_NAME` for interactive edits). External logging is the exception — use `mcp__cpln__configure_external_logging` (see the **cpln-external-logging** skill).
+
 ## Creating an Organization
 
 ### Prerequisites
@@ -139,12 +141,16 @@ viewer@example.com,viewers
 
 ### Managing Users
 
-| Action | CLI | MCP |
+Lead with the MCP tools; fall back to the CLI when the MCP server is unavailable or for fields no typed tool covers (e.g. user tags).
+
+| Action | MCP | CLI fallback |
 |:---|:---|:---|
-| List users | `cpln user get` | `mcp__cpln__cpln_resource_operation` (kind: `user`, verb: `get`) |
-| Get user | `cpln user get USER_EMAIL` | `mcp__cpln__cpln_resource_operation` |
-| Delete user | `cpln user delete USER_EMAIL` | `mcp__cpln__cpln_resource_operation` (kind: `user`, verb: `delete`) |
-| Update tags | `cpln user update USER_EMAIL --set tags.key=value` | — |
+| List users | `mcp__cpln__list_users` | `cpln user get` |
+| Get user | `mcp__cpln__get_user` (by id or email) | `cpln user get USER_EMAIL` |
+| Delete user | `mcp__cpln__delete_user` | `cpln user delete USER_EMAIL` |
+| Update tags | — (no typed tool) | `cpln user update USER_EMAIL --set tags.key=value` |
+
+> `delete_user` is destructive — confirm the blast radius (group memberships, policy bindings the user participates in) before calling.
 
 ### User Permissions (for Policies)
 
@@ -177,14 +183,34 @@ Groups aggregate users and service accounts for easier policy management.
 | List groups | `mcp__cpln__list_groups` | `org`, `limit` (max 500) |
 | Get group | `mcp__cpln__get_group` | `org`, `name` |
 | Create group | `mcp__cpln__create_group` | `name`, `description`, `tags`, `memberLinks` |
-| Update group | `mcp__cpln__update_group` | `name`, `tags`, `addMemberLinks`, `removeMemberLinks` |
+| Edit group (description, tags, members) | `mcp__cpln__edit_group` | `name`, `description`, `tags`, `addMemberLinks`, `removeMemberLinks` |
 | Delete group | `mcp__cpln__delete_group` | `name` |
-| Add members | `mcp__cpln__add_member_to_group` | `groupName`, `memberLinks` (e.g., `//user/alice@example.com`) |
-| Remove members | `mcp__cpln__remove_member_from_group` | `groupName`, `memberLinks` |
+
+> `edit_group` is the single tool for updating a group's description/tags **and** adding or removing member links — there is no separate add-/remove-member tool. Call `get_group` first to confirm current membership.
 
 **Member link format:** `//user/EMAIL` for users, `//serviceaccount/NAME` for service accounts.
 
 For deeper group workflows (dynamic membership, service-account management), see the **cpln-access-control** skill (`skills/access-control/principals.md`).
+
+## Service Accounts (MCP Tools)
+
+Service accounts are non-human principals (CI/CD, automation) that authenticate with keys.
+
+| Action | MCP Tool | Notes |
+|:---|:---|:---|
+| Create service account | `mcp__cpln__create_service_account` | No keys yet; names are immutable (rename = delete + recreate, which invalidates all keys) |
+| Add a key (and optionally the SA) | `mcp__cpln__add_key_to_service_account` | Creates the SA if it does not exist, adds a key, optional group placement |
+
+> There is no `create_service_account_key` tool — use `mcp__cpln__add_key_to_service_account` to issue keys. The CLI fallback is `cpln serviceaccount create --name NAME` then `cpln serviceaccount add-key NAME`.
+
+## Quotas (MCP Tools)
+
+Quotas are per-org resource limits (CPU, memory, workload count, …). Read-only.
+
+| Action | MCP Tool | Notes |
+|:---|:---|:---|
+| List quotas | `mcp__cpln__list_quotas` | Returns every quota in full (usage, max, unit, dimensions). Pass `nearLimit: true` for a quick "what is about to break?" check (≥80% used) |
+| Get a quota | `mcp__cpln__get_quota` | Addressed by GUID `id` from `list_quotas` — call `list_quotas` first |
 
 ## Profile Management
 
@@ -255,14 +281,19 @@ Profiles store authentication credentials and default context (org, GVC) for the
 | Tool | Action |
 |:---|:---|
 | `mcp__cpln__invite_user_to_org` | Invite user by email to org (optional group) |
+| `mcp__cpln__list_users` | List users in an org |
+| `mcp__cpln__get_user` | Get a user by id or email |
+| `mcp__cpln__delete_user` | Remove a user from the org (destructive) |
 | `mcp__cpln__list_groups` | List all groups in an org |
 | `mcp__cpln__get_group` | Get group details |
 | `mcp__cpln__create_group` | Create a group with optional members |
-| `mcp__cpln__update_group` | Update group members and tags |
+| `mcp__cpln__edit_group` | Update group description, tags, and member links |
 | `mcp__cpln__delete_group` | Delete a group |
-| `mcp__cpln__add_member_to_group` | Add users/service accounts to a group |
-| `mcp__cpln__remove_member_from_group` | Remove members from a group |
-| `mcp__cpln__cpln_resource_operation` | Generic CRUD for org, user, and other resources |
+| `mcp__cpln__create_service_account` | Create a service account (no keys) |
+| `mcp__cpln__add_key_to_service_account` | Add a key (creates the SA if needed) |
+| `mcp__cpln__list_quotas` | List per-org resource quotas |
+| `mcp__cpln__get_quota` | Get a single quota by GUID id |
+| `mcp__cpln__get_resource_schema` | Author an org manifest for `cpln apply` (org-level spec blocks have no typed tool) |
 
 ### CLI Commands
 
