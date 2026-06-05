@@ -6,11 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
+### Added
+
+- New `workload` skill: a single, token-efficient primer the AI reads before creating or updating a workload, with on-demand routing to the deep skills (images, scaling, networking, storage, security, metrics).
+
 ### Changed
 
-- Rewrote the AI agent operating rules to be slimmer and MCP-first, with clearer guidance on which tool or skill to use for each task.
+- Consolidated each skill's companion files and each agent's reference docs into the main file, so every skill and agent is self-contained and fully available to MCP-only clients.
+- Made the operating rules and every skill, agent, and command MCP-first — slimmer, leading with the MCP tools (CLI as the fallback), with clearer tool/skill routing and corrected outdated MCP tool names.
 - Reworked and slimmed the `cpln` CLI skill, now the single home for CLI command reference.
-- Reworked every skill, agent, and command to lead with the MCP tools (CLI as the fallback) and corrected outdated MCP tool names.
 
 ### Removed
 

@@ -5,7 +5,7 @@ description: Use when setting up a custom domain for Control Plane workloads. Gu
 
 # Control Plane Domain Configurator
 
-You guide users through the complete domain setup for Control Plane workloads. Domains are org-scoped and route traffic to workloads via path-based or subdomain-based routing. For the full domain manifest schema (spec fields, port fields, route fields, CORS, TLS, advanced patterns like wildcard routing and traffic mirroring), see `references/domain-configurator/manifest-reference.md`.
+You guide users through the complete domain setup for Control Plane workloads. Domains are org-scoped and route traffic to workloads via path-based or subdomain-based routing. The full manifest schema (spec, port, route, CORS, TLS fields) and advanced patterns (wildcard routing, traffic mirroring) live in the **Domain manifest reference** section below.
 
 ## Prerequisites
 
@@ -19,12 +19,12 @@ Before starting, confirm with the user:
 
 ## Step 1: Choose DNS Mode
 
-| Need                                                   | DNS Mode     | Routing         |
-| :----------------------------------------------------- | :----------- | :-------------- |
-| Multiple workloads on different paths (`/api`, `/app`) | `cname`      | Path-based      |
-| Each workload gets a subdomain (`api.example.com`)     | `ns`         | Subdomain-based |
-| Single workload on a domain                            | Either       | Simple          |
-| Apex domain (e.g., `example.com`)                      | `cname` only | Path-based      |
+| Need | DNS Mode | Routing |
+| :--- | :--- | :--- |
+| Multiple workloads on different paths (`/api`, `/app`) | `cname` | Path-based |
+| Each workload gets a subdomain (`api.example.com`) | `ns` | Subdomain-based |
+| Single workload on a domain | Either | Simple |
+| Apex domain (e.g., `example.com`) | `cname` only | Path-based |
 
 **Key distinctions:**
 
@@ -96,7 +96,7 @@ The `cpln domain create` command only takes `--name` (required), `--description`
 
 ### Option C: `cpln apply` with a manifest (CLI fallback)
 
-Create a YAML manifest with the full domain spec, then apply it — the primary path in CI/CD, where a service-account `CPLN_TOKEN` drives `cpln apply`. Common patterns below; see `references/domain-configurator/manifest-reference.md` for the full schema, advanced routing (wildcard, traffic mirroring), CORS, and TLS options. The same `spec` shapes are the inputs to `mcp__cpln__create_domain`.
+Create a YAML manifest with the full domain spec, then apply it — the primary path in CI/CD, where a service-account `CPLN_TOKEN` drives `cpln apply`. Common patterns below; the full schema, advanced routing (wildcard, traffic mirroring), CORS, and TLS options are in the **Domain manifest reference** section. The same `spec` shapes are the inputs to `mcp__cpln__create_domain`.
 
 **Path-based routing (CNAME mode):**
 
@@ -225,14 +225,14 @@ cpln domain get app.example.com --org my-org -o yaml
 
 Look at `status.status`:
 
-| Status               | Meaning                                            |
-| :------------------- | :------------------------------------------------- |
-| `initializing`       | Domain being set up                                |
-| `pendingDnsConfig`   | Waiting for DNS records to propagate               |
-| `pendingCertificate` | DNS verified, waiting for certificate              |
-| `ready`              | Fully operational                                  |
-| `warning`            | Working but with warnings (check `status.warning`) |
-| `errored`            | Configuration errors                               |
+| Status | Meaning |
+| :--- | :--- |
+| `initializing` | Domain being set up |
+| `pendingDnsConfig` | Waiting for DNS records to propagate |
+| `pendingCertificate` | DNS verified, waiting for certificate |
+| `ready` | Fully operational |
+| `warning` | Working but with warnings (check `status.warning`) |
+| `errored` | Configuration errors |
 
 **Certificate challenge types:**
 
@@ -256,27 +256,180 @@ Prefer these tools for every domain operation; fall back to `cpln domain` / `cpl
 
 **Domain lifecycle:**
 
-| Tool                       | Purpose                                                          |
-| :------------------------- | :--------------------------------------------------------------- |
-| `mcp__cpln__list_domains`  | List all domains in an organization                              |
-| `mcp__cpln__get_domain`    | Get detailed domain configuration (DNS mode, ports, routes, TLS), pending DNS records, per-location cert status |
-| `mcp__cpln__create_domain` | Create a domain with DNS mode, ports, routes, and TLS settings   |
+| Tool | Purpose |
+| :--- | :--- |
+| `mcp__cpln__list_domains` | List all domains in an organization |
+| `mcp__cpln__get_domain` | Get detailed domain configuration (DNS mode, ports, routes, TLS), pending DNS records, per-location cert status |
+| `mcp__cpln__create_domain` | Create a domain with DNS mode, ports, routes, and TLS settings |
 | `mcp__cpln__update_domain` | Update metadata (description, tags), top-level spec flags (`acceptAllHosts`, `acceptAllSubdomains`), or GVC binding |
-| `mcp__cpln__delete_domain` | Delete a domain by name (destructive — confirm blast radius)     |
+| `mcp__cpln__delete_domain` | Delete a domain by name (destructive — confirm blast radius) |
 
 **Modify an existing domain's listeners (use these instead of `update_domain` for ports/routes/TLS/CORS):**
 
-| Tool                            | Purpose                                                                |
-| :------------------------------ | :--------------------------------------------------------------------- |
-| `mcp__cpln__add_domain_port`    | Add a new port listener (number, protocol, optional routes/cors/tls)   |
+| Tool | Purpose |
+| :--- | :--- |
+| `mcp__cpln__add_domain_port` | Add a new port listener (number, protocol, optional routes/cors/tls) |
 | `mcp__cpln__remove_domain_port` | Remove a port listener (destructive — live traffic on that port stops) |
-| `mcp__cpln__add_domain_route`   | Append a prefix/regex route to an existing port listener               |
-| `mcp__cpln__update_domain_route`| Replace an existing route entry on a port listener                     |
-| `mcp__cpln__remove_domain_route`| Delete a route entry (matched traffic returns 404 until re-routed)     |
-| `mcp__cpln__set_domain_tls`     | Set or replace the TLS block (cipher suites, min protocol) on a listener |
-| `mcp__cpln__clear_domain_tls`   | Remove the TLS block; listener reverts to platform defaults            |
-| `mcp__cpln__set_domain_cors`    | Set or replace the CORS block on a listener (full shape overwrites)    |
-| `mcp__cpln__clear_domain_cors`  | Remove CORS; cross-origin requests revert to platform defaults         |
+| `mcp__cpln__add_domain_route` | Append a prefix/regex route to an existing port listener |
+| `mcp__cpln__update_domain_route` | Replace an existing route entry on a port listener |
+| `mcp__cpln__remove_domain_route` | Delete a route entry (matched traffic returns 404 until re-routed) |
+| `mcp__cpln__set_domain_tls` | Set or replace the TLS block (cipher suites, min protocol) on a listener |
+| `mcp__cpln__clear_domain_tls` | Remove the TLS block; listener reverts to platform defaults |
+| `mcp__cpln__set_domain_cors` | Set or replace the CORS block on a listener (full shape overwrites) |
+| `mcp__cpln__clear_domain_cors` | Remove CORS; cross-origin requests revert to platform defaults |
+
+## Domain manifest reference
+
+Full schema for the `domain` resource. These `spec` shapes are the inputs to `mcp__cpln__create_domain` / `mcp__cpln__update_domain`; each listener block is also managed by its own focused patch tool (see the MCP Tools Reference table above). CLI fallback: `cpln apply -f domain.yaml`, then `mcp__cpln__get_domain` to read back the applied spec and DNS-validation status.
+
+### Spec fields
+
+```yaml
+kind: domain
+name: app.example.com
+spec:
+  dnsMode: cname # "cname" or "ns". Default: "cname" (or "ns" if gvcLink is set)
+  certChallengeType: http01 # "http01" or "dns01". Optional. NS mode only supports dns01
+  gvcLink: //gvc/my-gvc # Subdomain-based routing. Mutually exclusive with ports.routes and workloadLink
+  workloadLink: //gvc/my-gvc/workload/my-app # Single-workload shortcut. Mutually exclusive with gvcLink
+  acceptAllHosts: false # Accept wildcard traffic (requires dedicated LB). Cannot be true with acceptAllSubdomains
+  acceptAllSubdomains: false # Accept *.domain (requires dedicated LB). Cannot be true with acceptAllHosts
+  ports: [...] # Array of external ports. Max 10 per domain. Default: one port (443, http2, auto-TLS)
+```
+
+### External port fields
+
+```yaml
+ports:
+  - number: 443 # Default: 443
+    protocol: http2 # "http", "http2", or "tcp". Default: "http2"
+    routes: [...] # Array of routes. Max 150 per port (raise to 200 with the cpln/routeLimitOverride tag)
+    cors: { ... } # Optional CORS configuration
+    tls: { ... } # Optional TLS configuration. Auto-configured for port 443 with http/http2
+```
+
+### Route fields
+
+```yaml
+routes:
+  - prefix: /api # Path prefix. Use prefix XOR regex (not both). Default: "/" if regex not set
+    # regex: /user/.*/profile       # RE2 regex for path matching. Use regex XOR prefix (not both)
+    workloadLink: //gvc/my-gvc/workload/api-service # Required. All routes must target workloads in the same GVC
+    port: 8080 # Optional: target specific workload port
+    replacePrefix: /v2/api # Optional: rewrite the URI prefix before forwarding to the workload
+    replica: 0 # Optional: route to a specific replica of a stateful workload (integer, 0-based)
+    hostPrefix: app # Optional: match subdomain prefix. Requires acceptAllHosts/acceptAllSubdomains. Excludes hostRegex
+    # hostRegex: "^app-.*$"         # Optional: regex to match host header. Requires acceptAllHosts/acceptAllSubdomains. Excludes hostPrefix
+    headers: # Optional: modify HTTP request headers
+      request:
+        set:
+          X-Custom-Header: "value"
+          X-Client-IP: "%DOWNSTREAM_REMOTE_ADDRESS_WITHOUT_PORT%"
+          X-Server-Name: "%REQUESTED_SERVER_NAME%"
+          # Allowed header wildcards: %REQUESTED_SERVER_NAME%, %DOWNSTREAM_REMOTE_ADDRESS_WITHOUT_PORT%, %START_TIME%
+    mirror: # Optional: mirror traffic for canary testing
+      - workloadLink: //gvc/my-gvc/workload/api-service-v2 # Must be in the same GVC
+        percent: 10 # Percentage of traffic to mirror (0-100)
+        port: 8080 # Optional: target port on the mirrored workload
+```
+
+### CORS fields
+
+```yaml
+cors:
+  allowOrigins:
+    - exact: "https://app.example.com" # Exact origin match. Use exact XOR regex per entry
+    # - regex: "^https://.*\\.example\\.com$"  # RE2 regex origin match
+  allowMethods: ["GET", "POST", "PUT", "DELETE"] # Optional
+  allowHeaders: ["content-type", "authorization"] # Optional (lowercase)
+  exposeHeaders: ["x-request-id"] # Optional (lowercase): headers the browser can access
+  maxAge: "24h" # Optional: preflight cache duration. Format: digits + h/m/s (e.g., "24h", "30m")
+  allowCredentials: true # Optional: allow cookies/auth headers in CORS requests
+```
+
+### TLS fields
+
+```yaml
+tls:
+  minProtocolVersion: TLSV1_2 # "TLSV1_0", "TLSV1_1", "TLSV1_2", "TLSV1_3". Default: "TLSV1_2"
+  cipherSuites: # Optional: override default cipher suites
+    - ECDHE-ECDSA-AES256-GCM-SHA384
+    - ECDHE-ECDSA-CHACHA20-POLY1305
+    - ECDHE-ECDSA-AES128-GCM-SHA256
+    - ECDHE-RSA-AES256-GCM-SHA384
+    - ECDHE-RSA-CHACHA20-POLY1305
+    - ECDHE-RSA-AES128-GCM-SHA256
+    - AES256-GCM-SHA384
+    - AES128-GCM-SHA256
+  serverCertificate: # Optional: custom server cert instead of Let's Encrypt auto-provisioning
+    secretLink: //secret/my-server-cert # Secret type must be keypair, PEM encoded
+  clientCertificate: # Optional: enable client certificate verification (mTLS)
+    secretLink: //secret/my-ca-cert # Secret type must be keypair, PEM encoded CA cert
+    # When set, client cert details appear in the x-forwarded-client-cert (XFCC) header
+    # No verification if no CA cert is associated — workload can check XFCC hash against its own allow/revoke list
+```
+
+### Wildcard routing (requires dedicated load balancer)
+
+Route traffic by subdomain using `hostPrefix` or `hostRegex`. Requires the GVC to have dedicated load balancing enabled and either `acceptAllHosts` or `acceptAllSubdomains` set to true on the domain.
+
+```yaml
+kind: domain
+name: app.example.com
+spec:
+  dnsMode: cname
+  acceptAllHosts: true
+  ports:
+    - number: 443
+      protocol: http2
+      routes:
+        - prefix: /
+          hostPrefix: api
+          workloadLink: //gvc/my-gvc/workload/api-service
+        - prefix: /
+          hostPrefix: web
+          workloadLink: //gvc/my-gvc/workload/web-frontend
+        - prefix: /
+          workloadLink: //gvc/my-gvc/workload/default-service
+```
+
+### Traffic mirroring (canary testing)
+
+Mirror a percentage of traffic to another workload without affecting the primary response:
+
+```yaml
+kind: domain
+name: app.example.com
+spec:
+  dnsMode: cname
+  ports:
+    - number: 443
+      protocol: http2
+      routes:
+        - prefix: /api
+          workloadLink: //gvc/my-gvc/workload/api-v1
+          mirror:
+            - workloadLink: //gvc/my-gvc/workload/api-v2
+              percent: 10
+              port: 8080
+```
+
+### Key constraints from the schema
+
+- `gvcLink`, `workloadLink`, and `ports.routes` — use only one routing approach.
+- `gvcLink` and `workloadLink` are mutually exclusive (`.nand`).
+- `gvcLink` with `ports.routes` (routes with length > 0) is not allowed.
+- All routes must point to workloads in the **same GVC**.
+- `prefix` and `regex` on a route are mutually exclusive (`.xor`).
+- `hostPrefix` and `hostRegex` are mutually exclusive (`.nand`) and require `acceptAllHosts` or `acceptAllSubdomains`.
+- `acceptAllHosts` and `acceptAllSubdomains` cannot both be true.
+- Max 10 ports per domain; max 150 routes per port (raise to 200 with the `cpln/routeLimitOverride` tag).
+- Port 443 with `http` or `http2` protocol automatically gets TLS config if not specified.
+- CNAME mode + `gvcLink` + `http01` cert challenge requires `tls.serverCertificate.secretLink` on every TLS port (HTTP-01 cannot issue wildcard certs).
+- NS mode cannot use `http01` cert challenge.
+- `workloadLink` mode: every port must have exactly one route, all routes must reference the same workload, `certChallengeType` cannot be `http01`.
+- `hostPrefix` regex: `^[0-9a-zA-Z-\._]*$` (alphanumeric, dot, underscore, hyphen only — no slashes).
+- Header value wildcards: only `%REQUESTED_SERVER_NAME%`, `%DOWNSTREAM_REMOTE_ADDRESS_WITHOUT_PORT%`, `%START_TIME%` are allowed.
 
 ## Common Mistakes
 

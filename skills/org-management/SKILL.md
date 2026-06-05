@@ -5,7 +5,7 @@ description: "Manages organizations, billing, users, and authentication on Contr
 
 # Organization & User Management
 
-Org structure, user/group management, profile setup. For SSO/SAML configuration, CLI auth flows, and service-account token details, see `skills/org-management/sso.md`. For billing-account features, roles, and management, see `skills/org-management/billing.md`.
+Org structure, user/group management, profile setup, billing accounts, and SSO/SAML authentication.
 
 ## Organization Overview
 
@@ -50,7 +50,7 @@ Org (top-level boundary)
 | `domainAutoMembers` | string[] | — | Email domains for automatic org membership |
 | `samlOnly` | boolean | `false` | Restrict authentication to SAML only |
 
-> **Editing org-level spec blocks** (`logging`, `observability`, `authConfig`, `security`, `sessionTimeoutSeconds`) has **no typed MCP tool**. Fall back to the CLI: call `mcp__cpln__get_resource_schema` (kind `org`) to author an accurate manifest, then apply it with `cpln apply -f org.yaml` (or `cpln org edit ORG_NAME` for interactive edits). External logging is the exception — use `mcp__cpln__configure_external_logging` (see the **cpln-external-logging** skill).
+> **Editing org-level spec blocks** — `authConfig`, `observability`, `security`, and `sessionTimeoutSeconds` are set with `mcp__cpln__update_org` (read current state with `mcp__cpln__get_org`). `logging`/`extraLogging` are the exception — use `mcp__cpln__configure_external_logging` (see the **cpln-external-logging** skill). For a block not covered by `update_org` (e.g. `tracing`), call `mcp__cpln__get_resource_schema` (kind `org`) and apply with `cpln apply -f org.yaml`.
 
 ## Creating an Organization
 
@@ -81,7 +81,7 @@ cpln org create --name ORG_NAME --accountId BILLING_ACCOUNT_ID \
 | `--description` | No | Org description (defaults to name) |
 | `--tag` | No | Tags in `key=value` format (repeatable) |
 
-The **initial billing account** can only be created via the Console — see `skills/org-management/billing.md` for the form fields and the billing account features.
+The **initial billing account** can only be created via the Console — see the **Billing** section below for the form fields and billing-account features.
 
 ### Key Constraints
 
@@ -89,6 +89,56 @@ The **initial billing account** can only be created via the Console — see `ski
 - Org name is **globally unique** across all of Control Plane.
 - Org name cannot start with `xserve-` or be `index` (schema-enforced).
 - The `billing_admin` role does **not** grant org-level permissions — these are independent systems.
+
+## Billing
+
+A billing account manages user access, invoices, payment methods, and spending alerts. You can create multiple billing accounts.
+
+> **Billing-account access is Console-only** — there is no MCP tool or `cpln` command for billing roles or billing-user management. Do not confuse it with org-level access: org users, groups, and service accounts are managed via the MCP tools below.
+
+### Billing Account Features
+
+| Feature | Description |
+|---|---|
+| Account Details | Company information, billing contact |
+| Orgs | View orgs linked to the billing account |
+| Invoices | View and download invoices |
+| Payment Methods | Add, update, or remove payment methods |
+| Users | Manage billing user access and roles |
+| Cost & Usage | Review costs across all orgs in the account |
+| Spend Alerts | Email alerts when monthly spending hits a threshold |
+
+### Billing Account Roles
+
+| Role | Description |
+|---|---|
+| `billing_admin` | Full access to billing settings, invoices, and user management |
+| `billing_viewer` | Read-only access to billing information |
+| `org_creator` | Can create new organizations under the billing account |
+
+Billing roles control account-level access (invoices, payment, org creation); org-level policies control resource-level access (workloads, secrets, etc.). They are **completely independent** — a `billing_admin` has zero implicit permissions on any org resource.
+
+### Initial Billing Account Creation (Console Only)
+
+The initial billing account can only be created via the Console. The creation form collects:
+
+- **Contact info**: full name, company, job title, phone (required), LinkedIn (optional).
+- **Address**: country, city, postal code, address line 1 (required); state, line 2 (optional).
+- **Org/GVC**: org name (required), GVC name (defaults to `default-gvc`), locations.
+- **Payment**: Stripe integration for payment method.
+
+### Managing Billing Users (Console Only)
+
+1. Navigate to **Org Management & Billing** (profile icon → upper right).
+2. Click **Users** in the left menu.
+3. Add a user: enter email, select role(s), click **Add User**.
+4. Edit a user: click **Edit**, modify roles, click **Confirm**.
+
+A user must have at least one role (`billing_admin`, `billing_viewer`, or `org_creator`); access is immediate once added. These are **billing-account** users, not org members — to add or remove a user inside an org use the org-level MCP tools (`mcp__cpln__invite_user_to_org`, `mcp__cpln__delete_user`).
+
+### Spend Threshold Alerts
+
+Enable from Account Details. Set a monthly spending limit — you receive an email when the threshold is reached.
 
 ## User Management
 
@@ -170,10 +220,6 @@ Users can belong to multiple orgs. Switch between orgs:
 - **Console:** Use the org selector in the upper left to switch orgs.
 - **CLI:** Use `--org` flag or switch profiles: `cpln profile set-default PROFILE_NAME`.
 
-### Built-in User Tags
-
-Each user has a built-in tag: `firebase/sign_in_provider` (set automatically based on SSO provider).
-
 ## Managing Groups (MCP Tools)
 
 Groups aggregate users and service accounts for easier policy management.
@@ -190,7 +236,7 @@ Groups aggregate users and service accounts for easier policy management.
 
 **Member link format:** `//user/EMAIL` for users, `//serviceaccount/NAME` for service accounts.
 
-For deeper group workflows (dynamic membership, service-account management), see the **cpln-access-control** skill (`skills/access-control/principals.md`).
+For deeper group workflows (dynamic membership, service-account management), see the **cpln-access-control** skill.
 
 ## Service Accounts (MCP Tools)
 
@@ -250,6 +296,72 @@ Profiles store authentication credentials and default context (org, GVC) for the
 | `CPLN_ORG` | Default organization |
 | `CPLN_GVC` | Default GVC |
 
+## SSO / SAML & Authentication
+
+### Console SSO Providers
+
+The Console uses single sign-on with these providers:
+
+| Provider | Notes |
+|---|---|
+| Google | OAuth-based SSO |
+| GitHub | OAuth-based SSO |
+| Microsoft | OAuth-based SSO |
+| SAML | Enterprise SSO — contact support@controlplane.com to enable |
+
+After SSO, user access is determined by their group membership and policies. Each user gets a built-in tag `firebase/sign_in_provider`, set automatically from the SSO provider.
+
+### SAML Configuration Values
+
+Control Plane is the SAML Service Provider. Configure your IdP with its SP values — confirm the exact values in the Console when enabling SAML (these are console-level, not part of the org API):
+
+| Setting | Value |
+|---|---|
+| Service Provider Entity ID | `cpln.io` |
+| ACS / Callback URL | `https://console.cpln.io/__/auth/handler` |
+
+Your SAML provider must supply: Entity ID, SSO URL, and Certificate.
+
+> `authConfig.samlOnly` and `domainAutoMembers` are set with `mcp__cpln__update_org`, but **enabling SAML/SSO itself (provider setup) goes through Control Plane support** — there is no self-serve tool for it. To wire SSO users into the right access, manage their groups and policies via `mcp__cpln__edit_group`, `mcp__cpln__create_policy`, and `mcp__cpln__invite_user_to_org`.
+
+### Token Precedence
+
+The CLI resolves tokens in this order:
+
+1. `--token` flag (highest priority).
+2. `CPLN_TOKEN` environment variable.
+3. Profile token (default).
+
+### Service Account Keys (CLI Detail)
+
+Prefer the MCP tools in **Service Accounts** above. CLI fallback for issuing a key:
+
+```bash
+cpln serviceaccount add-key SA_NAME --description "What this key is for" --org ORG
+```
+
+`add-key` **requires `--description`** and prints a JSON object:
+
+```json
+{
+  "description": "What this key is for",
+  "created": "2026-04-24T12:00:00.000Z",
+  "key": "SERVICE_ACCOUNT_KEY_VALUE"
+}
+```
+
+The token is the `key` value. It is shown **only once** — save it immediately to a secret store. Prefer the `CPLN_TOKEN` env var or a profile over passing `--token` on the command line (flags leak into shell history and CI logs). For full CI/CD setup, see the **cpln-gitops-cicd** skill.
+
+### REST API Authentication
+
+```bash
+curl --request GET \
+  --url https://api.cpln.io/org/ORG_NAME/gvc \
+  --header 'Authorization: Bearer YOUR_TOKEN'
+```
+
+Tokens can come from a service account key or `cpln profile token PROFILE_NAME`.
+
 ## Org Permissions (for Policies)
 
 | Permission | Description | Implies |
@@ -293,7 +405,8 @@ Profiles store authentication credentials and default context (org, GVC) for the
 | `mcp__cpln__add_key_to_service_account` | Add a key (creates the SA if needed) |
 | `mcp__cpln__list_quotas` | List per-org resource quotas |
 | `mcp__cpln__get_quota` | Get a single quota by GUID id |
-| `mcp__cpln__get_resource_schema` | Author an org manifest for `cpln apply` (org-level spec blocks have no typed tool) |
+| `mcp__cpln__get_org` / `mcp__cpln__update_org` | Read / update org spec — `authConfig`, `observability`, `security`, `sessionTimeoutSeconds` |
+| `mcp__cpln__get_resource_schema` | Author an org manifest for `cpln apply` (for blocks not on `update_org`, e.g. `tracing`) |
 
 ### CLI Commands
 
@@ -318,11 +431,6 @@ Profiles store authentication credentials and default context (org, GVC) for the
 
 - **cpln-access-control** — Policies, bindings, permissions, groups, service accounts, RBAC patterns.
 - **cpln** — Workload deployment, CLI setup, resource hierarchy.
-
-### Linked Reference Docs
-
-- `skills/org-management/sso.md` — Console SSO providers, SAML setup, CLI auth flows, service-account token details, REST API auth, token precedence.
-- `skills/org-management/billing.md` — Billing account features, roles, billing-user management, spend alerts, initial billing account creation.
 
 ## Documentation
 

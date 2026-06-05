@@ -19,7 +19,7 @@ External logging ships all org logs to third-party providers for off-site storag
 - Credentials are stored as Control Plane **Secrets** (AWS, Opaque, or GCP type).
 - Log entries appear at the external provider within a few minutes.
 
-For the YAML manifest of each provider (S3, CloudWatch, Coralogix, Datadog, Logz.io, Stackdriver, Elastic, Fluentd, Syslog, OpenTelemetry), see `skills/external-logging/providers.md`.
+For each provider's config fields, allowed values, and one example, see [Providers](#providers) below.
 
 ## Provider Comparison
 
@@ -97,6 +97,202 @@ spec:
 - Each entry in the array has exactly one provider key (`.xor()` across all provider keys).
 - `.unique()` is enforced within `extraLogging`, so identical blocks cannot repeat in the array.
 
+## Providers
+
+Per-provider config fields, allowed values, and one example each. Required fields are summarized in the [Provider Comparison](#provider-comparison) table; create the credential secret first (see [Credential Setup](#credential-setup)) and reference it as `//secret/NAME`. Prefer the MCP payload (`mcp__cpln__configure_external_logging`); the YAML blocks are the CLI fallback (apply with `cpln apply -f`).
+
+### Amazon S3
+
+Logs land at `PREFIX/ORG_NAME/YEAR/MONTH/DAY/HOUR/MINUTE/$UUID.jsonl.gz` (gzip-compressed JSONL). The AWS secret's IAM user needs `s3:PutObject` on the bucket:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    { "Sid": "VisualEditor0", "Effect": "Allow", "Action": "s3:PutObject", "Resource": "arn:aws:s3:::S3_BUCKET_NAME/*" }
+  ]
+}
+```
+
+```yaml
+spec:
+  logging:
+    s3:
+      bucket: S3_BUCKET_NAME
+      credentials: //secret/AWS_SECRET
+      prefix: /
+      region: AWS_REGION
+```
+
+| Field | Required | Default | Description |
+|---|---|---|---|
+| `bucket` | Yes | — | S3 bucket name |
+| `region` | Yes | — | AWS region |
+| `credentials` | Yes | — | Link to AWS secret |
+| `prefix` | No | `/` | Folder prefix for log files |
+
+### AWS CloudWatch
+
+```yaml
+spec:
+  logging:
+    cloudWatch:
+      region: us-east-1
+      credentials: //secret/AWS_SECRET
+      retentionDays: 7
+      groupName: $gvc
+      streamName: $workload
+```
+
+| Field | Required | Description |
+|---|---|---|
+| `region` | Yes | A valid AWS region (e.g., `us-east-1`, `eu-west-1`) |
+| `credentials` | Yes | Link to AWS secret |
+| `groupName` | Yes | Log group name (Fluent Bit templating) |
+| `streamName` | Yes | Log stream name (Fluent Bit templating) |
+| `retentionDays` | No | **Restricted values only:** 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653 |
+| `extractFields` | No | Key-value pairs for field extraction |
+
+Fluent Bit template variables: `$stream`, `$location`, `$provider`, `$replica`, `$workload`, `$gvc`, `$org`, `$container`, `$version`.
+
+### Coralogix
+
+```yaml
+spec:
+  logging:
+    coralogix:
+      cluster: coralogix.com
+      credentials: //secret/OPAQUE_SECRET
+```
+
+| Field | Required | Allowed Values |
+|---|---|---|
+| `cluster` | Yes | `coralogix.com`, `coralogix.us`, `app.coralogix.in`, `app.eu2.coralogix.com`, `app.coralogixsg.com` |
+| `credentials` | Yes | Link to Opaque secret |
+| `app` | No | Application name — template variables: `{org}`, `{gvc}`, `{workload}`, `{location}` |
+| `subsystem` | No | Subsystem name — same template variables as `app` |
+
+### Datadog
+
+Dashboard host maps to an intake host (e.g. `us3.datadoghq.com` → `http-intake.logs.us3.datadoghq.com`).
+
+```json
+{
+  "org": "ORG_NAME",
+  "provider": "datadog",
+  "host": "http-intake.logs.us3.datadoghq.com",
+  "credentials": "datadog-api-key"
+}
+```
+
+| Field | Required | Allowed Values |
+|---|---|---|
+| `host` | Yes | `http-intake.logs.datadoghq.com`, `http-intake.logs.us3.datadoghq.com`, `http-intake.logs.us5.datadoghq.com`, `http-intake.logs.datadoghq.eu` |
+| `credentials` | Yes | Link to Opaque secret |
+
+### Logz.io
+
+```yaml
+spec:
+  logging:
+    logzio:
+      credentials: //secret/OPAQUE_SECRET
+      listenerHost: listener.logz.io
+```
+
+| Field | Required | Allowed Values |
+|---|---|---|
+| `listenerHost` | Yes | `listener.logz.io`, `listener-nl.logz.io` |
+| `credentials` | Yes | Link to Opaque secret |
+
+### Google Stackdriver
+
+Needs a GCP service account with Cloud Logging write permission, stored as a GCP secret.
+
+```yaml
+spec:
+  logging:
+    stackdriver:
+      location: us-east1
+      credentials: //secret/GCP_SECRET
+```
+
+| Field | Required | Description |
+|---|---|---|
+| `location` | Yes | A valid GCP region (e.g., `us-east1`, `europe-west1`) |
+| `credentials` | Yes | Link to GCP secret |
+
+### Elastic
+
+Requires an `elasticVariant` discriminator plus variant-specific fields.
+
+| Variant | Required Fields | Secret Type |
+|---|---|---|
+| `aws` | `host` (ends with `es.amazonaws.com`), `port`, `region`, `index`, `indexType`, `credentials` | AWS |
+| `elasticCloud` | `cloudId`, `index`, `indexType`, `credentials` | Username/Password |
+| `generic` | `host`, `index`, `indexType`, `credentials`; optional `port` (default 443), `path` (must start with `/`) | Username/Password |
+
+```json
+{
+  "org": "ORG_NAME",
+  "provider": "elastic",
+  "elasticVariant": "elasticCloud",
+  "cloudId": "my-deployment:BASE64_ENCODED",
+  "index": "cpln-logs",
+  "indexType": "logs",
+  "credentials": "elastic-userpass"
+}
+```
+
+### Fluentd
+
+Forwarder, no credentials. `host` required; `port` defaults to 24224.
+
+```yaml
+spec:
+  logging:
+    fluentd:
+      host: fluentd.example.com
+      port: 24224
+```
+
+### Syslog
+
+No credentials. `host` required.
+
+| Field | Allowed Values | Default |
+|---|---|---|
+| `mode` | `tcp`, `udp`, `tls` | `tcp` |
+| `format` | `rfc3164`, `rfc5424` | `rfc5424` |
+| `severity` | 0–7 | 6 (Informational) |
+
+Severity levels: `0` Emergency · `1` Alert · `2` Critical · `3` Error · `4` Warning · `5` Notice · `6` Informational · `7` Debug.
+
+```json
+{
+  "org": "ORG_NAME",
+  "provider": "syslog",
+  "host": "syslog.example.com",
+  "port": 6514,
+  "mode": "tls",
+  "format": "rfc5424",
+  "severity": 6
+}
+```
+
+### OpenTelemetry
+
+OTLP `endpoint` required; optional `headers` and optional Opaque `credentials`.
+
+```json
+{
+  "org": "ORG_NAME",
+  "provider": "opentelemetry",
+  "endpoint": "https://otel.example.com:4318",
+  "headers": { "Authorization": "Bearer TOKEN" }
+}
+```
+
 ## UI Console Configuration
 
 1. Click **Org** in the left menu.
@@ -169,17 +365,11 @@ Supported `provider` values: `s3`, `cloudWatch`, `coralogix`, `datadog`, `logzio
 
 The `credentials` field accepts a bare secret name (`my-secret`) or a full link (`//secret/my-secret`). It is required for `s3`, `cloudWatch`, `coralogix`, `datadog`, `logzio`, `stackdriver`, and `elastic`; optional for `opentelemetry`; not used by `fluentd` or `syslog`.
 
-For per-provider MCP example payloads, see `skills/external-logging/providers.md`.
-
 ### Related Skills
 
 - **cpln-logql-observability** — LogQL queries against shipped logs and Grafana dashboards.
 - **cpln-metrics-observability** — Built-in metrics, Prometheus federation, custom metrics.
 - **cpln-access-control** — Secrets used as logging credentials (AWS, opaque, GCP, userpass).
-
-### Linked Reference Docs
-
-- `skills/external-logging/providers.md` — Per-provider YAML manifests and MCP example payloads (S3, CloudWatch, Coralogix, Datadog, Logz.io, Stackdriver, Elastic variants, Fluentd, Syslog, OpenTelemetry).
 
 ## Documentation
 

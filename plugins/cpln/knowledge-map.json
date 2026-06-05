@@ -1,13 +1,13 @@
 {
   "version": 1,
   "skills": {
-    "access-control": { "companions": ["permissions-matrix.md", "principals.md"] },
+    "access-control": { "companions": [] },
     "audit-compliance": { "companions": [] },
     "autoscaling-capacity": { "companions": [] },
     "cdn-rate-limiting": { "companions": [] },
     "cpln": { "companions": [] },
     "environment-promotion": { "companions": [] },
-    "external-logging": { "companions": ["providers.md"] },
+    "external-logging": { "companions": [] },
     "firewall-networking": { "companions": [] },
     "gitops-cicd": { "companions": [] },
     "iac-terraform-pulumi": { "companions": [] },
@@ -23,6 +23,7 @@
     "query-spec": { "companions": [] },
     "stateful-storage": { "companions": [] },
     "template-catalog": { "companions": [] },
+    "workload": { "companions": [] },
     "workload-security": { "companions": [] }
   },
   "toolSkills": {
@@ -69,9 +70,13 @@
     "create_audit_context": "audit-compliance",
     "edit_audit_context": "audit-compliance",
 
-    "create_workload": "workload-security",
-    "update_workload": "workload-security",
-    "delete_workload": "workload-security",
+    "create_workload": "workload",
+    "update_workload": "workload",
+    "delete_workload": "workload",
+    "configure_workload_load_balancer": "workload",
+    "configure_workload_sidecar": "workload",
+    "configure_workload_extras": "workload",
+    "configure_workload_local_options": "workload",
 
     "install_template": "template-catalog",
     "upgrade_template": "template-catalog",

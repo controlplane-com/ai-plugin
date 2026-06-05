@@ -7,21 +7,19 @@ description: "Sets up access control, policies, and RBAC on Control Plane. Use w
 
 This is the **#1 area where mistakes happen** on Control Plane. Wrong `targetKind`, wrong binding syntax, wrong permission names — all silently fail. Use this skill any time you create policies, manage groups, invite users, or set up service accounts.
 
-For the per-resource permissions table and built-in groups/policies, see `skills/access-control/permissions-matrix.md`. For day-to-day group, service-account, and user management workflows, see `skills/access-control/principals.md`.
-
 ## Access Control Model
 
 Control Plane uses a **two-part** access control system:
 
 | Layer | Scope | Purpose |
-|:---|:---|:---|
+|---|---|---|
 | **Billing account roles** | Account-wide | Coarse-grained: who can manage billing, create orgs |
 | **Org-level policies** | Per-resource | Fine-grained: who can do what on which resources |
 
 ### Billing Account Roles
 
 | Role | Description |
-|:---|:---|
+|---|---|
 | `billing_admin` | Full access to billing settings and invoices |
 | `billing_viewer` | Read-only access to billing information |
 | `org_creator` | Can create new organizations under the billing account |
@@ -58,23 +56,19 @@ bindings:                       # max 50 bindings
 
 The `targetKind` field specifies which resource type this policy applies to. Common kinds: `secret`, `workload`, `gvc`, `identity`, `domain`, `image`, `serviceaccount`, `group`, `org`.
 
-For the full authoritative list, fetch the policy schema with `mcp__cpln__get_resource_schema` (`kind: policy`), or verify against `cpln policy create --target-kind`. Note: `ipset` and `mk8s` are platform resources but are NOT valid policy targets — access is controlled via their parent (`org` or `gvc`).
+Other resource kinds — including `ipset` and `mk8s` — are also valid policy targets. For the full authoritative list, fetch the policy schema with `mcp__cpln__get_resource_schema` (`kind: policy`), or verify against `cpln policy create --target-kind`.
 
 ### Target Scope
 
 Three mutually exclusive ways to select which resources a policy applies to:
 
 | Method | Field | CLI Flag | When to Use |
-|:---|:---|:---|:---|
+|---|---|---|---|
 | **All resources** | `target: all` | `--all` | Org-wide roles (admin, viewer) |
 | **Named resources** | `targetLinks: [//secret/NAME]` | `--resource NAME` | Scoped access to specific resources |
 | **Tag query** | `targetQuery: {...}` | `--query-tag TAG` | Dynamic scoping based on tags |
 
-**Decision rule:** Use `target: all` for role-based patterns. Use `targetLinks` when you know the exact resources. Use `targetQuery` when resources share tags (e.g., `team=backend`).
-
-#### Target Query
-
-Use `targetQuery` to dynamically target resources by tags or properties. See the **cpln-query-spec** skill for the full query system (operators, match modes, term fields).
+**Decision rule:** Use `target: all` for role-based patterns. Use `targetLinks` when you know the exact resources. Use `targetQuery` when resources share tags (e.g., `team=backend`). For the full `targetQuery` system (operators, match modes, term fields), see the **cpln-query-spec** skill.
 
 ```yaml
 targetQuery:
@@ -91,11 +85,9 @@ targetQuery:
 ### Origin
 
 | Origin | Meaning | Modifiable? |
-|:---|:---|:---|
+|---|---|---|
 | `default` | User-created policies | Yes |
 | `builtin` | System-provided defaults (e.g., `superusers-secret`) | **No — cannot be modified or deleted** |
-
-Built-in policies cover common roles like `superusers-RESOURCE` and `viewers-RESOURCE` — see `skills/access-control/permissions-matrix.md` for the full list.
 
 ## Bindings
 
@@ -119,17 +111,48 @@ bindings:
 ### Principal Link Formats
 
 | Principal Type | Format | Example |
-|:---|:---|:---|
+|---|---|---|
 | User | `//user/USER_EMAIL` | `//user/alice@example.com` |
 | Group | `//group/GROUP_NAME` | `//group/backend-team` |
 | Service Account | `//serviceaccount/SA_NAME` | `//serviceaccount/cicd-deployer` |
 | Identity (workload-bound) | `//gvc/GVC_NAME/identity/IDENTITY_NAME` | `//gvc/production/identity/app-identity` |
 
-Short format (org from context): `//user/USER_EMAIL`
+Org is taken from context (short format), e.g. `//user/USER_EMAIL`.
+
+## Permissions
+
+Discover all permissions at runtime: `mcp__cpln__get_permissions` (MCP) or `cpln RESOURCE permissions` (CLI). Confirm names this way before creating any policy.
+
+| Resource | Permissions | Key Implications |
+|---|---|---|
+| **workload** | `configureLoadBalancer`, `connect`, `create`, `delete`, `edit`, `exec`, `exec.runCronWorkload`, `exec.stopReplica`, `manage`, `view` | `exec` → `exec.runCronWorkload` + `exec.stopReplica`; `connect` = interactive shell |
+| **secret** | `create`, `delete`, `edit`, `manage`, `reveal`, `use`, `view` | `edit` → `view` + `reveal`; `reveal` = read values; `use` = reference from workloads |
+| **identity** | `create`, `delete`, `edit`, `manage`, `use`, `view` | `use` = link identity to workloads |
+| **image** | `create`, `delete`, `edit`, `manage`, `pull`, `view` | `create` → `pull`; `pull` → `view` |
+| **org** | `edit`, `exec`, `exec.echo`, `grafanaAdmin`, `manage`, `readLogs`, `readMetrics`, `readUsage`, `view`, `viewAccessReport` | `exec` → `exec.echo`; `readLogs` = logs from all workloads |
+| **user** | `delete`, `edit`, `impersonate`, `invite`, `manage`, `view` | `impersonate` and `invite` are unique to user |
+
+Most other resources (policy, group, domain, location, etc.) follow the standard pattern: `create`, `delete`, `edit`, `manage`, `view` — some add `use`; `gvc` also has `configureLoadBalancer`. Run `cpln RESOURCE permissions` for the exact list.
+
+**`manage` always implies all other permissions for that resource type** (the `→` notation means "implies"). Use `manage` only for true admins.
+
+### Built-In Groups & Policies
+
+Every org starts with:
+
+| Resource | Name | Purpose |
+|---|---|---|
+| Group | `superusers` | All administrators — has `manage` on everything |
+| Group | `viewers` | Read-only access to all resources |
+| Service account | `controlplane` | Used by the platform internally — cannot be modified |
+| Policies | `superusers-RESOURCE` | One per resource kind granting `manage` to `superusers` group |
+| Policies | `viewers-RESOURCE` | One per resource kind granting `view` to `viewers` group |
+
+Built-in policies have origin `builtin` and **cannot be modified or deleted** — create your own with origin `default`. Inspect built-ins with the read MCP tools (CLI fallback `cpln RESOURCE get NAME` when the MCP server is unavailable): `mcp__cpln__get_group` for `superusers` / `viewers`, `mcp__cpln__get_policy` for the `superusers-RESOURCE` / `viewers-RESOURCE` policies, `mcp__cpln__get_service_account` for `controlplane`.
 
 ## Common RBAC Patterns
 
-Create these with the MCP tools first — `mcp__cpln__create_policy` (target kind, scope, and bindings), `mcp__cpln__create_group` / `mcp__cpln__edit_group` for principals, and `mcp__cpln__add_key_to_service_account` for CI/CD principals. The YAML below is the equivalent `cpln apply -f manifest` shape — reach for it when the MCP server is unavailable or when applying policy-as-code from CI/CD (service-account `CPLN_TOKEN`). Either way, confirm permission names against `mcp__cpln__get_permissions` for the target kind.
+Create these with the MCP tools first — `mcp__cpln__create_policy` (target kind, scope, and bindings), `mcp__cpln__create_group` / `mcp__cpln__edit_group` for principals, and `mcp__cpln__add_key_to_service_account` for CI/CD principals. The YAML below is the equivalent `cpln apply -f manifest` shape — reach for it when the MCP server is unavailable or when applying policy-as-code from CI/CD (service-account `CPLN_TOKEN`).
 
 ### Org Admin — Full Access to Everything
 
@@ -145,7 +168,7 @@ bindings:
       - //group/org-admins
 ```
 
-Repeat for each `targetKind` the admin needs, or create one policy per kind. There is no single "super-admin" policy that covers all kinds — you need one policy per `targetKind`.
+There is no single "super-admin" policy covering all kinds — create one policy per `targetKind` the admin needs.
 
 ### GVC Developer — Create/Edit Workloads and Secrets in a GVC
 
@@ -237,7 +260,7 @@ bindings:
 
 ### Workload Identity Secret Access
 
-The identity must exist in the GVC before you can bind it — create it with `mcp__cpln__create_identity` (read it back with `mcp__cpln__get_identity`, or discover existing ones via `mcp__cpln__list_identities`), then attach it to the workload via `spec.identityLink`. For the full secret-access flow (identity + policy + injection), see the **cpln:setup-secret** skill.
+The identity must exist in the GVC before you can bind it — create it with `mcp__cpln__create_identity`, then attach it to the workload via `spec.identityLink`. Identity links are GVC-scoped: use `//gvc/GVC/identity/NAME`, not `//identity/NAME`. For the full secret-access flow (identity + policy + injection), see the **cpln:setup-secret** skill.
 
 ```yaml
 kind: policy
@@ -278,21 +301,71 @@ bindings:
       - //group/security-auditors
 ```
 
+## Principals
+
+Day-to-day workflows for creating and managing the principals that policies bind to.
+
+### Groups
+
+Groups simplify access control by letting you assign policies to teams instead of individuals. **Best practice: always assign policies to groups, not individual users.**
+
+- **Create:** `mcp__cpln__create_group` — params: `name` (required), `description`, `tags`, `memberLinks` (optional seed members).
+- **Add/remove members:** `mcp__cpln__edit_group` — one call updates description/tags AND manages membership via `addMemberLinks` / `removeMemberLinks` (e.g. `["//user/alice@example.com"]`, `["//serviceaccount/cicd-deployer"]`). Read current membership first with `mcp__cpln__get_group`.
+- **Delete:** `mcp__cpln__delete_group` — params: `name`. Destructive: every policy targeting this group loses its member set, so confirm the blast radius first.
+
+Groups support tag-based **dynamic membership for users only** (service accounts must be added directly), via `memberQuery` using the standard query spec — see the **cpln-query-spec** skill:
+
+```yaml
+kind: group
+name: microsoft-users
+memberQuery:
+  kind: user
+  fetch: items
+  spec:
+    match: all
+    terms:
+      - op: "="
+        tag: firebase/sign_in_provider
+        value: microsoft.com
+```
+
+### Service Accounts
+
+Service accounts provide non-human API access for CI/CD pipelines, automation, and infrastructure-as-code tools.
+
+- **Create + key:** `mcp__cpln__add_key_to_service_account` — params: `name` (required), `keyDescription`, `groupName`. Creates the service account if it doesn't exist, adds a key, and optionally adds the SA to a group in one call. To create the SA without a key yet, use `mcp__cpln__create_service_account` (params: `name`, `description`) first.
+- **Inspect:** `mcp__cpln__list_service_accounts` (key counts + origin) and `mcp__cpln__get_service_account` (key metadata — never key material).
+- **Revoke key / delete:** revoke a key via `mcp__cpln__update_service_account`; delete the SA entirely via `mcp__cpln__delete_service_account` (params: `name`). Deleting revokes all keys at once and every consumer authenticating with this SA fails immediately — list its group memberships and policy bindings and confirm the blast radius first.
+
+**CRITICAL: the generated key is displayed ONE TIME only.** If lost, revoke the key and generate a new one.
+
+Create a CLI profile with a generated key (`cpln profile create` is an alias for `cpln profile update` — creates or updates the named profile; `--default` makes it active for all future commands):
+
+```bash
+cpln profile create cicd-profile --org ORG_NAME --token GENERATED_KEY --default
+```
+
+### Users
+
+- **Invite:** `mcp__cpln__invite_user_to_org` — params: `email` (required), `groupName`. Placing the invited user into a group during the invite requires a refresh token; service-account tokens cannot grant group membership at invite time. The user receives an onboarding email and appears in "Pending Invites" until they accept; pending invites can be deleted if sent by mistake.
+- **Remove:** `mcp__cpln__delete_user` — params: `id` or `email`. Destructive: the user loses every group membership and policy binding immediately. Capture state first with `mcp__cpln__get_user` and confirm the blast radius.
+
+**Multi-org membership:** users can belong to multiple orgs. Each org has independent policies — membership in one org grants no access to another.
+
 ## Gotchas
 
 - **Policies fail silently when wrong.** A typo in `targetKind`, a missing principal link, or an invalid permission name produces a policy that exists but grants nothing. Always verify after creation — read the policy back with `mcp__cpln__get_policy` (or `cpln policy access-report POLICY_NAME` from the CLI) and confirm the bindings and target resolved as intended.
-- **Built-in policies cannot be modified or deleted.** Origins `builtin` are read-only; create your own with `default` origin.
 - **`reveal` (not `read`) is the permission for accessing secret values.** This is the most common permission-name mistake.
 - **Identity links are GVC-scoped.** Use `//gvc/GVC/identity/NAME`, not `//identity/NAME`.
-- **`manage` implies all other permissions** for that resource kind. Use only for true admins.
-- **Service account keys are shown once.** Save immediately or delete and regenerate.
+- **Built-in policies cannot be modified or deleted** (origin `builtin`); create your own with origin `default`.
+- **Service account keys are shown once.** Save immediately or revoke and regenerate.
 
 ## Quick Reference
 
 ### MCP Tools
 
 | Tool | Purpose | Key Params |
-|:---|:---|:---|
+|---|---|---|
 | `mcp__cpln__list_policies` | List all policies in an org | `limit` (optional) |
 | `mcp__cpln__get_policy` | Get policy details and bindings | `name` |
 | `mcp__cpln__create_policy` | Create policy with bindings | `name`, `targetKind`, `targetAll`/`targetLinks`, `addPermissions`, `addUsers`/`addGroups`/`addServiceAccounts`/`addIdentities` |
@@ -318,7 +391,7 @@ bindings:
 ### CLI Commands
 
 | Task | Command |
-|:---|:---|
+|---|---|
 | Create policy | `cpln policy create --name NAME --target-kind KIND [--all \| --resource RES]` |
 | Add binding | `cpln policy add-binding NAME --permission PERM [--email \| --group \| --serviceaccount \| --identity]` |
 | Remove binding | `cpln policy remove-binding NAME --permission PERM [--email \| --group \| --serviceaccount \| --identity]` |
@@ -339,11 +412,6 @@ bindings:
 - **cpln-org-management** — Org creation, billing, profiles, SSO
 - **cpln-query-spec** — Query language for `targetQuery` and `memberQuery`
 - **cpln-audit-compliance** — Audit access changes and policy modifications
-
-### Linked Reference Docs
-
-- `skills/access-control/permissions-matrix.md` — Per-resource permission table, implication chains, built-in groups/policies.
-- `skills/access-control/principals.md` — Group / service account / user management workflows (CLI + MCP).
 
 ## Documentation
 

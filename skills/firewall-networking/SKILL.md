@@ -5,83 +5,48 @@ description: "Configures firewall rules and service-to-service communication on 
 
 # Firewall & Networking Patterns
 
-## Firewall Defaults
+Deep firewall rules for `spec.firewallConfig`. The deny-by-default summary, the LB picker, internal DNS, and which tool sets `firewallConfig` vs `loadBalancer` live in the `workload` skill — this skill is the detail.
 
-Everything is blocked by default:
-- **External inbound** (internet → workload): Disabled
-- **External outbound** (workload → internet): Disabled
-- **Internal** (workload → workload): `none` — no communication
+**Precedence (both inbound and outbound):** blocked CIDRs beat allowed CIDRs; when both CIDR and hostname allow-lists are set, CIDR rules beat hostname rules.
 
 ## External Firewall Rules
 
-### Inbound (internet to workload)
+### Inbound (internet → workload)
 
-Allow all internet traffic:
+Allow all (`0.0.0.0/0`), or list specific CIDRs, and block CIDRs that override the allow-list:
 ```yaml
 firewallConfig:
   external:
     inboundAllowCIDR:
-      - 0.0.0.0/0
-```
-
-Allow specific IPs only:
-```yaml
-firewallConfig:
-  external:
-    inboundAllowCIDR:
-      - 203.0.113.0/24
-      - 198.51.100.10/32
-```
-
-Block specific IPs while allowing others:
-```yaml
-firewallConfig:
-  external:
-    inboundAllowCIDR:
-      - 0.0.0.0/0
+      - 0.0.0.0/0           # or specific: 203.0.113.0/24, 198.51.100.10/32
     inboundBlockedCIDR:
-      - 192.0.2.0/24
+      - 192.0.2.0/24        # blocked wins over allowed
 ```
 
-**Blocked always takes precedence over allowed.**
+### Outbound (workload → internet)
 
-### Outbound (workload to internet)
-
-Allow all outbound:
-```yaml
-firewallConfig:
-  external:
-    outboundAllowCIDR:
-      - 0.0.0.0/0
-```
-
-Allow specific hostnames:
-```yaml
-firewallConfig:
-  external:
-    outboundAllowHostname:
-      - api.stripe.com
-      - hooks.slack.com
-      - "*.amazonaws.com"   # Wildcard prefix supported
-```
-
-**Hostname-based rules only allow ports 80, 443, and 445 by default.** Use `outboundAllowPort` to customize.
-
-Block specific outbound destinations:
+CIDR allow/block (CIDR-based allows all ports):
 ```yaml
 firewallConfig:
   external:
     outboundAllowCIDR:
       - 0.0.0.0/0
     outboundBlockedCIDR:
-      - 10.0.0.0/8
+      - 10.0.0.0/8          # blocked wins over allowed
 ```
 
-**Blocked always takes precedence over allowed** (same as inbound). When both CIDR and hostname allow-lists are set, **CIDR rules take precedence over hostname rules**.
+Hostname allow-list (wildcard prefix supported). **Hostname rules only allow ports 80, 443, and 445 by default** — widen with `outboundAllowPort`:
+```yaml
+firewallConfig:
+  external:
+    outboundAllowHostname:
+      - api.stripe.com
+      - "*.amazonaws.com"
+```
 
 ### Outbound Port Control
 
-By default, hostname-based outbound allows ports 80, 443, and 445. CIDR-based outbound allows all ports. Use `outboundAllowPort` to restrict:
+`outboundAllowPort` restricts which ports are allowed (protocols: `http`, `https`, `tcp`):
 ```yaml
 firewallConfig:
   external:
@@ -94,13 +59,9 @@ firewallConfig:
         number: 8443
 ```
 
-Supported protocols: `http`, `https`, `tcp`.
-
 ### Header-Based Filtering (Inbound HTTP)
 
-Filter inbound HTTP requests by headers. Each filter matches a header `key` with either `allowedValues` (allow-list) or `blockedValues` (block-list) — **never both on the same filter**.
-
-Allow only specific header values (reject everything else for that header):
+Each filter matches a header `key` with either `allowedValues` (allow-list) or `blockedValues` (block-list) — **never both on the same filter**. Combine multiple filters, each on a different key:
 ```yaml
 firewallConfig:
   external:
@@ -108,47 +69,20 @@ firewallConfig:
       - 0.0.0.0/0
     http:
       inboundHeaderFilter:
-        - key: x-api-key
+        - key: x-api-version       # allow-list: reject everything else for this header
           allowedValues:
-            - "^valid-key-.*$"
-```
-
-Block specific header values (allow everything else):
-```yaml
-firewallConfig:
-  external:
-    inboundAllowCIDR:
-      - 0.0.0.0/0
-    http:
-      inboundHeaderFilter:
-        - key: user-agent
+            - "^v2$"
+        - key: user-agent          # block-list: allow everything else
           blockedValues:
             - "^BadBot.*$"
             - "^Scraper.*$"
 ```
 
-Multiple filters can be combined (each on a different header key):
-```yaml
-firewallConfig:
-  external:
-    inboundAllowCIDR:
-      - 0.0.0.0/0
-    http:
-      inboundHeaderFilter:
-        - key: x-api-version
-          allowedValues:
-            - "^v2$"
-        - key: user-agent
-          blockedValues:
-            - "^BadBot.*$"
-```
-
-**Header filter values are RE2 regular expressions.** Use `^...$` to match whole strings; bare substrings match partially (e.g., `^bar$` vs. `bar` which also matches `barbell`). When multiple allow or deny values are listed, the filter matches if **any** value matches — not all.
+**Header filter values are RE2 regular expressions.** Use `^...$` to match whole strings; a bare substring matches partially (`^bar$` vs. `bar` which also matches `barbell`). When multiple values are listed, the filter matches if **any** value matches — not all.
 
 ### Geo-Filtering (Country / Region / City)
 
-Geo-filtering is a **two-step setup**: first enable geo headers on the load balancer with custom header names, then filter on those header names in `inboundHeaderFilter`.
-
+**Two-step setup:** enable geo headers on the load balancer with custom header names, then filter on those names in `inboundHeaderFilter`:
 ```yaml
 spec:
   loadBalancer:
@@ -171,54 +105,39 @@ spec:
               - Canada
 ```
 
-- You choose the header names (`x-country`, `X-GeoIP-Country`, etc.); the workload receives the resolved values on each incoming request.
-- At least one of `asn`, `city`, `country`, or `region` must be configured.
-- Header names must be **unique** per type.
-- Geo filtering only affects workloads with an HTTP port; it has no effect on TCP-only workloads.
+- You choose the header names; the workload receives the resolved values on each request.
+- At least one of `asn`, `city`, `country`, or `region` must be configured; header names must be **unique** per type.
+- Geo filtering only affects workloads with an HTTP port; no effect on TCP-only workloads.
 
 ## Internal Firewall (Workload-to-Workload)
 
+`inboundAllowType` is one of `none`, `same-gvc`, `same-org`, `workload-list`. For `workload-list`, name the allowed workloads (cross-GVC supported):
 ```yaml
 firewallConfig:
   internal:
-    inboundAllowType: same-gvc    # Options: none, same-gvc, same-org, workload-list
-```
-
-For `workload-list`, specify which workloads can communicate:
-```yaml
-firewallConfig:
-  internal:
-    inboundAllowType: workload-list
+    inboundAllowType: workload-list   # or: none, same-gvc, same-org
     inboundAllowWorkload:
       - //gvc/my-gvc/workload/frontend
-      - //gvc/other-gvc/workload/backend  # Cross-GVC supported
+      - //gvc/other-gvc/workload/backend
 ```
 
 ## Service-to-Service Communication
 
-**Internal DNS format:** `WORKLOAD_NAME.GVC_NAME.cpln.local:PORT`
-
+Internal DNS form: `http://WORKLOAD.GVC.cpln.local:PORT` (plain HTTP — the sidecar adds mTLS automatically, never `https://`):
 ```bash
-# From workload in same GVC
-curl http://api-service.my-gvc.cpln.local:8080/health
-
-# Cross-GVC (requires same-org firewall)
-curl http://shared-service.other-gvc.cpln.local:3000/data
+curl http://api-service.my-gvc.cpln.local:8080/health      # same-GVC: free, low latency
+curl http://shared-service.other-gvc.cpln.local:3000/data  # cross-GVC: needs same-org, egress charges
 ```
-
-- Same-GVC traffic: free, low latency
-- Cross-GVC traffic: incurs egress charges, higher latency
-- All internal traffic is automatically mTLS-encrypted
 
 ## Load Balancers (Summary)
 
 | Type | Scope | Custom Ports | Static IPs | Wildcard Hosts |
-|:---|:---|:---:|:---:|:---:|
+|---|---|---|---|---|
 | Default (shared) | All workloads | No (HTTP/HTTPS on 80/443) | No | No |
 | Direct | Per-workload | Yes (TCP/UDP/HTTP/HTTPS/WS) | Via IP Set | No |
 | Dedicated | Per-GVC | Yes | Via IP Set | Yes |
 
-Minimal Direct LB example (custom TCP port, per workload):
+Minimal Direct LB (custom TCP port, per workload):
 ```yaml
 spec:
   loadBalancer:
@@ -230,53 +149,50 @@ spec:
           containerPort: 5432
 ```
 
-For full load balancer configuration, static IP reservation, and dedicated LB setup, see the **cpln-ipset-load-balancing** skill.
+Full LB config, static IP reservation, and dedicated LB setup: see the **cpln-ipset-load-balancing** skill.
 
 ## Quick Reference
 
 ### Recommended: MCP
 
-`firewallConfig` (and `loadBalancer`) live in the **workload spec** — patch them with the typed workload tools, no generic passthrough needed:
+`firewallConfig` (and `loadBalancer`) live in the workload spec — patch them with the typed workload tools:
 
-1. `mcp__cpln__get_workload` — read the current `spec.firewallConfig` / `spec.loadBalancer` so you have a rollback baseline (`update_workload` is PATCH semantics — only the fields you send change).
-2. `mcp__cpln__update_workload` — set `firewallConfig` (external inbound/outbound, internal, header filters) and/or `loadBalancer`.
+1. `mcp__cpln__get_workload` — read current `spec.firewallConfig` / `spec.loadBalancer` for a rollback baseline (`update_workload` is PATCH — only sent fields change).
+2. `mcp__cpln__update_workload` — set `firewallConfig` (external inbound/outbound, internal, header filters). Load balancer is separate: `mcp__cpln__configure_workload_load_balancer`.
 3. `mcp__cpln__get_workload_deployments` — poll until ready; rules apply within about a minute and trigger a new deployment.
 
-Use `mcp__cpln__create_workload` when standing up a new workload with firewall rules from the start. Reserve static IPs for Direct/Dedicated LBs with `mcp__cpln__create_ipset` / `mcp__cpln__get_ipset` (see **cpln-ipset-load-balancing**).
+Use `mcp__cpln__create_workload` to stand up a new workload with firewall rules from the start. Reserve static IPs for Direct/Dedicated LBs with `mcp__cpln__create_ipset` / `mcp__cpln__get_ipset` (see **cpln-ipset-load-balancing**).
 
 ### Fallback: CLI
 
-When the MCP server is unavailable or unauthenticated, edit the workload manifest and apply it. Call `mcp__cpln__get_resource_schema` (or `cpln workload --help`) first to ground the spec shape:
-
+When MCP is unavailable or unauthenticated, edit the manifest and apply it. Ground the spec shape with `mcp__cpln__get_resource_schema` (or `cpln workload --help`) first:
 ```bash
 cpln workload get WORKLOAD_NAME --gvc GVC_NAME -o yaml > workload.yaml
 # edit spec.firewallConfig in workload.yaml
 cpln apply --file workload.yaml --gvc GVC_NAME
 ```
 
-Rules apply within about a minute and trigger a new deployment.
-
 ### MCP Tools
 
 | Tool | Purpose |
-|:-----|:--------|
+|---|---|
 | `mcp__cpln__get_workload` | Inspect current `spec.firewallConfig` and `spec.loadBalancer` before changing them. |
-| `mcp__cpln__update_workload` | Patch `firewallConfig` / `loadBalancer` on an existing workload (PATCH semantics — only sent fields change). |
-| `mcp__cpln__create_workload` | Create a new workload with firewall rules and load balancer config from the start. |
+| `mcp__cpln__update_workload` | Patch `firewallConfig` on an existing workload (PATCH — only sent fields change). |
+| `mcp__cpln__configure_workload_load_balancer` | Set/clear the workload load balancer (direct, geo headers, replicaDirect). |
+| `mcp__cpln__create_workload` | Create a new workload with firewall rules from the start (load balancer is set separately). |
 | `mcp__cpln__create_ipset` / `mcp__cpln__get_ipset` | Reserve and inspect static public IPs for Direct/Dedicated load balancers and IP allow-lists. |
 | `mcp__cpln__get_workload_deployments` | Poll deployment readiness after a firewall change lands. |
 | `mcp__cpln__get_workload_logs` | Query workload logs to diagnose connectivity issues. |
 
 ### Related Skills
 
+- **cpln-workload** — Start here: the primary workload skill (types, defaults, spec shape) that routes here for firewall & exposure.
 - **cpln-cdn-rate-limiting** — CDN setup, caching policies, and rate limiting configuration
 - **cpln-ipset-load-balancing** — Static IP reservation, Direct and Dedicated load balancer configuration, and domain routing
 - **cpln-native-networking** — PrivateLink, Private Service Connect, and agent-based private connectivity
 - **cpln-workload-security** — JWT authentication, mTLS, and direct load balancer security configuration
 
 ## Documentation
-
-For the latest reference, see:
 
 - [Firewall Reference](https://docs.controlplane.com/reference/workload/firewall.md)
 - [Load Balancing Reference](https://docs.controlplane.com/reference/workload/load-balancing.md)

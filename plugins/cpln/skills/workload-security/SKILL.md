@@ -5,32 +5,33 @@ description: "Hardens workloads for production on Control Plane. Use when the us
 
 # Workload Security & Production Hardening
 
-## Health Probes (readiness + liveness)
+Deep hardening detail. Probe basics, the readiness-vs-liveness model, the LB picker, and post-deploy verification live in the `workload` skill — this skill carries the full probe timing/defaults, JWT/Envoy, security, direct-LB, geo, and graceful-termination detail.
 
-Production workloads MUST configure both `readinessProbe` and `livenessProbe` on every container. They serve different purposes and must NOT be the same probe.
+## Health Probes
 
-| Probe | Purpose | Failure behavior | Typical cadence |
-|---|---|---|---|
-| `readinessProbe` | Gate traffic — keep replica out of the load balancer until it's ready, take it out if it stops being ready | Replica is removed from LB pool; no restart | `periodSeconds: 10`, `failureThreshold: 3`, `initialDelaySeconds` tuned to real startup time |
-| `livenessProbe` | Detect a hung process — restart the container if it stops responding to its own healthcheck | Container is killed and restarted | `periodSeconds: 30`, `failureThreshold: 3` (looser than readiness — restarts are expensive) |
+Define both `readinessProbe` and `livenessProbe` as distinct probes (the readiness-vs-liveness model is in the `workload` skill).
 
 **Defaults by workload type:**
 
-- **Serverless** — TCP probe on the listening port is enabled by default. That's better than nothing, but a real `httpGet` against an app endpoint catches more failure modes (DB unreachable, dependency timeout, deadlock).
-- **Standard / Stateful** — probes are **disabled by default**. They MUST be added explicitly for any production workload.
+- **Serverless** — a TCP probe on the listening port is enabled by default. Better than nothing, but a real `httpGet` against an app endpoint catches more failure modes (DB unreachable, dependency timeout, deadlock).
+- **Standard / Stateful** — probes are **disabled by default**; add them explicitly for any production workload.
 - **Cron** — probes are ignored.
+
+If a workload genuinely has no HTTP healthcheck, use `tcpSocket` against the listening port as a baseline — never ship without probes.
 
 ### Probe schema
 
 Each probe takes exactly one of `exec`, `grpc`, `tcpSocket`, `httpGet` (xor). Timing fields and ranges:
 
 | Field | Range | Default |
-|:---|:---|:---|
-| `initialDelaySeconds` | 0-600 | 10 |
+|---|---|---|
+| `initialDelaySeconds` | 0-600 | 10 (readiness) / 60 (liveness) |
 | `periodSeconds` | 1-600 | 10 |
 | `timeoutSeconds` | 1-600 | 1 |
 | `successThreshold` | 1-20 | 1 |
 | `failureThreshold` | 1-20 | 3 |
+
+Liveness is typically looser than readiness (e.g. `periodSeconds: 30`) — restarts are expensive.
 
 ### Production-grade probe example
 
@@ -60,27 +61,16 @@ spec:
         failureThreshold: 3
 ```
 
-### Probe design rules
-
-- **Readiness** should check anything the request path needs: DB connection, downstream auth provider, cache. If readiness passes but the dependency is down, the LB sends traffic that fails.
-- **Liveness** should check ONLY the process itself (e.g. event loop responsive, HTTP handler returns). It should NOT check downstream dependencies — a 5-minute Postgres outage shouldn't cycle every replica of every dependent workload.
-- If the workload genuinely has no HTTP healthcheck, use `tcpSocket` against the listening port as a baseline — never ship without probes.
-- Tune `initialDelaySeconds` to real cold-start time (warm-up loads, JIT compilation, dependency wait). Too low = LB pulls a healthy replica during boot; too high = traffic delays.
-
-After creating or updating a workload with probes (`mcp__cpln__create_workload` / `mcp__cpln__update_workload`), poll `mcp__cpln__get_workload_deployments` until every location reports ready — this is the PRIMARY readiness monitor and surfaces probe failures per container. When a probe keeps failing, pair it with `mcp__cpln__get_workload_events` (probe reason/message) and `mcp__cpln__get_workload_logs` (app-side error) to triangulate. To inspect a live replica, list pods with `mcp__cpln__list_workload_replicas` then run a one-off command via `mcp__cpln__workload_exec` (interactive shells are CLI-only — `cpln workload exec`).
-
 ## JWT Authentication
 
-JWT Authentication validates JSON Web Tokens at the infrastructure level (Envoy sidecar) before requests reach the workload. Configured under `sidecar.envoy` in the workload or GVC spec.
-
-When configured on the GVC layer, settings apply to all workloads in that GVC.
+JWT Authentication validates JSON Web Tokens at the infrastructure level (Envoy sidecar) before requests reach the workload. Configured under `sidecar.envoy` — set it on a workload with `mcp__cpln__configure_workload_sidecar` (or on a GVC by editing the GVC spec, where it applies to all workloads in that GVC).
 
 ### Configuration Structure
 
 JWT auth uses the Envoy `jwt_authn` HTTP filter:
 
 | Field | Value |
-|:------|:------|
+|---|---|
 | `name` | `envoy.filters.http.jwt_authn` |
 | `typed_config."@type"` | `type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication` |
 | `priority` | Integer for ordering multiple filters |
@@ -92,7 +82,7 @@ JWT auth uses the Envoy `jwt_authn` HTTP filter:
 Each provider is a key in `typed_config.providers`:
 
 | Field | Type | Description |
-|:------|:-----|:------------|
+|---|---|---|
 | `issuer` | string | URL of the domain that issued the JWT |
 | `audiences` | string[] | Accepted audiences for the JWT |
 | `claim_to_headers` | object[] | Maps JWT claims to request headers forwarded to the workload |
@@ -105,7 +95,7 @@ Each provider is a key in `typed_config.providers`:
 Extract JWT claims into headers forwarded to the workload:
 
 | Field | Type | Description |
-|:------|:-----|:------------|
+|---|---|---|
 | `header_name` | string | Header name added to the forwarded request |
 | `claim_name` | string | Claim extracted from the JWT |
 
@@ -114,7 +104,7 @@ Extract JWT claims into headers forwarded to the workload:
 Public key resolution for JWT verification:
 
 | Field | Type | Description |
-|:------|:-----|:------------|
+|---|---|---|
 | `http_uri.uri` | string | Endpoint for JWKS public key lookup |
 | `http_uri.cluster` | string | Must match the cluster name for this provider |
 | `http_uri.timeout` | string | Timeout in `Ns` format (e.g., `10s`) |
@@ -125,7 +115,7 @@ Public key resolution for JWT verification:
 Rules evaluated in order; the first matching rule applies:
 
 | Field | Type | Description |
-|:------|:-----|:------------|
+|---|---|---|
 | `match.prefix` | string | URI prefix for this match |
 | `match.headers` | string[] | Optional headers that must exist in the request |
 | `requires.provider_name` | string | Provider for JWT verification; omit to allow all requests |
@@ -205,19 +195,14 @@ sidecar:
                 provider_name: cpln_foo
 ```
 
-### Common JWT Providers
-
-For any OIDC-compliant provider (Auth0, Firebase, Cognito, Okta), set:
-- `issuer`: the provider's issuer URL
-- `remote_jwks.http_uri.uri`: the provider's JWKS endpoint (typically `/.well-known/jwks.json`)
-- `audiences`: your application's client ID or API identifier
+For any OIDC-compliant provider (Auth0, Firebase, Cognito, Okta), set `issuer` to the provider's issuer URL, `remote_jwks.http_uri.uri` to its JWKS endpoint (typically `/.well-known/jwks.json`), and `audiences` to your client ID or API identifier. Use `rules` to exclude health/metrics paths, and `claim_to_headers` to pass identity context to the workload without re-parsing the token.
 
 ## Security Options
 
 Runtime security settings for the workload, configured under `spec.securityOptions`:
 
 | Field | Type | Range | Default | Description |
-|:------|:-----|:------|:--------|:------------|
+|---|---|---|---|---|
 | `filesystemGroupId` | integer | 1-65534 | 0 (root) | Group ID assigned to any mounted volumes |
 | `runAsUser` | integer | 1-65534 | Image default | User ID assigned to all container processes |
 
@@ -228,14 +213,14 @@ spec:
     runAsUser: 1000
 ```
 
-Use `filesystemGroupId` when containers need shared access to mounted volumes (e.g., volume sets). Use `runAsUser` to avoid running as root.
+Set `runAsUser` to a non-root UID for defense in depth. Set `filesystemGroupId` when containers need shared access to mounted volumes (e.g., volume sets).
 
 ### Workload Permissions
 
 Policies control workload access using these permissions:
 
 | Permission | Description | Implies |
-|:-----------|:------------|:--------|
+|---|---|---|
 | `view` | Read-only access | |
 | `edit` | Modify existing workloads | `view` |
 | `create` | Create new workloads | |
@@ -249,32 +234,26 @@ Policies control workload access using these permissions:
 
 ## Direct Load Balancers
 
-Expose workload ports directly through cloud load balancers in each deployment location. Unlike the shared load balancer, direct LBs support custom TCP/UDP ports and do not require domain registration.
-
-### Configuration
+Expose workload ports directly through cloud load balancers in each deployment location. Unlike the shared load balancer, direct LBs support custom TCP/UDP ports and do not require domain registration. Use for non-HTTP protocols, custom ports, or when domain registration is not needed; workloads are responsible for their own TLS certificates. Set `spec.loadBalancer` (direct, geo headers, replicaDirect) with `mcp__cpln__configure_workload_load_balancer`.
 
 Under `spec.loadBalancer.direct`:
 
 | Field | Type | Description |
-|:------|:-----|:------------|
+|---|---|---|
 | `enabled` | boolean (required) | Enable/disable the direct LB. When `false`, LB is stopped and no charges accrue |
 | `ports` | array | Ports exposed by the load balancer |
 | `ipSet` | string (optional) | Link to an IP set for reserved static IPs |
 
-### Port Configuration
-
 Each entry in the `ports` array:
 
 | Field | Type | Description |
-|:------|:-----|:------------|
+|---|---|---|
 | `externalPort` | number | Public port. Range: 22-32768 |
 | `protocol` | string | `TCP` or `UDP` |
 | `scheme` | string (optional) | URL scheme for UI links: `http`, `tcp`, `https`, `ws`, `wss`. Default: `https` |
 | `containerPort` | number | Target container port (80-65535, excludes reserved ports) |
 
 **Reserved container ports (cannot be used):** 8012, 8022, 9090, 9091, 15000, 15001, 15006, 15020, 15021, 15090, 41000.
-
-### Direct Load Balancer Example
 
 ```yaml
 spec:
@@ -314,7 +293,7 @@ Endpoint format:
 Add geographic information to inbound HTTP requests using MaxMind GeoLite2 data. Configured under `spec.loadBalancer.geoLocation`:
 
 | Field | Type | Description |
-|:------|:-----|:------------|
+|---|---|---|
 | `enabled` | boolean | Enable geo headers (default: `false`) |
 | `headers.asn` | string | Header name for ASN (max 128 chars) |
 | `headers.city` | string | Header name for city (max 128 chars) |
@@ -340,7 +319,7 @@ spec:
         region: X-GeoIP-Region
 ```
 
-Geo headers can be combined with header-based firewall filtering for geo-filtering (see the **cpln-firewall-networking** skill).
+Combine geo headers with header-based firewall filtering for geo-filtering (see the **cpln-firewall-networking** skill).
 
 ## Graceful Termination
 
@@ -351,17 +330,17 @@ Controls how workload replicas are removed during scaling, version updates, Capa
 Configured under `spec.rolloutOptions.terminationGracePeriodSeconds`:
 
 | Field | Type | Range | Default |
-|:------|:-----|:------|:--------|
+|---|---|---|---|
 | `terminationGracePeriodSeconds` | number | 0-900 | 90 |
 
-Total time available for graceful shutdown before all containers receive SIGKILL.
+Total time available for graceful shutdown before all containers receive SIGKILL. Default 90s works for most workloads; increase (up to 900) for workloads with long-running requests.
 
 ### Rollout Options
 
 Full `spec.rolloutOptions` configuration:
 
 | Field | Type | Default | Description |
-|:------|:-----|:--------|:------------|
+|---|---|---|---|
 | `minReadySeconds` | integer | 0 | Minimum seconds a container must run without crashing to be considered available |
 | `maxSurgeReplicas` | integer or percent | | Max replicas above desired count during rollout |
 | `maxUnavailableReplicas` | integer or percent | | Max unavailable replicas during rollout (not for stateful workloads) |
@@ -377,24 +356,17 @@ Full `spec.rolloutOptions` configuration:
    - **Drain phase**: stops accepting new connections, verifies completion, shuts down
 3. **Container termination**:
    - **Default preStop hook**: executes `sh -c "sleep N"` where N = half the grace period (default: 45s)
-   - After preStop completes, container receives **SIGINT**
+   - After preStop completes, the container receives **SIGTERM** (the Kubernetes default termination signal)
    - Remaining time for graceful shutdown before **SIGKILL**
 
 ### Critical Warnings
 
-- If `sleep` is not available in **any** container, ALL containers receive SIGKILL immediately
-- If a custom preStop hook throws an error in **any** container, ALL containers receive SIGKILL immediately
+- If `sleep` is not available in **any** container, ALL containers receive SIGKILL immediately.
+- If a custom preStop hook throws an error in **any** container, ALL containers receive SIGKILL immediately.
 
 ### Custom PreStop Hook
 
-Only implement if the workload requires specific termination logic:
-- Graceful connection draining
-- Containers without `sh`/`sleep` binaries
-- Custom request handling during shutdown
-
-A custom preStop hook must include a delay or check for ongoing requests to allow load balancers time to update.
-
-### Termination Example
+Only implement if the workload requires specific termination logic (graceful connection draining, containers without `sh`/`sleep`, or custom request handling during shutdown). A custom preStop hook must include a delay or check for ongoing requests to give load balancers time to update, and must be tested thoroughly — errors cause immediate SIGKILL for all containers.
 
 ```yaml
 spec:
@@ -406,43 +378,22 @@ spec:
     scalingPolicy: Parallel
 ```
 
-## Best Practices
+## Combined Hardening
 
-### JWT Authentication
-- Use JWT for API authentication to offload validation from application code
-- Set appropriate `cache_duration` for JWKS to balance security and performance
-- Use rules to exclude health/metrics paths from JWT requirements
-- Use `claim_to_headers` to pass identity context to the workload without re-parsing the token
-
-### Security Options
-- Set `runAsUser` to a non-root UID for defense in depth
-- Set `filesystemGroupId` when using volume sets so containers can access mounted files
-
-### Direct Load Balancers
-- Use for non-HTTP protocols (TCP/UDP), custom ports, or when domain registration is not needed
-- Pair with an IP set for reserved static IPs in each location
-- Workloads are responsible for TLS certificates when using direct LBs
-- Enable `replicaDirect` for stateful workloads needing per-replica addressing
-
-### Graceful Termination
-- Default 90-second grace period works for most workloads
-- Increase for workloads with long-running requests (max 900 seconds)
-- Ensure containers include `sleep` binary to avoid immediate SIGKILL
-- Test preStop hooks thoroughly; errors cause immediate SIGKILL for all containers
-
-### Combined Hardening
-- Combine JWT auth with firewall CIDR rules for layered security
-- Use geo location headers with header-based firewall filtering for geo-blocking
-- Configure appropriate `terminationGracePeriodSeconds` when using direct load balancers
+- Combine JWT auth with firewall CIDR rules for layered security.
+- Use geo location headers with header-based firewall filtering for geo-blocking.
+- Pair direct LBs with an IP set for reserved static IPs, and set an appropriate `terminationGracePeriodSeconds`.
 
 ## Quick Reference
 
 ### MCP Tools (use these first)
 
 | Tool | Purpose |
-|:-----|:--------|
-| `mcp__cpln__create_workload` | Create a workload with security, LB, and rollout settings |
-| `mcp__cpln__update_workload` | Update workload security, LB, or rollout configuration (PATCH — only specified fields change) |
+|---|---|
+| `mcp__cpln__create_workload` | Create a workload with security options, probes, and rollout settings |
+| `mcp__cpln__update_workload` | Update security options, probes, or rollout config (PATCH — only sent fields change) |
+| `mcp__cpln__configure_workload_load_balancer` | Set/clear the load balancer (direct, geo headers, replicaDirect) |
+| `mcp__cpln__configure_workload_sidecar` | Set/clear the Envoy sidecar (JWT auth, filter chain) |
 | `mcp__cpln__get_workload` | Inspect current workload configuration (read before any update for rollback) |
 | `mcp__cpln__list_workloads` | Find workloads in a GVC before targeting one |
 | `mcp__cpln__delete_workload` | Delete a workload (destructive — confirm blast radius first) |
@@ -467,6 +418,7 @@ cpln apply --file workload.yaml --gvc GVC_NAME
 
 ### Related Skills
 
+- **cpln-workload** — Start here: the primary workload skill (types, defaults, spec shape) that routes here for security & hardening.
 - **cpln-firewall-networking** — CIDR rules, header filtering, geo-filtering, LB types
 - **cpln-access-control** — Policies, service accounts, permissions
 - **cpln-autoscaling-capacity** — Scaling and Capacity AI settings

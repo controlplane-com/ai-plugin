@@ -93,7 +93,7 @@ Fetch the **tool-declared** required skill when a tool names one. Otherwise rout
 
 | Task family                                             | Skill                   |
 | ------------------------------------------------------- | ----------------------- |
-| Workloads, runtime, probes, ports, deployments          | `workload-security`     |
+| Workloads — types, spec, defaults, runtime, deployments  | `workload`              |
 | Secrets, identities, policies, RBAC, service accounts   | `access-control`        |
 | Images, builds, registries, pull secrets, platform arch | `image`                 |
 | Autoscaling, Capacity AI, scale-to-zero, replicas       | `autoscaling-capacity`  |
@@ -110,6 +110,10 @@ Fetch the **tool-declared** required skill when a tool names one. Otherwise rout
 | Kubernetes / Compose / Helm migration                   | `migration-patterns`    |
 | CLI usage and flags                                     | `cpln`                  |
 | Query, filter, sort                                     | `query-spec`            |
+| CDN, caching, rate limiting                             | `cdn-rate-limiting`     |
+| Org settings, billing, SSO, users                       | `org-management`        |
+| Promote workloads across dev/staging/prod              | `environment-promotion` |
+| Control Plane Kubernetes operator                       | `k8s-operator`          |
 
 Some families have no dedicated skill — for example **domains/TLS/routing**: drive them with the resource tools (`create_domain`, `update_domain`, `set_domain_tls`, `add_domain_route`) and `search_control_plane`. Domain creation fails until the required TXT/CNAME records resolve — surface the exact records, wait for DNS propagation, and treat not-yet-verified as a pending state, not an error to retry blindly.
 
@@ -145,7 +149,7 @@ MCP-first; the `cpln` CLI is the fallback (gated on the `cpln` skill — see bel
 
 - **Secrets need all three:** an identity on the workload, a policy granting `reveal`, and a `cpln://secret/NAME` reference — or access fails silently. `workload_reveal_secret` can set the identity + policy but **not** the reference; you must still add `cpln://secret/NAME` yourself.
 - **Run real container images,** not inline/base64/heredoc apps on a generic base image. Your org's private registry is **internal** — `cpln image build --push` pushes to it, and you reference those images as `//image/NAME:TAG`; public Docker Hub images are given as-is (`nginx:latest`, never `docker.io/...`); other external images use their exact host path. All images must be `linux/amd64`. **External private registries need a pull secret** on the GVC — only `docker`, `ecr`, or `gcp` types work (others fail the pull silently). Full table → `image` skill.
-- **Workload runtime traps:** a missing or failing `preStop` (minimal/distroless images often lack `sleep`, the default preStop) SIGKILLs every container; a container running as UID 1337 has all networking disabled; some ports (the `15000`-range and others) and mount paths (`/dev`, `/dev/log`, `/tmp`, `/var`, `/var/log`) are reserved. → `workload-security`, `stateful-storage`.
+- **Workload runtime traps:** a missing or failing `preStop` (minimal/distroless images often lack `sleep`, the default preStop) SIGKILLs every container; running a container as UID 1337 (the mesh proxy's UID) makes its outbound traffic bypass the Envoy sidecar, losing mTLS and firewall enforcement; some ports (the `15000`-range and others) and mount paths (`/dev`, `/dev/log`, `/tmp`, `/var`, `/var/log`) are reserved. → `workload` (deep: `workload-security`, `stateful-storage`).
 - **Verify readiness** with `get_workload_deployments` after create/update; on failure diagnose with `get_workload_events` then `get_workload_logs` — never re-apply an unchanged failing spec, never poll in a loop from the AI layer.
 - **Platform defaults are not a production design** — size resources, set `minScale ≥ 2` for user-facing services, add distinct readiness + liveness probes, and pick an autoscaling signal that fits traffic.
 - **Do not set scale-to-zero** unless the user explicitly asks for it.

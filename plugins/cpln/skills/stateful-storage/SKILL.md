@@ -5,54 +5,33 @@ description: "Creates persistent storage for stateful workloads on Control Plane
 
 # Stateful Storage & VolumeSets
 
+The `workload` skill covers persistent-storage basics (stateful type, filesystem/perf-class immutability, reserved mount paths, the 15-volume limit, snapshot-before-destructive, the create→verify flow). This skill is the full volume-set detail. MCP-first throughout; CLI is the fallback when the MCP server is unavailable or in CI/CD driven by a service-account `CPLN_TOKEN`.
+
 ## VolumeSet Overview
 
-A **VolumeSet** provides persistent block or shared storage for workloads within a GVC. Three filesystem types are available:
+A **VolumeSet** provides persistent block or shared storage for workloads within a GVC (GVC-scoped). Three filesystem types:
 
 | Filesystem | Workloads | Volumes Created | Snapshots | Best For |
-|:---|:---|:---|:---:|:---|
+|---|---|---|---|---|
 | **ext4** | One workload only | One per replica per location | Yes | General-purpose databases |
 | **xfs** | One workload only | One per replica per location | Yes | Large files, high throughput |
 | **shared** | Multiple workloads | One per location | No | Shared file storage across workloads |
 
-**Key constraints:**
-- Filesystem type is **immutable** after creation
-- ext4/xfs volume sets are locked to a single workload
-- Data is **per-location** — volumes do not replicate across locations
-- VolumeSet is GVC-scoped
+Filesystem type is **immutable** after creation. ext4/xfs lock to a single workload. Data is **per-location** — volumes do not replicate across locations.
 
 ## Performance Classes
 
-| Class | Min Size | Max Size | Filesystem Compatibility |
-|:---|:---|:---|:---|
+| Class | Min Size | Max Size | Filesystem |
+|---|---|---|---|
 | `general-purpose-ssd` | 10 GB | 65,536 GB | ext4, xfs |
 | `high-throughput-ssd` | 200 GB | 65,536 GB | ext4, xfs |
 | `shared` | 10 GB | 65,536 GB | shared only (auto-set) |
 
-Performance class is **immutable** after creation. Throughput and IOPS vary by cloud provider.
+Performance class is **immutable** after creation; throughput/IOPS vary by cloud provider. When `fileSystemType` is `shared`, performance class is **automatically set to `shared`** — do not specify another class.
 
-When `fileSystemType` is `shared`, performance class is **automatically set to `shared`** — do not specify another class.
+## VolumeSet lifecycle
 
-## VolumeSet Configuration
-
-Prefer the MCP tools for volumeset lifecycle — `mcp__cpln__create_volumeset` (explicit performance class, filesystem, initial capacity, snapshot policy, autoscaling), `mcp__cpln__get_volumeset`, `mcp__cpln__list_volumesets`, `mcp__cpln__update_volumeset` (mutable fields only — filesystem and performance class are immutable). Fall back to the CLI (`cpln volumeset` / `cpln apply`) when the MCP server is unavailable or in CI/CD pipelines driven by a service-account `CPLN_TOKEN`.
-
-### CLI Creation (fallback)
-
-```bash
-cpln volumeset create \
-  --name my-data \
-  --gvc my-gvc \
-  --file-system-type ext4 \
-  --performance-class general-purpose-ssd \
-  --initial-capacity 20 \
-  --enable-autoscaling \
-  --max-capacity 100 \
-  --min-free-percentage 20 \
-  --scaling-factor 1.5 \
-  --retention-duration 7d \
-  --schedule "0 2 * * *"
-```
+Prefer the MCP tools: `mcp__cpln__create_volumeset` (performance class, filesystem, initial capacity, snapshot policy, autoscaling), `mcp__cpln__get_volumeset`, `mcp__cpln__list_volumesets`, `mcp__cpln__update_volumeset` (mutable fields only — filesystem and performance class are immutable). CLI fallback: `cpln volumeset` / `cpln apply`.
 
 ### YAML Manifest (fallback / IaC)
 
@@ -74,14 +53,14 @@ spec:
     schedule: "0 2 * * *"
 ```
 
-Apply with: `cpln apply -f volumeset.yaml --gvc my-gvc`
+Apply with `cpln apply -f volumeset.yaml --gvc my-gvc`. CLI flags mirror these fields (`--file-system-type`, `--performance-class`, `--initial-capacity`, `--enable-autoscaling`, `--max-capacity`, `--min-free-percentage`, `--scaling-factor`, `--retention-duration`, `--schedule`).
 
 ### Autoscaling
 
-**Reactive scaling** triggers when free space drops below `minFreePercentage`:
+**Reactive scaling** keeps at least `minFreePercentage` free, growing the volume when free space falls below that target:
 
 ```
-newCapacity = usedGB / (1 - minFreePercentage/100) × scalingFactor
+newCapacity = currentCapacity × scalingFactor
 ```
 
 Capped at `maxCapacity`. `scalingFactor` minimum is **1.1**.
@@ -106,27 +85,135 @@ The system uses whichever target is larger (reactive vs. predictive).
 
 ## Mounting Volumes to Workloads
 
-### Requirements
-
-| Filesystem | Required Workload Type | Volumes per Workload |
-|:---|:---|:---|
+| Filesystem | Required Workload Type | Volumes per container |
+|---|---|---|
 | ext4 / xfs | **Stateful** | Up to 15 |
 | shared | Any type | Up to 15 |
 
-Volume URI format: `cpln://volumeset/VOLUMESET_NAME`
+Volume URI: `cpln://volumeset/VOLUMESET_NAME`. **Reserved mount paths** (rejected): `/dev`, `/dev/log`, `/tmp`, `/var`, `/var/log`.
 
-**Reserved mount paths** (cannot be used): `/dev`, `/dev/log`, `/tmp`, `/var`, `/var/log`
+**Recovery policy** on mount: `retain` (default) keeps existing volume data when a new replica is created; `recycle` starts fresh.
 
-**Recovery policy** on volume mount: `retain` (default) keeps existing volume data when a new replica is created; `recycle` starts fresh.
+Use `mcp__cpln__mount_volumeset_to_workload` to attach — it creates the volumeset if missing (defaults: mount path `/mnt/{volumesetName}`, filesystem `xfs`, class `general-purpose-ssd`). Workload type is immutable — switching to stateful requires delete + recreate (see migration sequence below).
 
-### MCP Tool
+### Stateful Workload Features
 
-Use `mcp__cpln__mount_volumeset_to_workload` to attach a volumeset:
-- Creates the volumeset if it does not exist
-- Defaults: mount path `/mnt/{volumesetName}`, filesystem `xfs`, class `general-purpose-ssd`
-- **Workload type is immutable** — switching to stateful requires deleting and recreating the workload
+- **Stable replica identities:** `{workloadName}-{replicaIndex}` (e.g., `my-database-0`)
+- **Stable hostnames:** `{replicaIdentity}.{workloadName}`
+- **Replica-direct endpoints:** enable `spec.loadBalancer.replicaDirect: true` via `mcp__cpln__configure_workload_load_balancer`
+- **No Capacity AI** — use `minCpu`/`minMemory` instead
 
-### YAML Example — Stateful Workload with Volume
+### Migrating an existing workload to stateful (destructive — confirm first)
+
+Workload type is immutable, so adding a volume to a serverless/standard workload requires **delete + recreate as stateful**. This is destructive — the workload is removed, traffic 5xx's during the recreate window, and any in-memory/non-persistent state is lost. Governed by the destructive-ops guardrail in `rules/cpln-guardrails.md`: **stop and get explicit confirmation before any delete, regardless of permission mode.**
+
+Confirm with the user before step 4:
+- The exact public URL that will return errors during the cutover window
+- Whether any other workload calls this one via internal DNS — those callers fail until step 5 completes
+- Whether the workload has runtime state worth draining first (in-flight requests, in-memory caches absent on the new instance)
+- That losing whatever's in the (non-persistent) container at delete time is acceptable
+
+Safe sequence once confirmed:
+
+```bash
+# 1. Capture the current spec — your roll-back artifact
+cpln workload get <workload> --gvc <gvc> -o yaml-slim > <workload>.bak.yaml
+
+# 2. Build the new manifest from the backup:
+#    - Change spec.type from "serverless" / "standard" to "stateful"
+#    - Add the volume mount under spec.containers[<container>].volumes
+#    - Keep the SAME name (preserves public URL, internal DNS, domain routes,
+#      policy targetLinks, identity bindings, external consumers)
+#    - Keep all other spec fields (image, identityLink, env, ports, etc.) intact
+
+# 3. Apply the volumeset first (it must exist before the workload references it)
+cpln apply --file <volumeset>.yaml --gvc <gvc>
+
+# 4. Delete the old workload (destructive — already confirmed above)
+cpln workload delete <workload> --gvc <gvc>
+
+# 5. Apply the new stateful manifest. Tell the user upfront this typically takes
+#    2–5 min (volumeset provision + container schedule).
+#
+#    Use `--ready` with the safety-net wrapper from rules/cpln-guardrails.md:
+#    --ready handles the success path; the watcher kicks in only past the
+#    expected window AND only on confirmed terminal container errors. Plain
+#    `--ready` alone is wrong for a fresh recreate — if the manifest is
+#    misconfigured (wrong DSN, bad image tag, missing secret), --ready sits
+#    through its full timeout while the container is already dead.
+cpln apply --file <workload>.yaml --gvc <gvc> --ready &
+APPLY_PID=$!
+
+PATIENCE=180   # 3 min — typical stateful first-deploy is 2–5 min
+sleep $PATIENCE
+
+while kill -0 $APPLY_PID 2>/dev/null; do
+  MSG=$(cpln workload get <workload> --gvc <gvc> -o json 2>/dev/null \
+    | jq -r "[.status.versions[-1].containers[]?.message // empty] | join(\" | \")")
+  if echo "$MSG" | grep -qiE "exitcode: [^0]|fatal|startup failed|crashloop|imagepullbackoff|imagepullerror|errimagepull"; then
+    echo "FAILED: $MSG"; kill $APPLY_PID 2>/dev/null; break
+  fi
+  sleep 30
+done
+wait $APPLY_PID
+
+# 6. ONE conclusive sanity check — not a polling loop. Run ONLY after the wait
+#    above completed successfully. If the watcher killed the apply or --ready
+#    exited non-zero, skip to diagnosis — do not wait again.
+cpln workload get <workload> --gvc <gvc>
+```
+
+If the watcher killed the apply, `--ready` exited non-zero, or step 6 shows an unhealthy state, **diagnose** — `mcp__cpln__get_workload_deployments` (failed deployment + exact error; CLI `cpln workload get-deployments <workload> --gvc <gvc>`), `mcp__cpln__get_workload_logs` for stderr where most startup failures land (CLI `cpln logs '{gvc="<gvc>", workload="<workload>"}' --org <org>`), and re-read the manifest for the culprit the error points at (DSN, secret refs, port, image tag, env). **Then fix and re-apply with the safety net wrapped again** — re-applying a broken manifest plain costs more wall-clock and obscures the issue. Restore from `<workload>.bak.yaml` if unrecoverable.
+
+For waits on operations that lack a `--ready` flag (e.g. after `cpln workload force-redeployment`), use a bounded shell wait, never an AI polling loop:
+
+```bash
+# Wait up to 5 minutes for the workload to be healthy. One tool call, bounded.
+timeout 300 bash -c 'until cpln workload get <name> --gvc <gvc> -o json | jq -e ".status.healthCheck.status == true" >/dev/null 2>&1; do sleep 10; done' && echo "ready" || echo "timeout"
+```
+
+App-layer verification (HTTP endpoint reachable):
+
+```bash
+curl --retry 30 --retry-delay 5 --retry-connrefused -fsS https://<workload>.<gvc>.cpln.app/healthz
+```
+
+## Snapshot Management
+
+Snapshots are available for **ext4 and xfs only** — never shared.
+
+**Automatic** (volumeset spec):
+```yaml
+snapshots:
+  createFinalSnapshot: true
+  retentionDuration: 7d        # Nd / Nh / Nm (days/hours/minutes)
+  schedule: "0 */6 * * *"      # cron, minimum once per hour
+```
+
+**Manual** — MCP tools:
+- `mcp__cpln__create_volumeset_snapshot` — point-in-time snapshot (the safety net before any shrink/restore/volume-delete; `--tag key=value` on the CLI to organize)
+- `mcp__cpln__list_volumeset_snapshots` — find a snapshot before restoring (filter by location, volumeIndex, snapshotName)
+- `mcp__cpln__restore_volumeset_snapshot` — restore a volume (destructive)
+- `mcp__cpln__delete_volumeset_snapshot` — delete a snapshot (destructive — removes a recovery path)
+
+CLI fallback (`cpln volumeset snapshot create|get|restore|delete my-data --gvc my-gvc --snapshot-name NAME --location aws-us-east-2 --volume-index 0`).
+
+## Volume Expansion & Shrink
+
+**Expand** — live, no downtime, **once every 6 hours**; all filesystem types. Prefer `mcp__cpln__expand_volumeset`; CLI `cpln volumeset expand my-data --gvc my-gvc --new-size 50 --location aws-us-east-2 --volume-index 0` (`--timeout-seconds` overrides the default 600s wait).
+
+**Shrink** — **permanent data loss; ext4/xfs only.** Snapshot first with `mcp__cpln__create_volumeset_snapshot`, then `mcp__cpln__shrink_volumeset`; present the blast radius and get explicit confirmation first (`rules/cpln-guardrails.md`). CLI `cpln volumeset shrink my-data --gvc my-gvc --new-size 10 --location aws-us-east-2 --volume-index 0`.
+
+## Volume Management
+
+Inspect via `mcp__cpln__get_volumeset` — status reports per-location volume counts, bound workload, snapshot counts. To delete a single volume (**permanent data loss, ext4/xfs only**), snapshot first, then `mcp__cpln__delete_volumeset_volume` — destructive, confirm the blast radius first. CLI `cpln volumeset volume get|delete my-data --gvc my-gvc [--location aws-us-east-2] [--volume-index 0]`.
+
+## Common Patterns
+
+### PostgreSQL with ext4
+
+1. Create the volumeset with `mcp__cpln__create_volumeset` (ext4, initial capacity, autoscaling, snapshot policy).
+2. Mount it to a stateful workload with `mcp__cpln__mount_volumeset_to_workload` (path `/var/lib/postgresql/data`).
 
 ```yaml
 kind: workload
@@ -152,212 +239,6 @@ spec:
       minScale: 1
 ```
 
-### Stateful Workload Features
-
-- **Stable replica identities:** `{workloadName}-{replicaIndex}` (e.g., `my-database-0`)
-- **Stable hostnames:** `{replicaIdentity}.{workloadName}`
-- **Replica-direct endpoints:** Enable via `spec.loadBalancer.replicaDirect: true`
-- **No Capacity AI** — use `minCpu`/`minMemory` instead
-
-### Migrating an existing workload to stateful (destructive — confirm first)
-
-A serverless or standard workload cannot be converted to stateful in place — workload type is immutable. Adding a volume to such a workload requires **delete + recreate as stateful**. This is destructive: the existing workload is removed, traffic 5xx's during the recreate window, and any in-memory or non-persistent state is lost.
-
-This case is governed by the destructive-ops guardrail in `rules/cpln-guardrails.md` — **stop and get explicit confirmation before any delete**, regardless of permission mode.
-
-Safe sequence once the user confirms:
-
-```bash
-# 1. Capture the current spec — your roll-back artifact
-cpln workload get <workload> --gvc <gvc> -o yaml-slim > <workload>.bak.yaml
-
-# 2. Build the new manifest from the backup:
-#    - Change spec.type from "serverless" / "standard" to "stateful"
-#    - Add the volume mount under spec.containers[<container>].volumes
-#    - Keep the SAME name (preserves public URL, internal DNS, domain routes,
-#      policy targetLinks, identity bindings, external consumers)
-#    - Keep all other spec fields (image, identityLink, env, ports, etc.) intact
-
-# 3. Apply the volumeset first (it must exist before the workload references it)
-cpln apply --file <volumeset>.yaml --gvc <gvc>
-
-# 4. Delete the old workload (destructive — already confirmed by the user above)
-cpln workload delete <workload> --gvc <gvc>
-
-# 5. Apply the new stateful manifest. Tell the user upfront this typically takes
-#    2–5 min (volumeset provision + container schedule).
-#
-#    Use `--ready` with the safety-net wrapper from rules/cpln-guardrails.md:
-#    --ready handles the success path; the watcher kicks in only past the
-#    expected window AND only on confirmed terminal container errors. This is
-#    a first-deploy of a freshly-recreated workload, so plain `--ready` alone
-#    is the wrong choice — if the new manifest is misconfigured (wrong DSN,
-#    bad image tag, missing secret), --ready will sit through its full default
-#    timeout while the container is already dead.
-cpln apply --file <workload>.yaml --gvc <gvc> --ready &
-APPLY_PID=$!
-
-PATIENCE=180   # 3 min — typical stateful first-deploy is 2–5 min
-sleep $PATIENCE
-
-while kill -0 $APPLY_PID 2>/dev/null; do
-  MSG=$(cpln workload get <workload> --gvc <gvc> -o json 2>/dev/null \
-    | jq -r "[.status.versions[-1].containers[]?.message // empty] | join(\" | \")")
-  if echo "$MSG" | grep -qiE "exitcode: [^0]|fatal|startup failed|crashloop|imagepullbackoff|imagepullerror|errimagepull"; then
-    echo "FAILED: $MSG"; kill $APPLY_PID 2>/dev/null; break
-  fi
-  sleep 30
-done
-wait $APPLY_PID
-
-# 6. ONE conclusive sanity check — not a polling loop.
-#    Run this ONLY after the wait above completed successfully. If the watcher
-#    killed the apply or --ready exited non-zero, skip to diagnosis below —
-#    do not wait again.
-cpln workload get <workload> --gvc <gvc>
-```
-
-If the watcher killed the apply, or `--ready` exited non-zero, or step 6 reveals an unhealthy state, the next move is **diagnose** — call `mcp__cpln__get_workload_deployments` (shows the failed deployment with exact error, CLI fallback `cpln workload get-deployments <workload> --gvc <gvc>`), `mcp__cpln__get_workload_logs` for stderr where most startup failures land (CLI fallback `cpln logs '{gvc="<gvc>", workload="<workload>"}' --org <org>`), and re-read the manifest for the culprit the error message points at (DSN format, secret refs, port, image tag, env). **Then fix and re-apply with the safety net wrapped again** — re-applying a broken manifest plain costs more wall-clock and obscures the actual issue. Restore from `<workload>.bak.yaml` if the new deploy is unrecoverable.
-
-For waits on operations that lack a `--ready` flag (e.g. verifying after `cpln workload force-redeployment`), use a shell-level wait loop with `timeout`, never an AI polling loop:
-
-```bash
-# Wait up to 5 minutes for the workload to be healthy after force-redeployment.
-# One tool call, one result. Bounded so it can't hang. AI tokens during wait ≈ 0.
-timeout 300 bash -c 'until cpln workload get <name> --gvc <gvc> -o json | jq -e ".status.healthCheck.status == true" >/dev/null 2>&1; do sleep 10; done' && echo "ready" || echo "timeout"
-```
-
-For app-layer verification (the workload's HTTP endpoint becoming reachable):
-
-```bash
-curl --retry 30 --retry-delay 5 --retry-connrefused -fsS https://<workload>.<gvc>.cpln.app/healthz
-```
-
-Inputs the AI must confirm with the user before step 4:
-
-- The exact public URL that will return errors during the cutover window
-- Whether any other workload calls this one via internal DNS — those callers will fail until step 5 completes
-- Whether the workload has runtime state worth draining first (in-flight requests, in-memory caches that don't exist on the new instance)
-- That losing whatever's currently in the (non-persistent) container at delete time is acceptable
-
-## Snapshot Management
-
-Snapshots are available for **ext4 and xfs** only. Not available for shared filesystem.
-
-### Automatic Snapshots
-
-Configure in volumeset spec:
-```yaml
-snapshots:
-  createFinalSnapshot: true
-  retentionDuration: 7d        # Supports: Nd, Nh, Nm (days/hours/minutes)
-  schedule: "0 */6 * * *"      # Cron expression, minimum once per hour
-```
-
-### Manual Snapshots
-
-Prefer the MCP tools for on-demand snapshot operations:
-
-- `mcp__cpln__create_volumeset_snapshot` — point-in-time snapshot (the safety net before any shrink/restore/volume-delete)
-- `mcp__cpln__list_volumeset_snapshots` — find a snapshot before restoring (filter by location, volumeIndex, or snapshotName)
-- `mcp__cpln__restore_volumeset_snapshot` — restore a volume (destructive — see below)
-- `mcp__cpln__delete_volumeset_snapshot` — delete a snapshot (destructive — removes a recovery path)
-
-Fall back to the CLI when the MCP server is unavailable or in CI/CD pipelines driven by a service-account `CPLN_TOKEN`:
-
-```bash
-# Create a snapshot
-cpln volumeset snapshot create my-data \
-  --gvc my-gvc \
-  --snapshot-name backup-2026-04-11 \
-  --location aws-us-east-2 \
-  --volume-index 0
-
-# List snapshots
-cpln volumeset snapshot get my-data --gvc my-gvc
-
-# Restore from snapshot (creates new volume — unsaved data is lost)
-cpln volumeset snapshot restore my-data \
-  --gvc my-gvc \
-  --snapshot-name backup-2026-04-11 \
-  --location aws-us-east-2 \
-  --volume-index 0
-
-# Delete a snapshot
-cpln volumeset snapshot delete my-data \
-  --gvc my-gvc \
-  --snapshot-name backup-2026-04-11 \
-  --location aws-us-east-2 \
-  --volume-index 0
-```
-
-**Tags on snapshots:** Use `--tag key=value` on create for organizing snapshots.
-
-## Volume Expansion & Shrink
-
-### Expand
-
-Increase volume size (live operation, no downtime; allowed once every 6 hours). Available for all filesystem types. Prefer `mcp__cpln__expand_volumeset`; fall back to the CLI when the MCP server is unavailable or in CI/CD:
-
-```bash
-cpln volumeset expand my-data \
-  --gvc my-gvc \
-  --new-size 50 \
-  --location aws-us-east-2 \
-  --volume-index 0
-```
-
-Use `--timeout-seconds` to override the default 600s wait.
-
-### Shrink
-
-**WARNING: Shrink causes permanent data loss.** Only available for ext4/xfs. Snapshot first with `mcp__cpln__create_volumeset_snapshot`, then use `mcp__cpln__shrink_volumeset` — a destructive operation, so present the blast radius and get explicit user confirmation first (see `rules/cpln-guardrails.md`). Fall back to the CLI when the MCP server is unavailable or in CI/CD:
-
-```bash
-cpln volumeset shrink my-data \
-  --gvc my-gvc \
-  --new-size 10 \
-  --location aws-us-east-2 \
-  --volume-index 0
-```
-
-## Volume Management
-
-Inspect volumes via `mcp__cpln__get_volumeset` — its status reports per-location volume counts, bound workload, and snapshot counts. To delete a single volume (permanent data loss, ext4/xfs only), snapshot first with `mcp__cpln__create_volumeset_snapshot`, then call `mcp__cpln__delete_volumeset_volume` — a destructive operation, so confirm the blast radius with the user first. Fall back to the CLI when the MCP server is unavailable or in CI/CD:
-
-```bash
-# List volumes for a volumeset
-cpln volumeset volume get my-data --gvc my-gvc
-
-# Filter by location
-cpln volumeset volume get my-data --gvc my-gvc --location aws-us-east-2
-
-# Delete a specific volume (permanent data loss)
-cpln volumeset volume delete my-data \
-  --gvc my-gvc \
-  --location aws-us-east-2 \
-  --volume-index 0
-```
-
-## Common Patterns
-
-### PostgreSQL with ext4
-
-1. Create the volumeset with `mcp__cpln__create_volumeset` (ext4, initial capacity, autoscaling, snapshot policy). CLI fallback below.
-2. Mount it to a stateful workload with `mcp__cpln__mount_volumeset_to_workload` (path `/var/lib/postgresql/data`).
-
-CLI fallback for step 1 (MCP server unavailable or CI/CD):
-
-```bash
-cpln volumeset create \
-  --name pg-data --gvc my-gvc \
-  --file-system-type ext4 \
-  --initial-capacity 20 \
-  --enable-autoscaling --max-capacity 200 \
-  --min-free-percentage 20 --scaling-factor 1.5 \
-  --retention-duration 7d --schedule "0 2 * * *"
-```
-
 ### Shared File Storage
 
 ```yaml
@@ -372,37 +253,12 @@ spec:
 
 Multiple workloads can mount `cpln://volumeset/shared-uploads`. Shared volumes only support `expand` — no shrink, no volume delete, no snapshots.
 
-### Backup Workflow
-
-1. Before maintenance, take a named snapshot with `mcp__cpln__create_volumeset_snapshot`.
-2. Perform the maintenance / migration.
-3. If rollback is needed, find the snapshot with `mcp__cpln__list_volumeset_snapshots` and restore with `mcp__cpln__restore_volumeset_snapshot` (destructive — discards everything written since the snapshot; confirm first).
-
-CLI fallback (MCP server unavailable or CI/CD):
-
-```bash
-# 1. Create a named snapshot before maintenance
-cpln volumeset snapshot create my-data \
-  --gvc my-gvc --snapshot-name pre-migration \
-  --location aws-us-east-2 --volume-index 0
-
-# 2. Perform maintenance / migration
-
-# 3. If rollback needed — restore snapshot
-cpln volumeset snapshot restore my-data \
-  --gvc my-gvc --snapshot-name pre-migration \
-  --location aws-us-east-2 --volume-index 0
-```
-
-## Shared Filesystem Mount Resources
-
-Shared filesystem volumes consume CPU and memory per mount point. Configure via:
+Shared volumes consume CPU/memory per mount point — tune via `mountOptions.resources`:
 
 ```yaml
 spec:
   fileSystemType: shared
   initialCapacity: 50
-  # performanceClass is auto-set to "shared" — do not specify another class
   mountOptions:
     resources:
       minCpu: 50m
@@ -411,7 +267,13 @@ spec:
       maxMemory: 256Mi
 ```
 
-Resource constraints: `maxCpu` and `minCpu` at most 4000m apart with ratio >= 1:4. Same for memory (4096Mi apart, ratio >= 1:4).
+Constraints: `maxCpu`/`minCpu` at most 4000m apart, ratio >= 1:4; memory at most 4096Mi apart, ratio >= 1:4.
+
+### Backup Workflow
+
+1. Before maintenance, take a named snapshot with `mcp__cpln__create_volumeset_snapshot`.
+2. Perform the maintenance / migration.
+3. If rollback is needed, find the snapshot with `mcp__cpln__list_volumeset_snapshots` and restore with `mcp__cpln__restore_volumeset_snapshot` (destructive — discards everything written since the snapshot; confirm first).
 
 ## Custom Encryption (AWS Only)
 
@@ -433,31 +295,25 @@ spec:
 ## BYOK Considerations
 
 For Bring Your Own Kubernetes clusters:
-- Requires a **CSI-compatible storage driver** installed on the cluster
-- Storage classes must follow the naming convention: `{performanceClass}-{fileSystemType}`
-  - Example: `general-purpose-ssd-ext4`, `high-throughput-ssd-xfs`
-- Use `spec.storageClassSuffix` to select alternative storage classes
-  - Constructed as: `{performanceClass}-{fileSystemType}-{suffix}`
-  - Falls back to class without suffix if not found
+- Requires a **CSI-compatible storage driver** on the cluster
+- Storage classes follow `{performanceClass}-{fileSystemType}` (e.g. `general-purpose-ssd-ext4`, `high-throughput-ssd-xfs`)
+- `spec.storageClassSuffix` selects alternatives — constructed as `{performanceClass}-{fileSystemType}-{suffix}`, falling back to the class without suffix if not found
 
-## Gotchas & Best Practices
+## Gotchas
 
-- **Filesystem is immutable** — choose ext4, xfs, or shared carefully at creation time
-- **Performance class is immutable** — cannot change after creation
-- **ext4/xfs lock to one workload** — plan your volumeset-to-workload mapping
+- **Filesystem and performance class are immutable** — choose carefully at creation
+- **ext4/xfs lock to one workload** — plan the volumeset-to-workload mapping
 - **Data is per-location** — no automatic cross-location replication
 - **Shared has no snapshots** — implement application-level backups
-- **Shrink destroys data** — always snapshot before shrinking
+- **Shrink and volume-delete destroy data** — always snapshot first
 - **Expand throttled** — once every 6 hours per volume
-- **Workload type is immutable** — switching type (e.g. serverless → stateful to add a volume) requires **delete + recreate**, which is destructive. This is an "implicit destructive" case under the destructive-ops guardrail in `rules/cpln-guardrails.md` — surface the blast radius and get explicit user confirmation before deleting, even when permissions are on bypass. See "Migrating an existing workload to stateful" below for the safe sequence.
-- **Snapshot restore creates a new volume** — unsaved data since snapshot is lost
+- **Snapshot restore creates a new volume** — unsaved data since the snapshot is lost
+- **Workload type is immutable** — switching type (e.g. serverless → stateful to add a volume) requires destructive delete + recreate; confirm the blast radius first (see the migration sequence above)
 
-## Quick Reference
-
-### MCP Tools
+## Quick Reference — MCP Tools
 
 | Tool | Purpose |
-|:---|:---|
+|---|---|
 | `mcp__cpln__create_volumeset` | Create a volumeset (filesystem, perf class, capacity, snapshot policy) |
 | `mcp__cpln__mount_volumeset_to_workload` | Mount volumeset to workload (creates volumeset if needed) |
 | `mcp__cpln__update_volumeset` | Update mutable fields (capacity, snapshot policy, autoscaling, tags) |
@@ -472,31 +328,15 @@ For Bring Your Own Kubernetes clusters:
 | `mcp__cpln__delete_volumeset_snapshot` | Delete a snapshot |
 | `mcp__cpln__restore_volumeset_snapshot` | Restore volume from snapshot |
 
-### CLI Commands
+CLI fallback mirrors these: `cpln volumeset create|get|update|delete|expand|shrink`, `cpln volumeset volume get|delete`, `cpln volumeset snapshot create|get|restore|delete`.
 
-| Command | Purpose |
-|:---|:---|
-| `cpln volumeset create` | Create a new volumeset |
-| `cpln volumeset get` | Get volumeset details |
-| `cpln volumeset update` | Update volumeset configuration |
-| `cpln volumeset delete` | Delete a volumeset |
-| `cpln volumeset expand` | Increase volume size |
-| `cpln volumeset shrink` | Decrease volume size (data loss) |
-| `cpln volumeset volume get` | List volumes |
-| `cpln volumeset volume delete` | Delete a volume |
-| `cpln volumeset snapshot create` | Create a snapshot |
-| `cpln volumeset snapshot get` | List snapshots |
-| `cpln volumeset snapshot restore` | Restore from snapshot |
-| `cpln volumeset snapshot delete` | Delete a snapshot |
+## Cross-References
 
-### Cross-References
-
+- **Workload skill** — Start here: the primary workload skill (types, defaults, spec shape) that routes here for storage detail.
 - **Template Catalog skill** — database templates use volumesets for persistent storage
 - **Firewall skill** — cloud storage volumes (S3, GCS, Azure Blob) require outbound firewall rules
 
 ## Documentation
-
-For the latest reference, see:
 
 - [Volume Set Reference](https://docs.controlplane.com/reference/volumeset.md)
 - [Workload Volumes Reference](https://docs.controlplane.com/reference/workload/volumes.md)
