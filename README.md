@@ -47,7 +47,7 @@ If you prefer the standalone marketplace installer, install the plugin artifact 
 npx codex-marketplace add controlplane-com/ai-plugin/plugins/cpln --plugin
 ```
 
-**Enable plugin hooks for guardrail injection (recommended).** Codex ships with the `plugin_hooks` feature off by default, which gates both display and execution of plugin-bundled hooks. The Control Plane plugin uses a `SessionStart` hook to inject the `cli-conventions` and `cpln-guardrails` rules into every Codex session so the assistant respects the production write-guardrails (typed confirmations on destructive ops, org/GVC sanity checks, no invented `cpln` flags). To enable, add this block to `~/.codex/config.toml` and restart Codex:
+**Enable plugin hooks for guardrail injection (recommended).** Codex ships with the `plugin_hooks` feature off by default, which gates both display and execution of plugin-bundled hooks. The Control Plane plugin uses a `SessionStart` hook to inject the `cpln-guardrails` rules into every Codex session so the assistant respects the production write-guardrails (typed confirmations on destructive ops, org/GVC sanity checks, no invented `cpln` flags). To enable, add this block to `~/.codex/config.toml` and restart Codex:
 
 ```toml
 [features]

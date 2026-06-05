@@ -4,6 +4,8 @@ End-user install and capability docs live in `README.md`. Development principles
 
 ## Repo layout
 
+**Authoritative source lives under `plugins/cpln/`.** All skills, rules, commands, and agents are authored there — edit them only under `plugins/cpln/{skills,rules,commands,agents}/`. The repo-root `skills/` and `agents/` directories are **generated Gemini mirrors — never edit them directly**; change the file under `plugins/cpln/` and let the pre-commit hook (or `scripts/sync-gemini-content.sh`) regenerate the mirror. (The one exception is Gemini slash commands: the `commands/*.toml` files at the repo root are authored by hand alongside their `plugins/cpln/commands/*.md` pair.)
+
 | Path | Purpose |
 | --- | --- |
 | `plugins/cpln/` | The plugin itself. Claude, Codex, and Cursor all resolve this as their plugin root. |
@@ -42,7 +44,7 @@ Skills and commands use bare names because the plugin namespace (`cpln:`) handle
 
 ## Authoring rules
 
-- **Never write a `cpln` command from memory.** Verify with `cpln <command> --help` or `mcp__cpln__cpln_suggest`. `plugins/cpln/rules/cli-conventions.md` is the canonical CLI reference.
+- **Never write a `cpln` command from memory.** Verify with `cpln <command> --help`. The `cpln` skill (`plugins/cpln/skills/cpln/SKILL.md`) is the canonical CLI reference — command structure, the resource command map, and hallucination traps live there (no longer a rule).
 - Frontmatter on skills, agents, commands: `name` and `description` only. Do not add `version:` — Claude/Codex/Gemini ignore it.
 - YAML placeholders in examples use uppercase: `WORKLOAD`, `GVC`, `ORG`.
 - MCP tool names in Claude examples use the `mcp__cpln__` prefix; Gemini/Codex use the bare name.
@@ -95,3 +97,5 @@ To gate a tool behind a skill, add an entry to `toolSkills`. The server validate
 ## Versioning
 
 Driven by `scripts/bump-version.sh <X.Y.Z>`. It updates every plugin manifest and the marketplace entries in lockstep, then promotes the CHANGELOG `[Unreleased]` block. Don't edit version strings by hand.
+
+In the CHANGELOG, keep only the headings that have entries — omit empty `Added` / `Changed` / `Fixed` / `Removed` sections (including under `[Unreleased]`). Keep entries short and customer-facing; internal refactors live in git history, not the changelog.

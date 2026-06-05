@@ -1,194 +1,133 @@
 ---
 name: cpln
-description: "Writes cpln CLI commands and workflows for deploying and managing workloads on Control Plane. Use when the user asks about cpln login, cpln apply, cpln workload, deploying via CLI, container debugging with cpln exec/logs, or any cpln resource command. Covers CLI setup, authentication, resource management, deployment workflows, and interactive debugging."
+description: "Writes cpln CLI commands and workflows for deploying and managing workloads on Control Plane. Use when the user asks about cpln login, cpln apply, cpln workload, deploying via CLI, container debugging with cpln exec/logs, or any cpln resource command. Covers CLI setup, authentication, the resource command map, deployment workflows, interactive debugging, and hallucination traps."
 ---
 
 # cpln CLI
 
-This skill extends `rules/cli-conventions.md` (always loaded) with setup, workflows, and practical examples. Conventions covers command structure, shared flags, the resource command map, and hallucination traps. This skill covers **how to use those commands** to get things done.
+**MCP first; the CLI is the fallback** — use it when the MCP server is unavailable or unauthenticated, for the few CLI-only operations, and for interactive debugging or scripted GitOps. **In CI/CD the CLI is the primary interface** — pipelines authenticate non-interactively with a service-account token (`CPLN_TOKEN`) and use it to build/push images (`cpln image build --push`) and apply resources (`cpln apply --ready`). Platform rules (resource model, secrets, destructive ops, production defaults, scale-to-zero, firewall) live in `rules/cpln-guardrails.md`; this skill is the CLI mechanics.
+
+**Never write a `cpln` command from memory.** Verify every verb and flag with `cpln <command> --help` before quoting it. If you cannot cite a verified flag, say so instead of guessing — if something isn't in the resource command map below, assume it isn't real.
+
+## CLI-only operations
+
+Five operations have **no MCP equivalent** — the CLI's primary job:
+
+| Command | Purpose |
+|---|---|
+| `cpln image build` | Build a container image (Dockerfile or buildpacks) and push to the org registry |
+| `cpln image copy` | Copy an image between orgs / registries |
+| `cpln port-forward` | Forward a local port to a running workload |
+| `cpln convert` | Translate Kubernetes / Compose manifests into Control Plane specs |
+| `cpln cp` | Copy files in or out of a running container |
+
+Also CLI-only: interactive debugging (`exec`, `connect`, `logs`) and scripted GitOps (`cpln apply`). Everything else — discovery and CRUD — prefer MCP.
 
 ## Setup
 
 ```bash
-# Interactive login (opens browser)
-cpln login
-
-# Set default org and GVC so you don't need --org and --gvc on every command
-cpln profile update default --org my-org --gvc my-gvc
+cpln login                                            # interactive (opens browser)
+cpln profile update default --org my-org --gvc my-gvc # set defaults
 ```
 
-For CI/CD (non-interactive), set environment variables via your platform's secrets management:
+For CI/CD, set via your platform's secrets management: `CPLN_TOKEN` (service-account key, from `cpln serviceaccount add-key`), `CPLN_ORG`, `CPLN_GVC`, `CPLN_PROFILE`. Override per-command with `--org`/`--gvc`/`--profile`.
 
-| Variable | Purpose |
-|---|---|
-| `CPLN_TOKEN` | Service account key (generate with `cpln serviceaccount add-key`) |
-| `CPLN_ORG` | Default organization |
-| `CPLN_GVC` | Default GVC |
-| `CPLN_PROFILE` | Profile override |
+**Never pass `--token`** — it leaks into logs and shell history. Profiles are the primary way to supply tokens and defaults. Inspect context with `cpln profile get <profile>` — **there is no `cpln whoami`.** Explain any profile state changes so operators can revert them.
 
-Never pass tokens via `--token` flags — they leak into logs and shell history.
+## Command structure & shared flags
 
-Override per-command: `--org other-org`, `--gvc other-gvc`, `--profile production`.
+```
+cpln <resource> <action> [REF] [--flags]
+```
 
-## Quick Command Lookup
+Standalone (break the pattern): `cpln apply`, `cpln delete`, `cpln logs`, `cpln port-forward`, `cpln cp`, `cpln convert`, `cpln login`.
 
-For flag details and the full resource command map, see `rules/cli-conventions.md`. This table maps common tasks to commands:
+Flags on nearly every command — never list per-command:
+- **Context**: `--profile`, `--org`, `--gvc`
+- **Output**: `--output`/`-o` (`text|json|yaml|json-slim|yaml-slim|tf|crd|names`), `--color`, `--ts` (`iso|local|age`), `--max` (default 50)
+- **Request**: `--token`, `--endpoint`, `--insecure`/`-k`
+- **Debug**: `--verbose`/`-v`, `--debug`/`-d`
 
-| Task | Command |
-|---|---|
-| Deploy from YAML/JSON | `cpln apply --file manifest.yaml --ready` |
-| Create workload | `cpln workload create --name APP --image IMAGE --gvc GVC --port PORT` |
-| Create GVC | `cpln gvc create --name GVC --location aws-us-east-1` |
-| Create secret | `cpln secret create-opaque --name SECRET --file data.txt` (use `--file -` for stdin) |
-| Create policy | `cpln policy create --name POLICY --target-kind secret --resource SECRET` |
-| Bind permission to policy | `cpln policy add-binding POLICY --permission reveal --identity LINK` |
-| Create identity | `cpln identity create --name ID --gvc GVC` |
-| View logs | `cpln logs '{gvc="GVC", workload="WL"}' --org ORG` |
-| Exec into container | `cpln workload exec WL --gvc GVC -- COMMAND` |
-| Interactive shell | `cpln workload connect WL --gvc GVC` |
-| Port forward | `cpln port-forward WL 8080:8080 --gvc GVC` |
-| Export as YAML | `cpln workload get WL --gvc GVC -o yaml-slim > wl.yaml` (always use `yaml-slim` for re-apply — see Workflow: Rename) |
-| Clone / rename a resource | `cpln workload clone OLD --name NEW --gvc GVC` (also: `policy`, `identity`, `mk8s`, `auditctx`) |
-| Build & push image | `cpln image build --name IMAGE:TAG --push` |
-| Copy files to container | `cpln cp LOCAL WORKLOAD:PATH --gvc GVC` |
-| Run one-off command | `cpln workload cron run --image IMG --gvc GVC -- CMD` |
-| Deploy Helm chart | `cpln helm install RELEASE CHART --gvc GVC` |
-| Deploy Docker Compose | `cpln stack deploy --compose-file FILE --gvc GVC` |
+- **Always use `yaml-slim`/`json-slim` for round-tripping.** Plain `yaml`/`json` include server-side fields (`status`, `id`, `created`, `lastModified`, `links`) that break `cpln apply`.
+- **Include `--org` (and `--gvc`) explicitly on every mutation**, even with profile defaults. `--gvc` is on all subcommands of GVC-scoped resources (workload, identity, volumeset) plus helm, stack, apply, convert, cp, delete, port-forward — but **not** on `cpln logs` (GVC goes inside the LogQL query).
+- **Cap lists with `--max`** (`--max 0` = all). Omit only when targeting a specific named resource.
 
-## Scale-to-zero — never the default for production
+## Standard CRUD
 
-Scale-to-zero is a real Control Plane capability. Explain how it works when asked. **Do not** recommend it, default to it, or configure it unless the user has explicitly asked for it **by name** (synonyms like "save costs" or "auto-scale" are NOT enough — the user must say "scale to zero" or "scale to 0 replicas").
+| Action | Syntax | Notes |
+|---|---|---|
+| **List** | `cpln <resource> get` | No args = list all. **There is NO `list` subcommand.** |
+| **Get** | `cpln <resource> get REF` | |
+| **Create** | `cpln <resource> create --name NAME` | Also `--description`, `--tag K=V` |
+| **Delete** | `cpln <resource> delete REF...` | Multiple refs |
+| **Edit** | `cpln <resource> edit REF` | Opens YAML in editor. `--replace` |
+| **Patch** | `cpln <resource> patch REF --file FILE` | |
+| **Tag** | `cpln <resource> tag REF... --tag K=V` | Remove: `--remove-tag K` |
+| **Update** | `cpln <resource> update REF --set PROP=VAL` | Also `--unset PROP` |
+| **Clone** | `cpln <resource> clone REF --name NEW` | Spec only. Preferred for renames. |
+| **Audit** | `cpln <resource> audit [REF]` | `--since`, `--from`, `--to` (ISO 8601 / duration / `now-<duration>`) |
+| **Query** | `cpln <resource> query` | See below |
 
-When a serverless workload scales to 0, the next request waits for a cold replica to schedule, pull, and start — multi-second latency that lands on a real user. After idle (`scaleToZeroDelay`, default 300s), the next user pays it again. For customer-facing or client-facing services this is a recurring foot-gun.
+Also: `access-report REF`, `eventlog REF`, `permissions` (no args). **Pair every mutation with a verification read** (`get`, or `get-deployments` for workloads).
 
-**Production default is `minScale ≥ 1`** (usually `≥ 2` per the production-grade defaults below).
-
-Scale-to-zero IS appropriate **only** when the user explicitly opted in AND the workload fits one of:
-
-- Internal admin tools / dashboards used by humans, very rarely
-- Dev / staging / preview environments
-- Event-driven workers behind a queue with retry semantics (KEDA-driven; queue absorbs the latency)
-- Background batch jobs explicitly framed as "scale up only when there's work"
-
-Never use scale-to-zero for customer-facing HTTP APIs, websites, login/auth, payments, B2B endpoints called by paying customers, or anything behind a public domain. Do not include `scaleToZeroDelay` on any workload with `minScale ≥ 1` — it has no effect and signals the AI thought scale-to-zero was on the table. If the user explicitly asks for scale-to-zero on a customer-facing workload, name the cold-start tradeoff before configuring it.
-
-## Production-grade workload defaults
-
-When proposing or editing any workload, configure it for production from the outset — not Control Plane's platform defaults (`cpu: 50m`, `memory: 128Mi`, `minScale: 1`, no probes), which exist to make first-deploy frictionless, not to ship production.
-
-Required minimums for production-like workloads:
-
-| Setting | Minimum |
-|---|---|
-| `cpu` (max ceiling) | `250m`+ typical HTTP API; `500m`+ moderate compute; `1000m`+ heavy |
-| `memory` (max ceiling) | `256Mi`+ tiny; `512Mi`–`1Gi` typical APIs. Memory:CPU ratio ≤ 8 (relaxed to 32 with `cpln/relaxMemoryToCpuRatio` tag) |
-| `minCpu` / `minMemory` | Set so Capacity AI has a floor; default on for Standard/Serverless |
-| `autoscaling.minScale` | `2`+ for any user-facing service; `1` only when explicitly justified (single-writer DB, leader-election, dev) — say so |
-| `autoscaling.maxScale` | Sized to expected peak × headroom; default `5` is rarely right |
-| `autoscaling.metric` | Pick by traffic shape per `cpln-autoscaling-capacity` decision tree; never silently `disabled` |
-| `readinessProbe` | Explicit `httpGet` against real health endpoint; `periodSeconds: 10`, `failureThreshold: 3`. Disabled by default on Standard/Stateful — must be added |
-| `livenessProbe` | Explicit `httpGet` or `tcpSocket`; looser cadence than readiness (`periodSeconds: 30`, `failureThreshold: 3`); must NOT duplicate readiness |
-| Firewall | Set explicitly per workload purpose; never inherit defaults blindly |
-
-When proposing a workload, output sizing + replicas + autoscaling + readiness + liveness + termination together with the reasoning. If a value can't be inferred (expected RPS, real health endpoint), ask the user — never guess. Cron workloads are exempt from probes/minScale (use `schedule`, `concurrencyPolicy`, `activeDeadlineSeconds` instead). For per-metric autoscaling YAML, see `cpln-autoscaling-capacity`. For probe schema and termination details, see `cpln-workload-security`.
-
-## Template Catalog first — don't reinvent common infra
-
-When the user asks for a database, cache, queue, broker, search engine, gateway, WAF, identity provider, S3-compatible storage, or other common infrastructure component, recommend the matching **Template Catalog** entry first instead of building a custom workload. Templates are versioned OCI artifacts published by Control Plane with sane defaults, HA variants, persistent storage, generated secrets, and Helm-style upgrade/rollback.
-
-| User asks for | Recommend template |
-|---|---|
-| Postgres | `postgres` (single-node) or `postgres-highly-available` (HA, Patroni) |
-| MySQL / MariaDB / MongoDB / PostGIS | `mysql` / `mariadb` / `mongodb` / `postgis` |
-| Distributed SQL / multi-master Postgres / OLAP | `cockroach` or `tidb` / `pgedge` / `clickhouse` |
-| Redis | `redis`, `redis-cluster`, or `redis-multi-location` |
-| etcd | `etcd` |
-| Kafka / RabbitMQ / NATS | `kafka` / `rabbitmq` / `nats` |
-| Search (OpenSearch / Manticore) | `opensearch` or `manticore` |
-| Reverse proxy / API gateway / WAF / VPN mesh | `nginx` / `tyk` / `coraza` / `tailscale` |
-| Workflow orchestration / Identity / Object storage / LLM inference | `airflow` / `fusionauth` / `minio` / `ollama` |
-| Batch jobs / Secret syncing / OTel collector | `cpln-task-runner` / `ess` or `secret-env-var-syncer` / `otel-collector` |
+### Query
 
 ```bash
-cpln helm install <release> oci://ghcr.io/controlplane-com/templates/<template> -f values.yaml
+cpln workload query --match all --tag environment=production --tag region=europe
+cpln workload query --match any --rel gvc=gvc-a --rel gvc=gvc-b
+cpln workload query --property name=my-workload
 ```
 
-Lead with the template, name the exact OCI artifact and install command, note whether an HA variant exists and when to choose it, and call out the real tradeoff (e.g. single-replica `postgres` includes scheduled S3 backups; `postgres-highly-available` does not). Build a custom workload only when the user has a hard reason — unusual extension, legacy image they must reuse, feature the template doesn't expose. For full configuration, defer to the `cpln-template-catalog` skill.
+`--match` (`all` default / `any` / `none`, single value); `--tag KEY=VALUE`, `--property`/`--prop NAME=VALUE` (e.g. `status.phase=running`), `--rel KIND=VALUE` (e.g. `gvc=my-gvc`) — all repeatable. Some `create` commands (gvc, policy, group) accept `--query-match`/`--query-tag`/`--query-property`/`--query-rel` for dynamic targeting. Full language: `query-spec` skill.
 
-## Workflow: Deploy a Workload
+## Resource command map
+
+Core anti-hallucination reference. **Scope**: org = needs `--org`; gvc = needs `--org` + `--gvc`; local = no API call.
+
+| Resource | Scope | CRUD | Non-standard subcommands |
+|---|---|---|---|
+| **workload** | gvc | Full | `connect`, `exec`, `run`, `cron` (get/run/start/stop), `replica` (get/stop), `force-redeployment`, `get-deployments`, `open`, `start`, `stop` |
+| **gvc** | org | Full | `add-location`, `remove-location`, `delete-all-workloads` |
+| **secret** | org | **No generic create** | 12 type-specific create commands (below), `reveal` |
+| **policy** | org | Full | `add-binding`, `remove-binding` |
+| **identity** | gvc | Full | — |
+| **volumeset** | gvc | Full | `expand`, `shrink`, `snapshot` (create/delete/get/restore), `volume` (delete/get) |
+| **domain** | org | Full (no clone) | — |
+| **cloudaccount** | org | **No generic create** | `create-aws`, `create-azure`, `create-gcp`, `create-ngs` |
+| **image** | org | No create | `build`, `copy`, `docker-login` |
+| **agent** | org | Full (no clone) | `info`, `manifest`, `up` |
+| **group** | org | Full | `add-member`, `remove-member` |
+| **ipset** | org | Full | `add-location`, `remove-location`, `update-location` |
+| **serviceaccount** | org | Full (no update) | `add-key`, `remove-key` |
+| **mk8s** | org | **No create** | `dashboard`, `join`, `kubeconfig` |
+| **user** | org | No create | `invite` |
+| **org** | — | **No delete** (immutable) | — |
+| **profile** | local | get, delete, update | `login`, `set-default`, `token`. `update` creates if missing (alias: `create`) |
+| **helm** | gvc | get | `install`, `upgrade`, `template`, `rollback`, `uninstall`, `list`, `history` |
+| **stack** | gvc | — | `deploy`, `manifest`, `rm` |
+| **location** | org | Partial | `install`, `uninstall` |
+| **auditctx** | org | Full (no delete) | — |
+| **quota** | org | get, edit, patch | — |
+| **task** | org | get, delete | `complete`, `get-mine` |
+| **account** | org | get only | — |
+| **rest** | org | get, create, delete, edit, patch | `post`, `put` |
+| **operator** | — | — | `install`, `uninstall` |
+
+## Non-standard commands
+
+### cpln apply / cpln delete
 
 ```bash
-# 1. Create a GVC with locations
-cpln gvc create --name my-gvc \
-  --location aws-us-west-2 \
-  --location gcp-us-east1
-
-# 2. Build and push an image
-cpln image build --name my-app:v1.0 --push
-
-# 3. Create a workload
-cpln workload create --name my-app \
-  --gvc my-gvc \
-  --image //image/my-app:v1.0 \
-  --port 8080 \
-  --public
-
-# 4. Verify
-cpln workload get my-app --gvc my-gvc
+cpln apply --file ./manifests/ --gvc <gvc> --ready  # apply a DIRECTORY — cpln resolves resource order
+cpln apply --file all.yaml --ready                  # apply a MULTI-DOC file (resources split by ---)
+cpln apply --file workload-update.yaml --ready      # apply ONE resource — incremental updates only
+cpln delete --file manifest.yaml                    # delete resources in a file
 ```
 
-For external images, use the exact reference: `nginx:latest`, `gcr.io/project/image:tag`. Never prefix with `docker.io/`.
+**For multi-resource deploys, apply once via a directory or multi-doc file** — `cpln apply` walks the inter-resource dependency graph automatically. Splitting into multiple calls reintroduces the ordering problem (workloads referencing not-yet-applied secrets, bindings before the identity exists).
 
-## Workflow: Grant Secret Access (3 required steps)
-
-The 3-step rule (identity + policy + reference) is defined in **rules/cpln-guardrails.md → Secret Access**. The CLI workflow that satisfies it:
-
-```bash
-# 1. Create a secret (payload is loaded from a file; use - for stdin)
-cpln secret create-opaque --name db-password --file ./db-password.txt
-# or from stdin: printf '%s' "my-secret-value" | cpln secret create-opaque --name db-password --file -
-
-# 2. Create an identity and assign it to the workload
-cpln identity create --name my-app-identity --gvc my-gvc
-cpln workload update my-app --gvc my-gvc \
-  --set spec.identityLink=//identity/my-app-identity
-
-# 3. Create a policy granting reveal permission
-cpln policy create --name secret-access \
-  --target-kind secret \
-  --resource db-password
-cpln policy add-binding secret-access \
-  --identity //gvc/my-gvc/identity/my-app-identity \
-  --permission reveal
-
-# Inject the secret into the workload
-cpln workload update my-app --gvc my-gvc \
-  --set spec.containers.main.env.DB_PASSWORD.value=cpln://secret/db-password.payload
-```
-
-## Workflow: GitOps with cpln apply
-
-```bash
-# 1. Export existing resources as templates (yaml-slim strips server-side metadata)
-cpln gvc get my-gvc -o yaml-slim > manifests/gvc.yaml
-cpln workload get my-app --gvc my-gvc -o yaml-slim > manifests/workload.yaml
-cpln secret get my-secret -o yaml-slim > manifests/secret.yaml
-cpln identity get my-identity --gvc my-gvc -o yaml-slim > manifests/identity.yaml
-cpln policy get my-policy -o yaml-slim > manifests/policy.yaml
-
-# 2. Edit manifests in version control
-
-# 3. Apply EVERYTHING IN ONE CALL — let cpln resolve the dependency order
-cpln apply --file ./manifests/ --gvc my-gvc --ready
-# OR if all resources are in one multi-doc YAML file:
-cpln apply --file all-resources.yaml --gvc my-gvc --ready
-```
-
-**Apply once, not file-by-file.** `cpln apply` walks the inter-resource dependency graph automatically when given a directory or a multi-doc YAML file (resources separated by `---`). Splitting into multiple apply calls — `cpln apply secret.yaml; cpln apply workload.yaml` — reintroduces the ordering problem cpln apply was designed to solve: workloads referencing secrets that haven't been applied yet, identity bindings before the identity exists, policies referencing missing target resources, etc.
-
-**Single-file applies are for incremental updates to ONE existing resource** (e.g. `cpln apply --file workload-update.yaml --ready` after editing one workload's spec). Not the right shape for an initial deploy.
-
-**When resources span multiple GVCs** — e.g. promoting the same app to dev, staging, and prod in one repo — declare the target GVC inline on each GVC-scoped resource via a top-level `gvc:` field (same level as `kind` / `name` / `description` / `tags`). Then apply the whole bundle without `--gvc`:
+- **Single-GVC bundle** (common): pass `--gvc <gvc>`; it fills in the GVC for every GVC-scoped resource that doesn't declare one.
+- **Per-resource GVC** (resources span multiple GVCs): declare `gvc:` inline as a top-level field (same level as `kind`/`name`), and apply **without** `--gvc`:
 
 ```yaml
 kind: workload
@@ -198,126 +137,220 @@ spec: { ... }
 ---
 kind: workload
 name: my-app
-gvc: staging       # ← same workload name, different GVC — routed correctly
+gvc: staging       # ← same name, different GVC — routed correctly
 spec: { ... }
 ```
 
-```bash
-cpln apply --file ./manifests/ --ready    # cpln routes each to its declared gvc
-```
+Org-scoped resources (secret, policy, domain, image, agent, group, cloudaccount, serviceaccount, ipset, mk8s) ignore the gvc field/flag. `--file`/`-f` required; `--ready` blocks until healthy; `--k8s` auto-converts K8s manifests inline; `--file -` reads stdin.
 
-For single-GVC bundles, the simpler pattern is `cpln apply --file ./manifests/ --gvc <gvc>` — the flag fills in the GVC for any GVC-scoped resource that doesn't declare one. See `rules/cli-conventions.md` → cpln apply for both patterns.
-
-`cpln apply` is idempotent — run on every push. `--ready` blocks until healthy. Supports directories (`--file ./manifests/`), multi-doc YAML files, and stdin (`--file -`).
-
-## Workflow: Rename or Duplicate a Resource
-
-Resource names on Control Plane are **immutable** — there is no `rename` command. Use one of these two patterns.
-
-### Preferred: `clone` (server-side spec duplicate)
-
-`workload`, `policy`, `identity`, `mk8s`, and `auditctx` support a `clone` subcommand. It duplicates only the spec — no `status`, no `id`, no timestamps — so it round-trips cleanly:
+### cpln logs
 
 ```bash
-# 1. Clone with the new name
-cpln workload clone old-name --name new-name --gvc my-gvc
-
-# 2. Verify the new workload is healthy
-cpln workload get new-name --gvc my-gvc
-
-# 3. Delete the old one only after verification
-cpln workload delete old-name --gvc my-gvc
+cpln logs '{gvc="GVC", workload="WORKLOAD"}' --org ORG --tail
 ```
 
-### Fallback: `get -o yaml-slim` → edit → apply
+- Query is a **positional argument** (first arg, single quotes, LogQL syntax). `--gvc` is **not** a flag here.
+- Labels: `container`, `gvc`, `location`, `provider`, `replica`, `stream`, `workload`. Special: `container="_accesslog"` for HTTP access logs.
+- Filters: `|= "error"` (contains), `!= "debug"` (excludes), `|~ "timeout|crash"` (regex).
+- Streaming: `--tail`/`-t`/`-f`. **`--follow` does NOT exist.**
+- Limit: `--limit N` (default 30, `0` = unlimited). Time: `--since "1h"`, `--from`, `--to`. Full LogQL: `logql-observability` skill.
 
-Use this when you need to change more than the name (e.g., image, env, ports) in one go:
+### cpln secret create — 12 type-specific commands
 
-```bash
-# Always yaml-slim, never plain yaml — plain yaml includes status/id/timestamps that break apply
-cpln workload get old-name --gvc my-gvc -o yaml-slim > new.yaml
+`cpln secret create` does **not** exist. Use the type-specific variant (all require `--name`; accept `--description`, `--tag`):
 
-# Edit name + any other fields, then apply
-cpln apply --file new.yaml --gvc my-gvc --ready
-
-# Delete the old workload
-cpln workload delete old-name --gvc my-gvc
-```
-
-### What also has to be updated when a workload is renamed
-
-The internal hostname (`<workload>.<gvc>.cpln.local`) and the public URL (`<workload>.<gvc>.cpln.app`) both change. Anything referencing the old name needs updating:
-
-- Domain routes: `spec.ports[].routes[].workloadLink`
-- Policies with workload-scoped `targetLinks` or `targetQuery`
-- Identity bindings that pin to the workload link
-- Other workloads calling it via internal DNS
-- External consumers / clients
-
-For multi-workload renames, script the clone/verify/delete loop with a CSV or list of pairs — never delete the old workload before the new one is verified healthy.
-
-## Workflow: Debug a Failing Workload
-
-```bash
-# 1. Check logs
-cpln logs '{gvc="my-gvc", workload="my-app"}' --org my-org
-
-# 2. Stream logs in real-time
-cpln logs '{gvc="my-gvc", workload="my-app"}' --org my-org --tail
-
-# 3. Filter for errors (LogQL filter inside the query, not a shell pipe)
-cpln logs '{gvc="my-gvc", workload="my-app"} |= "error"' --org my-org
-
-# 4. Execute a command in the container
-cpln workload exec my-app --gvc my-gvc -- env | grep CPLN
-
-# 5. Open interactive shell
-cpln workload connect my-app --gvc my-gvc
-
-# 6. Forward a local port to the workload
-cpln port-forward my-app 8080:8080 --gvc my-gvc
-```
-
-**Debugging a cron workload — query logs by execution, not by workload.** A plain `{gvc=, workload=}` query on a cron workload mixes logs from every past run, burying the failed one. Each execution runs in a separate replica with a unique `replica` ID. Use `cpln workload get-deployments <name> --gvc <gvc> -o json` to enumerate `status.jobExecutions[]` (with `name`, `status`, `startTime`, `completionTime`, `replica`), then scope logs to one execution by adding the `replica` label and bounding by its time window. Full pattern with examples: see **`logql-observability` skill → "Cron Workloads — Per-Execution Logs"**.
-
-## Integration
-
-| Tool | Purpose | Connection |
+| Type | Command | Required flags |
 |---|---|---|
-| **MCP Server** | AI agents manage infra via 55+ tools | `https://mcp.cpln.io/mcp` |
-| **Terraform** | IaC with state management | `controlplane-com/cpln` provider |
-| **Pulumi** | IaC with TS/JS, Python, Go, .NET | `@pulumiverse/cpln` (npm) / `pulumiverse-cpln` (pip) / `github.com/pulumiverse/pulumi-cpln` (Go) |
-| **K8s Operator** | Manage cpln resources as K8s CRDs | See `k8s-operator` skill |
-| **CI/CD** | Automated deployments | `CPLN_TOKEN` + `cpln apply --ready` |
+| Opaque | `create-opaque` | `--file` or `--payload` |
+| Dictionary | `create-dictionary` | `--entry KEY=VAL` (repeatable) |
+| Username/Password | `create-userpass` | `--username`, `--password` |
+| AWS | `create-aws` | `--access-key`, `--secret-key` |
+| GCP | `create-gcp` | `--file` (service account JSON) |
+| Azure SDK | `create-azure-sdk` | `--file` |
+| Azure Connector | `create-azure-connector` | `--url`, `--code` |
+| Docker | `create-docker` | `--file` |
+| ECR | `create-ecr` | `--access-key`, `--secret-key`, `--repo` |
+| TLS | `create-tls` | `--key`, `--cert` |
+| Key Pair | `create-keypair` | `--secret` |
+| NATS | `create-nats` | `--account-id`, `--private-key` |
 
-### Key MCP Tools
+### cpln workload create
 
-| Tool | Purpose |
+```bash
+cpln workload create --name APP --image IMAGE --gvc GVC [flags]
+```
+
+Key flags: `--type` (`serverless|standard`, default `standard`), `--port`, `--public`, `--identity`, `--env KEY=VALUE`, `--cpu`, `--memory`/`--mem`, `--volume`, `--container-name`. **`stateful` and `cron` CANNOT be created via CLI flags — use `cpln apply --file`.** For internal images use `//image/NAME:TAG`; ensure `--port` matches the container's listening port.
+
+### cpln workload exec / connect / run
+
+- **exec** — run in an existing replica (`--` separator required): `cpln workload exec APP --gvc GVC -- ls -la` (`--container`, `--location`, `--replica`, `--stdin`/`-i`, `--tty`/`-t`)
+- **connect** — open a shell: `cpln workload connect APP --gvc GVC` (`--shell`, default bash)
+- **run** — temporary workload + command: `cpln workload run --image IMAGE --gvc GVC -- CMD` (`--clone`, `--rm`, `-i`, `--cpu`, `--memory`)
+- **cron run** — one-off execution: `cpln workload cron run --image IMAGE --gvc GVC -- CMD` (`--background`/`-b`, `--timeout`/`-t`)
+
+**Replicas are pods.** Get names with `cpln workload replica get`, then pass explicit `--location`, `--replica`, `--container` to `exec`/`logs`/`cp`/`port-forward` — the CLI otherwise picks the first match silently (risky on multi-location workloads).
+
+### cpln policy add-binding
+
+```bash
+cpln policy add-binding POLICY --permission reveal --identity //gvc/GVC/identity/ID
+```
+
+`--permission` required; at least one principal flag required; **all flags repeatable** (`--email`, `--serviceaccount`, `--group`, `--identity`) — bind multiple permissions to multiple principals in one command.
+
+### cpln port-forward / cp
+
+```bash
+cpln port-forward WORKLOAD [LOCAL:]REMOTE... --gvc GVC   # flags: --address, --location, --replica
+cpln cp LOCAL WORKLOAD:PATH --gvc GVC                    # copy into a container; reverse the args (WORKLOAD:PATH LOCAL) to copy out
+```
+
+### Migration tools
+
+- `cpln convert --file K8S.yaml` — Kubernetes → Control Plane manifest
+- `cpln helm install RELEASE CHART --gvc GVC` — Helm charts (and template catalog installs)
+- `cpln stack deploy --compose-file FILE --gvc GVC` — Docker Compose
+
+### Volumeset command verbs
+
+Dedicated subcommand per operation — there is **no** `cpln volumeset command create --type <kind>` form:
+
+| Operation | Command | Risk |
+|---|---|---|
+| Expand volume | `cpln volumeset expand <ref> --new-size <gb> --locations <loc> [--volume-indexes <idx>]` | Safe |
+| Create snapshot | `cpln volumeset snapshot create <ref> --snapshot-name <name> --locations <loc>` | Safe |
+| Restore snapshot | `cpln volumeset snapshot restore <ref> --snapshot-name <name> --locations <loc>` | Overwrites volume state |
+| Delete snapshot | `cpln volumeset snapshot delete <ref> --snapshot-name <name>` | Destructive |
+| Delete volume | `cpln volumeset volume delete <ref> --locations <loc> --volume-indexes <idx>` | Destructive (data loss) |
+| Shrink volume | `cpln volumeset shrink <ref> --new-size <gb> --locations <loc>` | **DESTRUCTIVE — permanent data loss** |
+
+`shrink` provisions a new, smaller volume and removes the old one — data is **not** migrated. Safe only with built-in redundancy (Kafka replication; Cassandra/CockroachDB), on `ext4`/`xfs` (not `shared`). Apply the destructive-op confirmation from `rules/cpln-guardrails.md` first. Detail: `stateful-storage` skill.
+
+## Commands that don't exist
+
+| Wrong | Correct |
 |---|---|
-| `list_workloads` | List workloads in a GVC |
-| `get_workload` | Get workload details |
-| `create_workload` | Create a new workload |
-| `update_workload` | Update workload properties |
-| `list_gvcs` | List GVCs in an org |
-| `create_gvc` | Create a new GVC |
-| `list_secrets` | List secrets in an org |
-| `create_secret` | Create a new secret |
-| `get_workload_logs` | Query workload logs via LogQL |
-| `get_workload_deployments` | View deployment history |
-| `cpln_suggest` | Get CLI command suggestions (validates flags) |
+| `cpln secret create` | `cpln secret create-opaque`, `create-aws`, etc. |
+| `cpln <resource> list` | `cpln <resource> get` (no args = list all) |
+| `cpln logs --follow` | `cpln logs --tail` (or `-t` / `-f`) |
+| `cpln workload log` | `cpln logs '{gvc="GVC", workload="WORKLOAD"}'` |
+| `cpln cloudaccount create` | `cpln cloudaccount create-aws`, etc. |
+| `cpln mk8s create` | `cpln apply --file mk8s-manifest.yaml` |
+| `cpln apply` (no `--file`) | `cpln apply --file manifest.yaml` |
+| `cpln workload update --identity X` | `cpln workload update REF --set spec.identityLink=//identity/X` |
+| `cpln secret update --data '{}'` | `cpln secret edit REF` or `cpln apply --file` |
+| `cpln gvc update --location LOC` | `cpln gvc update REF --set 'spec.staticPlacement.locationLinks+=//location/LOC'` |
+| `cpln volumeset command create --type <kind>` | Use the dedicated verb (above) |
+| `cpln whoami` | `cpln profile list` / `cpln profile get <profile>` |
+
+## Building & referencing images
+
+`cpln image build` containerizes and pushes to your org's **private (internal) registry** — the same registry you reference in a workload spec as `//image/NAME:TAG`:
+
+```bash
+cpln image build --name my-app:v1.0 --push   # builds and pushes → reference as //image/my-app:v1.0
+```
+
+Auto-detects a Dockerfile, falls back to buildpacks. All images must be `linux/amd64` (wrong platform = `exec format error`). **In CI/CD `cpln image build` may not work** — Buildx/Docker daemon aren't always present; fall back to plain `docker build` + `docker push` to the org registry.
+
+Image reference rules in workload specs:
+
+| Source | Reference in spec | Pull secret? |
+|---|---|---|
+| **Your org's registry (internal)** | `//image/NAME:TAG` — never the `<org>.registry.cpln.io/...` hostname | No |
+| **Public Docker Hub** | bare name, no host (`nginx:latest`) — never add `docker.io/` | No |
+| **Other public registry** | exact host path (`gcr.io/...`, `ghcr.io/...`) | No |
+| **External private registry** (ECR, GCR, ACR, private Docker Hub, another CPLN org) | exact host path | **Yes** — `docker`/`ecr`/`gcp` secret on GVC `spec.pullSecretLinks` |
+
+Full image workflow (buildx fallback, cross-org copy, pull-secret setup): `image` skill.
+
+## Workflow: Deploy a workload
+
+```bash
+cpln gvc create --name my-gvc --location aws-us-west-2 --location gcp-us-east1
+cpln image build --name my-app:v1.0 --push
+cpln workload create --name my-app --gvc my-gvc --image //image/my-app:v1.0 --port 8080 --public
+cpln workload get-deployments my-app --gvc my-gvc   # verify readiness
+```
+
+## Workflow: Grant secret access (3 steps)
+
+The 3-step rule (identity + policy + reference) is in `rules/cpln-guardrails.md`. The CLI workflow:
+
+```bash
+# 1. Secret
+cpln secret create-opaque --name db-password --file ./db-password.txt
+
+# 2. Identity, assigned to the workload
+cpln identity create --name my-app-identity --gvc my-gvc
+cpln workload update my-app --gvc my-gvc --set spec.identityLink=//identity/my-app-identity
+
+# 3. Policy granting reveal
+cpln policy create --name secret-access --target-kind secret --resource db-password
+cpln policy add-binding secret-access \
+  --identity //gvc/my-gvc/identity/my-app-identity --permission reveal
+
+# Reference the secret in the workload
+cpln workload update my-app --gvc my-gvc \
+  --set spec.containers.main.env.DB_PASSWORD.value=cpln://secret/db-password.payload
+```
+
+## Workflow: GitOps with cpln apply
+
+```bash
+# 1. Export existing resources (yaml-slim strips server-side metadata)
+cpln gvc get my-gvc -o yaml-slim > manifests/gvc.yaml
+cpln workload get my-app --gvc my-gvc -o yaml-slim > manifests/workload.yaml
+
+# 2. Edit in version control. 3. Apply EVERYTHING IN ONE CALL — let cpln resolve order
+cpln apply --file ./manifests/ --gvc my-gvc --ready
+```
+
+Idempotent — run on every push. `--ready` blocks until healthy. Apply once, not file-by-file.
+
+## Workflow: Rename or clone (names are immutable)
+
+No `rename` exists.
+
+**Preferred — `clone`** (`workload`, `policy`, `identity`, `mk8s`, `auditctx`); duplicates spec only:
+
+```bash
+cpln workload clone old-name --name new-name --gvc my-gvc   # 1. clone
+cpln workload get-deployments new-name --gvc my-gvc         # 2. verify healthy
+cpln workload delete old-name --gvc my-gvc                  # 3. delete old ONLY after verify
+```
+
+**Fallback — `get -o yaml-slim` → edit → apply** (when changing more than the name):
+
+```bash
+cpln workload get old-name --gvc my-gvc -o yaml-slim > new.yaml
+cpln apply --file new.yaml --gvc my-gvc --ready
+cpln workload delete old-name --gvc my-gvc
+```
+
+Renaming changes the internal hostname (`<workload>.<gvc>.cpln.local`) and public URL (`<workload>.<gvc>.cpln.app`). Update everything referencing the old name: domain routes (`spec.ports[].routes[].workloadLink`), policy `targetLinks`/`targetQuery`, identity bindings, internal-DNS callers, external clients. Never delete the old workload before the new one is verified healthy.
+
+## Workflow: Debug a failing workload
+
+```bash
+cpln logs '{gvc="my-gvc", workload="my-app"}' --org my-org             # 1. logs
+cpln logs '{gvc="my-gvc", workload="my-app"}' --org my-org --tail      # 2. stream
+cpln logs '{gvc="my-gvc", workload="my-app"} |= "error"' --org my-org  # 3. filter (LogQL, not a shell pipe)
+cpln workload exec my-app --gvc my-gvc -- env | grep CPLN              # 4. exec
+cpln workload connect my-app --gvc my-gvc                              # 5. shell
+cpln port-forward my-app 8080:8080 --gvc my-gvc                        # 6. port-forward
+```
+
+**Cron workloads — query logs per execution, not per workload.** A plain `{gvc=, workload=}` query mixes every past run. Each execution runs in a separate replica with a unique `replica` ID: use `cpln workload get-deployments <name> --gvc <gvc> -o json` to enumerate `status.jobExecutions[]`, then scope logs with the `replica` label + time window. Full pattern: `logql-observability` skill.
+
+## Platform rules & integration
+
+Platform-wide rules are **not duplicated here** — scale-to-zero/autoscaling, production defaults/probes, Template Catalog first, destructive ops, secrets, firewall all live in `rules/cpln-guardrails.md` and their dedicated skills (`autoscaling-capacity`, `workload-security`, `template-catalog`). The MCP tool router also lives in the kernel; before authoring any apply YAML / CI/CD manifest / API body, call `get_resource_schema`.
+
+IaC: Terraform (`controlplane-com/cpln` provider), Pulumi (`@pulumiverse/cpln`), K8s Operator (`k8s-operator` skill).
 
 ## Reference
 
-- CLI conventions & command map: `rules/cli-conventions.md`
 - Platform guardrails & resource model: `rules/cpln-guardrails.md`
-
-## Documentation
-
-For the latest reference, see:
-
-- [Control Plane Docs](https://docs.controlplane.com) — root site
-- [Full page index for AI agents](https://docs.controlplane.com/llms.txt)
-- [Introduction](https://docs.controlplane.com/introduction.md)
-- [What is Control Plane?](https://docs.controlplane.com/whatis.md)
-- [CLI Reference Overview](https://docs.controlplane.com/cli-reference/overview.md)
-- [Reference Overview](https://docs.controlplane.com/reference/overview.md)
+- [Control Plane Docs](https://docs.controlplane.com) · [AI page index](https://docs.controlplane.com/llms.txt) · [CLI Reference](https://docs.controlplane.com/cli-reference/overview.md)

@@ -6,13 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
-### Added
-
 ### Changed
 
-### Fixed
+- Rewrote the AI agent operating rules to be slimmer and MCP-first, with clearer guidance on which tool or skill to use for each task.
+- Reworked and slimmed the `cpln` CLI skill, now the single home for CLI command reference.
 
 ### Removed
+
+- Retired the standalone CLI conventions and per-resource manifest-reference rule files (folded into the relevant skills).
 
 ## [1.4.2] - 2026-05-29
 

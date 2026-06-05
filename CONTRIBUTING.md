@@ -5,7 +5,7 @@
 - Keep wording precise and operational, not promotional.
 - Do not invent unsupported client features, marketplace listings, commands, or URLs.
 - Prefer least-privilege and explicit-confirmation guidance for write-capable workflows.
-- Verify `cpln` CLI syntax against `plugins/cpln/rules/cli-conventions.md`, `plugins/cpln/skills/cpln/SKILL.md`, `cpln <command> --help`, or MCP suggestion tools.
+- Verify `cpln` CLI syntax against `plugins/cpln/skills/cpln/SKILL.md` (the canonical CLI reference), `cpln <command> --help`, or MCP suggestion tools.
 
 ## Local Checks
 

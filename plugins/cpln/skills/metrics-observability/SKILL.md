@@ -5,6 +5,15 @@ description: "Configures workload metrics, Prometheus scraping, and Grafana dash
 
 # Metrics & Observability Patterns
 
+## Query metrics with the MCP tools
+
+For programmatic / agent access, query metrics directly — no Grafana needed:
+
+- **`query_metrics`** — run a PromQL query (Prometheus-compatible). Defaults to a range query over the last hour at 60s step; pass `resolution: "instant"` for a point-in-time value, or `since` / `from` / `to` / `step` to adjust. Gauges (`cpu_used`, `memory_used`, `replica_count`) query bare; counters need `rate()` (e.g. `rate(egress[5m])`, `sum by (workload) (rate(container_restarts[5m]))`); latency is a histogram (`histogram_quantile(0.95, sum by (le) (rate(request_duration_ms_bucket[5m])))`). Use it to verify autoscaling signals **before** changing scaling settings — measure first, then change.
+- **`list_metrics`** — discover the metric names and real label values present in the org right now (including CUSTOM metrics your workloads expose and `kube_`/`node_` families) before querying, so PromQL filters are grounded, not guessed. Reach for it whenever a query returns no series or you're unsure of a name/label.
+
+Grafana (below) remains the path for dashboards, ad-hoc visual exploration, and alerting.
+
 ## Built-in Metrics
 
 Control Plane provides built-in metrics automatically collected for all workloads without configuration.

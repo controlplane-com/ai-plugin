@@ -4,7 +4,7 @@ Always-on rules for working with Control Plane. Procedural how-to (deploy, troub
 
 ## Verify before running
 
-- Never write a `cpln` command from memory. Confirm shape and flags with `cpln <command> --help` or the `cpln_suggest` MCP tool before suggesting or running it. (MCP tool naming may differ across hosts; verify the exact name against the active Gemini build.)
+- Never write a `cpln` command from memory. Confirm shape and flags with `cpln <command> --help` before suggesting or running it.
 - Resource commands follow `cpln <resource> <action> [REF] [--flags]`. Standalones break the pattern: `apply`, `delete`, `logs`, `port-forward`, `cp`, `convert`, `login`.
 - `cpln <resource> list` does not exist. Listing is the no-args form: `cpln workload get` lists every workload in the GVC.
 - For programmatic reads, use `-o yaml` or `-o json`. Don't parse unstructured CLI output.
