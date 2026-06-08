@@ -102,27 +102,28 @@ The metric must be valid for the workload type (the matrix above) or the spec is
 - **Public exposure needs BOTH** an external inbound and an external outbound CIDR — one without the other ships a half-broken workload. Infer intent: a user-facing app/site/game → public; an internal API/DB/worker → restricted. Confirm when ambiguous or sensitive.
 - Hostname outbound rules allow only ports **80/443/445** by default — widen with `outboundAllowPort`.
 - **Internal service-to-service** uses plain HTTP over the internal hostname: `http://WORKLOAD.GVC.cpln.local:PORT` (the sidecar adds mTLS — never `https://`). Same-GVC is free; cross-GVC needs `inboundAllowType: same-org` (or an explicit `workload-list`) and incurs egress.
+- **One public canonical port.** `WORKLOAD.GVC.cpln.app` serves a **single** port — the first container port. `standard`/`stateful` may expose **more** ports across containers (unique numbers), reachable at `WORKLOAD.GVC.cpln.local:PORT` or via a **direct/dedicated load balancer**; `serverless` is limited to one container / one port.
 - **Load balancer picker:** shared (default, HTTP/HTTPS on 80/443, no config) · **direct** — per-workload custom TCP/UDP `externalPort` 22–32768, optional static IPs via an IP set, geo headers; set with `configure_workload_load_balancer` · **dedicated** — per-GVC custom domains and wildcard hosts; a GVC setting, enabled with `update_gvc`. `firewallConfig` stays on `create_workload` / `update_workload`.
 
 ## Persistent storage
 
 - Need durable disk or stable per-replica identity → a **`stateful`** workload with a mounted **volume set**.
 - A volume set's **filesystem** (`ext4` / `xfs` / `shared`) and **performance class** are **immutable** — set at creation.
-- `ext4`/`xfs` mount on **stateful only**; `shared` mounts on any type. Up to **15 volumes per container**. Reserved mount paths (rejected): `/dev`, `/dev/log`, `/tmp`, `/var`, `/var/log`.
+- `ext4`/`xfs` mount on **stateful only**; `shared` mounts on any type. Up to **15 volumes per container**, and no two mounts in a container may share a path or nest (one mount path cannot be a parent of another). Reserved mount paths (rejected): `/dev`, `/dev/log`, `/tmp`, `/var`, `/var/log`.
 - **Snapshot before any destructive volume op** (shrink/restore/delete); snapshots exist for `ext4`/`xfs` only.
 - Attach with `mcp__cpln__mount_volumeset_to_workload`.
 
 ## Secrets, env vars & naming rules
 
 - **Secrets** can be consumed two ways: as an **environment variable value** — `cpln://secret/NAME` (or `cpln://secret/NAME.key` for a keyed/dictionary secret) — or **mounted as a volume** with `uri: cpln://secret/NAME`. Either way the workload still needs **all three pieces**: an identity on the workload, a policy granting `reveal`, and the reference — or access fails silently. `mcp__cpln__workload_reveal_secret` sets the identity + policy but not the reference.
-- **Environment variable names cannot start with `CPLN_`** (reserved for system use); `K_SERVICE` / `K_CONFIGURATION` / `K_REVISION` are also disallowed. Names match `^[-._a-zA-Z][-._a-zA-Z0-9]*$` (max 120 chars).
-- **Container names cannot start with `cpln-` or `debugger-`** (and a few exact names like `istio-proxy` are reserved). Names are lowercase `^[a-z]([-a-z0-9])*[a-z0-9]$`, max 63.
+- **Environment variable names cannot start with `CPLN_`** (reserved — the platform auto-injects `CPLN_GVC`, `CPLN_LOCATION`, `CPLN_ORG`, `CPLN_PROVIDER`, `CPLN_WORKLOAD`); `K_SERVICE` / `K_CONFIGURATION` / `K_REVISION` are also disallowed. Names match `^[-._a-zA-Z][-._a-zA-Z0-9]*$` (max 120 chars).
+- **Container names cannot start with `cpln-` or `debugger-`** (and a few exact names like `istio-proxy` are reserved). Names are lowercase `^[a-z]([-a-z0-9])*[a-z0-9]$`, max 64.
 - **Workload name** is max **49** characters, cannot end with `-headless`, and is immutable.
 
 ## Runtime traps
 
 - **Graceful shutdown:** the default `preStop` runs `sh -c "sleep N"`. Minimal/distroless images often lack `sleep` — if it (or a custom `preStop`) fails in **any** container, **all** containers are SIGKILL'd immediately. Grace period is `spec.rolloutOptions.terminationGracePeriodSeconds` (0–900, default 90).
-- **Reserved container ports** (rejected): `8012, 8022, 9090, 9091, 15000, 15001, 15006, 15020, 15021, 15090, 41000`. Valid container port range is 80–65535.
+- **Reserved container ports** (rejected): `8012, 8022, 9090, 9091, 15000, 15001, 15006, 15020, 15021, 15090, 41000`. Valid container port range is 80–65535; **port numbers must be unique across all containers**. A **serverless** workload must expose **exactly one port, on exactly one container**.
 - **Don't run as UID 1337** — that is the mesh proxy's UID. A container with `runAsUser: 1337` has its outbound traffic excluded from the Envoy sidecar redirect, so it bypasses the mesh — losing mTLS and firewall enforcement (it gets *unfiltered* egress, not "no networking").
 
 ## Immutability & destructive changes

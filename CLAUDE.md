@@ -98,4 +98,4 @@ To gate a tool behind a skill, add an entry to `toolSkills`. The server validate
 
 Driven by `scripts/bump-version.sh <X.Y.Z>`. It updates every plugin manifest and the marketplace entries in lockstep, then promotes the CHANGELOG `[Unreleased]` block. Don't edit version strings by hand.
 
-In the CHANGELOG, keep only the headings that have entries — omit empty `Added` / `Changed` / `Fixed` / `Removed` sections (including under `[Unreleased]`). Keep entries short and customer-facing; internal refactors live in git history, not the changelog.
+In the CHANGELOG, keep only the headings that have entries — omit empty `Added` / `Changed` / `Fixed` / `Removed` sections (including under `[Unreleased]`). Keep each entry as short as possible — one customer-facing line that summarizes rather than enumerates; specifics and internal refactors live in git history, not the changelog. Avoid arrow characters like `→` — write `to`, `-`, or `/` instead.

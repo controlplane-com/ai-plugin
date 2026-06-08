@@ -8,7 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Changed
 
-- `workload` skill and tool→skill map updated for the leaner workload tools: cron now has dedicated `create_cron_workload` / `update_cron_workload` tools, and rollout, security, and request-retry settings each move to their own `configure_workload_*` tool.
+- `workload` skill and tool-to-skill map updated for the leaner workload tools: cron now has dedicated `create_cron_workload` / `update_cron_workload` tools, and rollout, security, and request-retry settings each move to their own `configure_workload_*` tool.
+
+### Fixed
+
+- `workload` skill: corrected and expanded its constraint and exposure rules.
 
 ## [1.4.3] - 2026-06-05
 
