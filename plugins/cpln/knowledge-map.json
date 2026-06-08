@@ -71,12 +71,17 @@
     "edit_audit_context": "audit-compliance",
 
     "create_workload": "workload",
+    "create_cron_workload": "workload",
     "update_workload": "workload",
+    "update_cron_workload": "workload",
     "delete_workload": "workload",
     "configure_workload_load_balancer": "workload",
     "configure_workload_sidecar": "workload",
     "configure_workload_extras": "workload",
     "configure_workload_local_options": "workload",
+    "configure_workload_rollout": "workload",
+    "configure_workload_security": "workload",
+    "configure_workload_retry": "workload",
 
     "install_template": "template-catalog",
     "upgrade_template": "template-catalog",
