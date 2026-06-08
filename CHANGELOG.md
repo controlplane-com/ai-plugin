@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 ### Fixed
 
 - `workload` skill: corrected and expanded its constraint and exposure rules.
+- `access-control` skill: corrected and tightened its permission, principal, and policy rules.
 
 ## [1.4.3] - 2026-06-05
 

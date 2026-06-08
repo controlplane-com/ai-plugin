@@ -99,7 +99,7 @@ Review the converted manifest against the **cpln** skill's verification checklis
 
 ### Step 6: Apply
 
-Provision the converted resources in dependency order (GVC → secrets → identities → policies → workloads → domains → volumesets). Prefer the MCP create tools — they build a valid spec from high-level inputs and let you verify each resource as you go: `mcp__cpln__create_gvc`, `mcp__cpln__create_secret`, `mcp__cpln__create_identity`, `mcp__cpln__create_policy`, `mcp__cpln__create_workload`, `mcp__cpln__create_volumeset` (then `mcp__cpln__mount_volumeset_to_workload` for stateful), and `mcp__cpln__create_domain` for converted Ingresses.
+Provision the converted resources in dependency order (GVC → secrets → identities → policies → workloads → domains → volumesets). Prefer the MCP create tools — they build a valid spec from high-level inputs and let you verify each resource as you go: `mcp__cpln__create_gvc`, `mcp__cpln__create_secret_<type>` (one typed tool per secret type, e.g. `create_secret_docker`), `mcp__cpln__create_identity`, `mcp__cpln__create_policy`, `mcp__cpln__create_workload`, `mcp__cpln__create_volumeset` (then `mcp__cpln__mount_volumeset_to_workload` for stateful), and `mcp__cpln__create_domain` for converted Ingresses.
 
 Fall back to the CLI when the MCP server is unavailable/unauthenticated, for a one-shot convert-and-apply, or in CI/CD (service-account `CPLN_TOKEN`):
 

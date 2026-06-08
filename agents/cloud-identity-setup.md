@@ -86,7 +86,7 @@ Based on the `--how` output:
 
 ### NATS NGS
 
-1. Create a NATS account secret (type `nats-account`) containing your NATS account credentials — via `mcp__cpln__create_secret`, or `cpln secret create` as the fallback
+1. Create a NATS account secret (type `nats-account`) containing your NATS account credentials — via `mcp__cpln__create_secret_nats_account`, or `cpln secret create` as the fallback
 2. The secret name will be referenced when creating the NGS cloud account
 
 ## Step 3: Register Cloud Account in Control Plane

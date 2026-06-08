@@ -280,7 +280,7 @@ cpln workload get-deployments my-app --gvc my-gvc   # verify readiness
 
 ## Workflow: Grant secret access (3 steps)
 
-The 3-step rule (identity + policy + reference) is in `rules/cpln-guardrails.md`. Prefer MCP: `mcp__cpln__create_secret`, then `mcp__cpln__workload_reveal_secret` (composite — ensures the workload has an identity and creates/updates the reveal policy in one call), then edit the workload spec to reference it. The CLI workflow below is the fallback:
+The 3-step rule (identity + policy + reference) is in `rules/cpln-guardrails.md`. Prefer MCP: `mcp__cpln__create_secret_<type>` (e.g. `create_secret_opaque`), then `mcp__cpln__workload_reveal_secret` (composite — ensures the workload has an identity and creates/updates the reveal policy in one call), then edit the workload spec to reference it. The CLI workflow below is the fallback:
 
 ```bash
 # 1. Secret

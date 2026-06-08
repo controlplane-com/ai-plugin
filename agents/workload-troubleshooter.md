@@ -146,7 +146,7 @@ Check:
 - **Private registry access** — If pulling from a private external registry (Docker Hub private, ECR, GCR, ACR, GHCR), a pull secret must be created and added to the GVC's `pullSecretLinks`. Confirm the GVC's pull secrets with `mcp__cpln__get_gvc` and that the secret exists with `mcp__cpln__list_secrets` / `mcp__cpln__get_secret`. Only Docker, ECR, and GCP secret types work as pull secrets.
 - **Org registry** — Images from your own org's private registry (`//image/...`) do NOT need pull secrets.
 
-Fix: If the pull secret is missing, create it with `mcp__cpln__create_secret` (a `docker` secret), then attach it to the GVC's `pullSecretLinks` with `mcp__cpln__update_gvc`. CLI fallback:
+Fix: If the pull secret is missing, create it with `mcp__cpln__create_secret_docker` (pass the full `~/.docker/config.json` contents as `dockerConfigJson`), then attach it to the GVC's `pullSecretLinks` with `mcp__cpln__update_gvc`. CLI fallback:
 
 ```bash
 # Create a Docker pull secret
@@ -446,7 +446,7 @@ Ask the user if they want you to apply the fix. Prefer MCP tools when available:
 | Update workload spec | `mcp__cpln__update_workload` |
 | Set up secret access (all-in-one) | `mcp__cpln__workload_reveal_secret` |
 | Create policy | `mcp__cpln__create_policy` |
-| Create secret | `mcp__cpln__create_secret` |
+| Create secret | `mcp__cpln__create_secret_<type>` (e.g. `create_secret_docker`) |
 | View workload logs | `mcp__cpln__get_workload_logs` |
 | List secrets in org | `mcp__cpln__list_secrets` |
 | Reveal a secret's value (break-glass) | `mcp__cpln__reveal_secret` |

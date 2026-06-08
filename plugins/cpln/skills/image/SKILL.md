@@ -165,7 +165,7 @@ Images are org-scoped. To use another org's image (e.g., dev's image in staging)
    cpln serviceaccount add-key image-puller --description "Cross-org image pull key" --org dev-org
    ```
 
-3. **Docker secret in the target org.** Prefer `mcp__cpln__create_secret` with the docker shape — `{"username": "<token>", "secret": "SERVICE_ACCOUNT_KEY_VALUE", "email": "ops@example.com"}` for registry `dev-org.registry.cpln.io`. The username is the literal string `<token>` — do not replace it with the token itself. CLI fallback uses a `docker-config.json` with the same `<token>` username:
+3. **Docker secret in the target org.** Prefer `mcp__cpln__create_secret_docker`. It takes a single `dockerConfigJson` field — the full `~/.docker/config.json` contents (an `auths` object) passed as a string, e.g. `{"auths": {"dev-org.registry.cpln.io": {"username": "<token>", "password": "SERVICE_ACCOUNT_KEY_VALUE", "email": "ops@example.com"}}}`. The username is the literal string `<token>` — do not replace it with the token itself. CLI fallback uses a `docker-config.json` with the same `<token>` username:
 
    ```bash
    cpln secret create-docker --name dev-registry-pull --file docker-config.json --org staging-org

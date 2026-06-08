@@ -34,7 +34,7 @@ Lead with MCP tools for the steps that have one; the CLI is the fallback when th
 
 1. Create an org per environment (org creation is account-level — done in the console)
 2. Create matching GVCs and workloads in each org, names can be identical — `mcp__cpln__create_gvc` then `mcp__cpln__create_workload` per org. CLI fallback for manifest-driven setup: call `mcp__cpln__get_resource_schema` to author an accurate manifest, then `cpln apply`
-3. Configure environment-specific secrets in each org — `mcp__cpln__create_secret`, then reference via the workload identity/policy
+3. Configure environment-specific secrets in each org — `mcp__cpln__create_secret_<type>` (e.g. `create_secret_opaque`), then reference via the workload identity/policy
 4. Set up cross-org image access (pull secret or image copy — see below)
 5. Patch a promoted workload's spec to match the target environment (e.g. `firewallConfig`, env, scaling) with `mcp__cpln__update_workload`, and GVC-level settings with `mcp__cpln__update_gvc` (CLI fallback: `get_resource_schema` then `cpln apply`)
 

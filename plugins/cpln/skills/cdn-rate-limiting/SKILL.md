@@ -29,7 +29,7 @@ Generate an **Origin Certificate** under SSL/TLS > Origin Server: key type `RSA 
 
 **Step 2 — TLS Secret at Control Plane**
 
-Create a [TLS secret](https://docs.controlplane.com/reference/secret.md) from the Cloudflare origin cert + key; leave the TLS Chain empty (self-signed). Use `mcp__cpln__create_secret` with a `tls` payload; fall back to `cpln secret create-tls`.
+Create a [TLS secret](https://docs.controlplane.com/reference/secret.md) from the Cloudflare origin cert + key; leave the TLS Chain empty (self-signed). Use `mcp__cpln__create_secret_tls`; fall back to `cpln secret create-tls`.
 
 ```yaml
 kind: secret
@@ -119,7 +119,7 @@ The manifest creates:
 
 ### Step 2 — Configure Rate Limit Rules
 
-Edit the `ratelimit-config` opaque secret with `mcp__cpln__update_secret` ([Envoy ratelimit config format](https://github.com/envoyproxy/ratelimit#configuration)); fall back to `cpln secret update`. Valid `unit` values: `second`, `minute`, `hour`, `day`.
+Edit the `ratelimit-config` opaque secret with `mcp__cpln__update_secret_opaque` ([Envoy ratelimit config format](https://github.com/envoyproxy/ratelimit#configuration)); fall back to `cpln secret update`. Valid `unit` values: `second`, `minute`, `hour`, `day`.
 
 **Example — 10 requests/minute per authorization header:**
 
@@ -197,7 +197,7 @@ cpln workload force-redeployment my-api --gvc my-gvc
 **MCP tools:**
 - `mcp__cpln__update_workload` — set `cpln/rateLimit*` tags (or the `inboundAllowCIDR` firewall block)
 - `mcp__cpln__create_workload` — include rate limiting tags at creation
-- `mcp__cpln__update_secret` — edit the `ratelimit-config` rules secret
+- `mcp__cpln__update_secret_opaque` — edit the `ratelimit-config` rules secret
 - `mcp__cpln__create_gvc` / `mcp__cpln__create_domain` / `mcp__cpln__set_domain_tls` / `mcp__cpln__add_domain_route` — stand up the ratelimit GVC and wire CDN domain routing/TLS
 
 ### Related Skills

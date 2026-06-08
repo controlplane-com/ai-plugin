@@ -58,13 +58,13 @@ cpln apply -f org.yaml --org ORG_NAME
 
 ## Credential Setup
 
-Each provider requires a secret created **before** configuring logging. Create it with `mcp__cpln__create_secret` (CLI fallback: `cpln secret create-*` or the Console, when MCP is unavailable).
+Each provider requires a secret created **before** configuring logging. Create it with the typed `mcp__cpln__create_secret_<type>` tool (e.g. `create_secret_aws`) — CLI fallback: `cpln secret create-*` or the Console, when MCP is unavailable.
 
-| Provider | Secret Type | MCP `create_secret` payload | CLI fallback |
+| Provider | Secret Type | MCP create tool + payload | CLI fallback |
 |:---|:---|:---|:---|
-| S3, CloudWatch | AWS | `{"accessKey": "...", "secretKey": "..."}` | `cpln secret create-aws` |
-| Coralogix, Datadog, Logz.io | Opaque | `{"encoding": "plain", "payload": "API_KEY"}` | `cpln secret create-opaque` |
-| Stackdriver | GCP | GCP service-account JSON key | `cpln secret create-gcp` |
+| S3, CloudWatch | AWS | `create_secret_aws` — `{"accessKey": "...", "secretKey": "..."}` | `cpln secret create-aws` |
+| Coralogix, Datadog, Logz.io | Opaque | `create_secret_opaque` — `{"encoding": "plain", "payload": "API_KEY"}` | `cpln secret create-opaque` |
+| Stackdriver | GCP | `create_secret_gcp` — GCP service-account JSON key | `cpln secret create-gcp` |
 
 Credentials are referenced in the `configure_external_logging` `credentials` field (or in YAML) as `//secret/SECRET_NAME`.
 

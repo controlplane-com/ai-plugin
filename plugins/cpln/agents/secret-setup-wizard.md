@@ -55,7 +55,7 @@ Ask the user what type of secret they need. The 12 types are:
 | keypair | `cpln secret create-keypair` | Public/private keys |
 | nats-account | `cpln secret create-nats` | NATS credentials |
 
-Use MCP: `mcp__cpln__create_secret` to create, or `mcp__cpln__list_secrets` to find existing secrets.
+Use MCP: there is one typed create tool per type — `mcp__cpln__create_secret_<type>` (e.g. `create_secret_opaque`, `create_secret_aws`, `create_secret_docker`, `create_secret_nats_account`). Each exposes only that type's fields, so fill them directly (no generic `data` blob). Use `mcp__cpln__list_secrets` to find existing secrets.
 
 ### Step 2 & 3: Grant the Workload Access to the Secret
 
@@ -200,11 +200,11 @@ The `--ready` flag blocks until the workload is healthy with the new secret conf
 | Tool | Purpose |
 |:---|:---|
 | `mcp__cpln__workload_reveal_secret` | **Composite** — creates identity + policy + links workload in one call |
-| `mcp__cpln__create_secret` | Create a new secret |
+| `mcp__cpln__create_secret_<type>` | Create a secret — one typed tool per type (`create_secret_opaque`, `create_secret_aws`, `create_secret_ecr`, `create_secret_gcp`, `create_secret_docker`, `create_secret_azure_sdk`, `create_secret_azure_connector`, `create_secret_tls`, `create_secret_keypair`, `create_secret_userpass`, `create_secret_dictionary`, `create_secret_nats_account`) |
 | `mcp__cpln__list_secrets` | List all secrets in an org |
 | `mcp__cpln__get_secret` | Get secret metadata (values hidden) |
 | `mcp__cpln__reveal_secret` | Reveal actual secret data (break-glass, requires `reveal` permission) |
-| `mcp__cpln__update_secret` | Update an existing secret |
+| `mcp__cpln__update_secret_<type>` | Update a secret — one typed tool per type (same `<type>` suffixes as create); rotate data by re-supplying the type's fields |
 | `mcp__cpln__delete_secret` | Delete a secret |
 | `mcp__cpln__create_identity` | Create an identity (manual approach) |
 | `mcp__cpln__get_identity` | Get an identity (reuse an existing one) |

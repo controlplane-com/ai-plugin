@@ -158,8 +158,6 @@ mcp__cpln__invite_user_to_org
 | `groupName` | No | Group to assign the user to |
 | `org` | No | Organization (defaults to session context) |
 
-> **Note:** If you need the user placed into a group automatically, prefer using a refresh token because service account tokens cannot grant group membership during invitations.
-
 **CLI:**
 
 ```bash

@@ -24,7 +24,7 @@ Convert and deploy workloads from Kubernetes, Docker Compose, or Helm.
 3. Validates workload type detection (cron > stateful > standard)
 4. Checks for known conversion issues (port inference, secret mapping, PVC sizing)
 5. Reviews converted manifests for Control Plane best practices — calls `mcp__cpln__get_resource_schema` to correct fields against the live schema
-6. Applies in dependency order, MCP-first via the create tools (`mcp__cpln__create_gvc`, `mcp__cpln__create_secret`, `mcp__cpln__create_identity`, `mcp__cpln__create_workload`, `mcp__cpln__create_volumeset`); falls back to `cpln apply -f` when the MCP server is unavailable or in CI/CD. For an IaC target, emits Terraform with `mcp__cpln__convert_to_terraform` / `mcp__cpln__export_terraform`
+6. Applies in dependency order, MCP-first via the create tools (`mcp__cpln__create_gvc`, `mcp__cpln__create_secret_<type>`, `mcp__cpln__create_identity`, `mcp__cpln__create_workload`, `mcp__cpln__create_volumeset`); falls back to `cpln apply -f` when the MCP server is unavailable or in CI/CD. For an IaC target, emits Terraform with `mcp__cpln__convert_to_terraform` / `mcp__cpln__export_terraform`
 
 ## Supported Sources
 

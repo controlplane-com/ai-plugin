@@ -23,7 +23,7 @@ Pick the path by source, not by destination tool — the tools are not interchan
 
 **Hand-translating Compose / Kubernetes / Helm into Control Plane YAML is forbidden as the entry point of a migration**, even when you expect the converter output to need fix-ups. Always run the conversion tool first.
 
-The conversion commands (`cpln convert`, `cpln stack`, `cpln helm`) are **CLI-exclusive — there is no MCP equivalent**; the converter must run as a CLI step. MCP enters *after* conversion: once you have the converted CPLN YAML and have worked through the fix-ups, author/create the individual resources with the typed MCP tools (`mcp__cpln__create_workload`, `mcp__cpln__create_gvc`, `mcp__cpln__create_secret`, `mcp__cpln__create_identity`, `mcp__cpln__create_volumeset`) so each resource gets production-grade defaults — or apply the whole manifest at once with `cpln apply -f`. Before hand-editing or re-authoring any converted manifest, call `mcp__cpln__get_resource_schema` for the relevant kind so the shape stays valid.
+The conversion commands (`cpln convert`, `cpln stack`, `cpln helm`) are **CLI-exclusive — there is no MCP equivalent**; the converter must run as a CLI step. MCP enters *after* conversion: once you have the converted CPLN YAML and have worked through the fix-ups, author/create the individual resources with the typed MCP tools (`mcp__cpln__create_workload`, `mcp__cpln__create_gvc`, `mcp__cpln__create_secret_<type>` (e.g. `create_secret_opaque`), `mcp__cpln__create_identity`, `mcp__cpln__create_volumeset`) so each resource gets production-grade defaults — or apply the whole manifest at once with `cpln apply -f`. Before hand-editing or re-authoring any converted manifest, call `mcp__cpln__get_resource_schema` for the relevant kind so the shape stays valid.
 
 | Source format | First-step command (mandatory) | Notes |
 |---|---|---|
@@ -126,7 +126,7 @@ When `--protocol` is not set, each container port is resolved in this priority o
 4. Validate Ingress → Domain route mapping
 5. Update service-to-service URLs in your app code to `<workload>.<gvc>.cpln.local[:port]`
 
-After the fix-ups, create the resources. Prefer the typed MCP tools so each gets production-grade defaults — `mcp__cpln__create_gvc` (if the target GVC does not exist), `mcp__cpln__create_secret`, `mcp__cpln__create_identity`, `mcp__cpln__create_volumeset`, then `mcp__cpln__create_workload`. Apply the converter's manifest directly with `cpln apply -f cpln-manifest.yaml --ready` when you want a one-shot apply or the MCP server is unavailable. Either way, verify the result: poll `mcp__cpln__get_workload_deployments` until each workload reports ready and pair every mutation with a read.
+After the fix-ups, create the resources. Prefer the typed MCP tools so each gets production-grade defaults — `mcp__cpln__create_gvc` (if the target GVC does not exist), `mcp__cpln__create_secret_<type>` (e.g. `create_secret_opaque`), `mcp__cpln__create_identity`, `mcp__cpln__create_volumeset`, then `mcp__cpln__create_workload`. Apply the converter's manifest directly with `cpln apply -f cpln-manifest.yaml --ready` when you want a one-shot apply or the MCP server is unavailable. Either way, verify the result: poll `mcp__cpln__get_workload_deployments` until each workload reports ready and pair every mutation with a read.
 
 ## Docker Compose Migration (`cpln stack`)
 
