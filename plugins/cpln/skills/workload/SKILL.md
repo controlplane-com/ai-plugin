@@ -78,7 +78,7 @@ Run an actual container image — not an inline/base64/heredoc app on a generic 
 - **`readinessProbe` gates traffic** — the load balancer only routes to a ready replica. It should check request-path dependencies (DB, auth, cache).
 - **`livenessProbe` restarts a hung process** — it must check **only** the process itself, never downstream dependencies (a dependency outage must not cycle every replica).
 - Each probe is exactly one of `exec` / `grpc` / `tcpSocket` / `httpGet`. Tune `initialDelaySeconds` to real cold-start time (readiness default 10s, liveness default 60s; `periodSeconds` default 10s).
-- **Verify every create/update:** poll `mcp__cpln__get_workload_deployments` until all locations report ready — it surfaces per-location errors. On failure, diagnose with `mcp__cpln__get_workload_events` (probe/scheduling reasons) then `mcp__cpln__get_workload_logs` (app error); `mcp__cpln__list_deployments` / `mcp__cpln__get_deployment` give per-location triage. **Never re-apply an unchanged failing spec**, and don't poll in a tight loop.
+- **Verify every create/update automatically — without asking:** poll `mcp__cpln__get_workload_deployments` until all locations report ready (it surfaces per-location errors **and** the workload's canonical public URL). Then give the user that **canonical** URL — never construct one or report a per-location deployment URL as the address. On failure, diagnose with `mcp__cpln__get_workload_events` (probe/scheduling reasons) then `mcp__cpln__get_workload_logs` (app error); `mcp__cpln__get_deployment` inspects ONE location (addressed by `location`, e.g. `aws-us-east-1`). **Never re-apply an unchanged failing spec**, and don't poll in a tight loop.
 
 ## Autoscaling & capacity
 
@@ -92,7 +92,7 @@ Set via `spec.defaultOptions.autoscaling.metric`; the system keeps the metric ne
 - **keda** — event-driven (queues/streams; **standard / stateful**); requires `spec.keda.enabled: true` on the GVC; `target` is rejected with `keda`.
 - **disabled** — fixed replicas at `minScale`.
 
-The metric must be valid for the workload type (the matrix above) or the spec is rejected.
+The metric must be valid for the workload type (the matrix above) or the spec is rejected — e.g. `concurrency` on a `standard` workload is rejected (it is serverless-only). Match the metric to the workload's traffic shape: `rps`/`concurrency` for HTTP, `cpu`/`memory` for compute-bound work, `latency` for SLO-driven APIs. For tuning targets/percentiles, multi-metric, KEDA, scale-to-zero, or Capacity AI, load the `autoscaling-capacity` skill.
 
 **Capacity AI** auto-tunes CPU/memory between `minCpu`/`minMemory` and `cpu`/`memory`. On by default for **standard** and **serverless**; **not applied** to stateful or cron. It is **rejected with the `cpu` metric** (when explicitly enabled) and **with GPUs**.
 
@@ -102,7 +102,7 @@ The metric must be valid for the workload type (the matrix above) or the spec is
 - **Public exposure needs BOTH** an external inbound and an external outbound CIDR — one without the other ships a half-broken workload. Infer intent: a user-facing app/site/game → public; an internal API/DB/worker → restricted. Confirm when ambiguous or sensitive.
 - Hostname outbound rules allow only ports **80/443/445** by default — widen with `outboundAllowPort`.
 - **Internal service-to-service** uses plain HTTP over the internal hostname: `http://WORKLOAD.GVC.cpln.local:PORT` (the sidecar adds mTLS — never `https://`). Same-GVC is free; cross-GVC needs `inboundAllowType: same-org` (or an explicit `workload-list`) and incurs egress.
-- **One public canonical port.** `WORKLOAD.GVC.cpln.app` serves a **single** port — the first container port. `standard`/`stateful` may expose **more** ports across containers (unique numbers), reachable at `WORKLOAD.GVC.cpln.local:PORT` or via a **direct/dedicated load balancer**; `serverless` is limited to one container / one port.
+- **One public canonical port.** `WORKLOAD.GVC.cpln.app` serves a **single** port — the first container port. `standard`/`stateful` may expose **more** ports across containers (unique numbers), reachable at `WORKLOAD.GVC.cpln.local:PORT` or via a **direct/dedicated load balancer**; `serverless` is limited to one container / one port. `WORKLOAD.GVC.cpln.app` is the URL *shape* only — always report the **actual** canonical URL from `get_workload_deployments` / the workload's `status.canonicalEndpoint`; never construct or guess it (custom domains, BYOK, and alias suffixes make the literal form wrong).
 - **Always declare ports with the `containers[].ports` array** — e.g. `ports: [{ number: 80, protocol: "http" }]`; for a single port use a one-element array. The legacy scalar `containers[].port` field is **deprecated — never use it**, even if `get_resource_schema` still lists it (the platform keeps it for backward compatibility, but new specs must use `ports[]`).
 - **Load balancer picker:** shared (default, HTTP/HTTPS on 80/443, no config) · **direct** — per-workload custom TCP/UDP `externalPort` 22–32768, optional static IPs via an IP set, geo headers; set with `configure_workload_load_balancer` · **dedicated** — per-GVC custom domains and wildcard hosts; a GVC setting, enabled with `update_gvc`. `firewallConfig` stays on `create_workload` / `update_workload`.
 
@@ -149,14 +149,14 @@ The metric must be valid for the workload type (the matrix above) or the spec is
 
 ## Standard create / update flow
 
-1. `mcp__cpln__get_cpln_rules` (once per mutating session) and read this skill.
+1. Get your codes up front: `mcp__cpln__get_cpln_rules` for the `rulesAccessCode`, and `mcp__cpln__get_cpln_skill('workload')` for the `skillAccessCode` — `create_workload`/`update_workload` require **both** as inputs, so fetch them once per session and reuse them (they rotate ~daily). Read this skill before you author.
 2. Confirm the target **org / GVC** — never guess; on not-found, stop and ask.
 3. `mcp__cpln__get_resource_schema` for the workload kind before authoring.
 4. Discover current state: `mcp__cpln__list_workloads` / `mcp__cpln__get_workload`.
 5. Prepare the smallest valid change; if destructive, confirm.
 6. `mcp__cpln__create_workload` / `mcp__cpln__update_workload` (or `mcp__cpln__create_cron_workload` / `mcp__cpln__update_cron_workload` for scheduled jobs; PATCH — only sent fields change, containers merged by name), plus `configure_workload_*` for load balancer / sidecar / extras / local options / rollout / security / retry.
-7. Verify: poll `mcp__cpln__get_workload_deployments`; on failure use events → logs.
-8. Report exactly what changed and the resulting status.
+7. Verify automatically — do not ask permission: poll `mcp__cpln__get_workload_deployments` until every location is ready; on failure diagnose with events → logs and fix.
+8. Report exactly what changed and the resulting status — and for an exposed workload, give the user its **canonical** public URL (read from `get_workload_deployments` or the workload's `status.canonicalEndpoint`; never construct/guess it or report a per-location URL as the address).
 
 ## Quick reference — MCP tools
 
@@ -175,10 +175,10 @@ The metric must be valid for the workload type (the matrix above) or the spec is
 | `mcp__cpln__configure_workload_rollout` | Set/clear `spec.rolloutOptions` (graceful termination, surge/unavailable). |
 | `mcp__cpln__configure_workload_security` | Set/clear `spec.securityOptions` (`runAsUser`, `filesystemGroupId`). |
 | `mcp__cpln__configure_workload_retry` | Set/clear `spec.requestRetryPolicy` (retry attempts/conditions). |
-| `mcp__cpln__get_workload_deployments` | PRIMARY post-deploy readiness monitor; per-location errors. |
+| `mcp__cpln__get_workload_deployments` | PRIMARY post-deploy readiness monitor (all locations); per-location errors **and** the canonical public URL to report. |
 | `mcp__cpln__get_workload_events` | Probe/scheduling failures after a bad deploy. |
 | `mcp__cpln__get_workload_logs` | App-side logs (LogQL) for runtime/startup errors. |
-| `mcp__cpln__list_deployments` / `mcp__cpln__get_deployment` | Per-location deployment triage. |
+| `mcp__cpln__list_deployments` / `mcp__cpln__get_deployment` | Inspect ONE location's deployment (`get_deployment` is addressed by `location`, e.g. `aws-us-east-1`); for overall readiness use `get_workload_deployments`. |
 | `mcp__cpln__list_workload_replicas` → `mcp__cpln__workload_exec` | List replicas, then run one command in one. |
 | `mcp__cpln__workload_start_cron` | Trigger an out-of-band run of a cron workload. |
 | `mcp__cpln__workload_reveal_secret` | Grant a workload secret access (identity + reveal policy; you still add the reference). |

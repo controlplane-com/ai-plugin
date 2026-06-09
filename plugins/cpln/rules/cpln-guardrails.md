@@ -56,8 +56,8 @@ For any create/update/delete/install/uninstall/restore/scale/expose, or any poli
 8. Prepare the smallest valid change.
 9. If destructive or high-risk, require confirmation.
 10. Apply.
-11. Verify with the relevant readiness/status/log/event/metric tool.
-12. Report the exact changes and resulting status.
+11. Verify with the relevant readiness/status/log/event/metric tool — automatically, as part of completing the task, never an optional follow-up you ask permission for.
+12. Report the exact changes and resulting status (for an exposed workload, include its canonical public URL).
 
 Do not batch unrelated risky changes, and do not slip a destructive or access-expanding operation into an otherwise safe change.
 
@@ -123,7 +123,7 @@ MCP-first; the `cpln` CLI is the fallback (gated on the `cpln` skill — see bel
 
 - **Discover / change:** `list_*` and `get_*` to read; `create_*` / `update_*` / `delete_*` to mutate.
 - **`get_resource_schema`** — exact object schema + REST endpoints for a kind. Call before authoring any manifest, `cpln apply` YAML/JSON, CI/CD spec, or API body; never hand-write fields from memory.
-- **`get_workload_deployments`** — per-location readiness and error messages after `create_workload`/`update_workload`. Your primary readiness monitor — watch it for both readiness and errors. (`list_deployments` / `get_deployment` for per-location triage.)
+- **`get_workload_deployments`** — readiness and error messages across ALL locations after `create_workload`/`update_workload`, plus the workload's **canonical public URL**. Your primary readiness monitor — poll it until ready, and read the canonical URL from it to give the user (never construct a URL). For ONE already-known location use `get_deployment` (addressed by `location`, e.g. `aws-us-east-1`); `list_deployments` lists them.
 - **`get_workload_events`** — workload event log; readiness/liveness probe failures and scheduling errors. Pair with deployments after a failed deploy.
 - **`get_workload_logs`** — LogQL over container logs; diagnose runtime/startup errors (where most failures land).
 - **`list_workload_replicas`** → **`workload_exec`** — list a workload's running replicas, then run ONE command inside one (like `cpln workload exec`). `workload_exec` is the highest-risk tool: audited, and it hits a live replica serving production traffic. Read-only diagnostics (`ls`, `cat`, `env`, `curl localhost`) are fine; any state-changing command needs explicit confirmation first. One-shot only — no interactive shells.
@@ -151,7 +151,7 @@ MCP-first; the `cpln` CLI is the fallback (gated on the `cpln` skill — see bel
 - **Run real container images,** not inline/base64/heredoc apps on a generic base image. Your org's private registry is **internal** — `cpln image build --push` pushes to it, and you reference those images as `//image/NAME:TAG`; public Docker Hub images are given as-is (`nginx:latest`, never `docker.io/...`); other external images use their exact host path. All images must be `linux/amd64`. **External private registries need a pull secret** on the GVC — only `docker`, `ecr`, or `gcp` types work (others fail the pull silently). Full table → `image` skill.
 - **Workload runtime traps:** a missing or failing `preStop` (minimal/distroless images often lack `sleep`, the default preStop) SIGKILLs every container; running a container as UID 1337 (the mesh proxy's UID) makes its outbound traffic bypass the Envoy sidecar, losing mTLS and firewall enforcement; some ports (the `15000`-range and others) and mount paths (`/dev`, `/dev/log`, `/tmp`, `/var`, `/var/log`) are reserved. → `workload` (deep: `workload-security`, `stateful-storage`).
 - **Declare container ports with the `containers[].ports` array** (`[{ number, protocol }]`) — always, even for a single port. The scalar `containers[].port` field is **deprecated; never use it**, even though `get_resource_schema` still lists it for backward compatibility.
-- **Verify readiness** with `get_workload_deployments` after create/update; on failure diagnose with `get_workload_events` then `get_workload_logs` — never re-apply an unchanged failing spec, never poll in a loop from the AI layer.
+- **A workload create/update is not done until you verify it and report its URL.** Automatically — without asking — poll `get_workload_deployments` until all locations are ready, then give the user the workload's **canonical** public URL (read it from that tool or the workload's `status.canonicalEndpoint`; never construct, guess, or hand back a per-location deployment URL as the address). On failure diagnose with `get_workload_events` then `get_workload_logs`; never re-apply an unchanged failing spec, never poll in a tight loop from the AI layer.
 - **Platform defaults are not a production design** — size resources, set `minScale ≥ 2` for user-facing services, add distinct readiness + liveness probes, and pick an autoscaling signal that fits traffic.
 - **Do not set scale-to-zero** unless the user explicitly asks for it.
 - **Firewall is deny-by-default** — never leave it on defaults; set it to match the workload's intended exposure. Infer that intent from purpose: a user-facing app, site, or game the user asked you to build is meant to be reachable (make it public); an internal API, database, or worker is not. Confirm when the exposure is ambiguous or the workload is sensitive. Public exposure requires **both** external inbound and outbound CIDRs — one without the other ships a half-broken workload.

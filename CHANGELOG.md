@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 - `workload` skill and tool-to-skill map updated for the leaner workload tools: cron now has dedicated `create_cron_workload` / `update_cron_workload` tools, and rollout, security, and request-retry settings each move to their own `configure_workload_*` tool.
 - Operating rules now create directly without a pre-existence check — current-state reads are reserved for updates and deletes.
 - Workload guidance now declares ports with the `containers[].ports` array; the scalar `containers[].port` is deprecated.
+- After a workload create/update, agents now fetch the `workload` skill up front, auto-verify readiness, and report the workload's canonical URL instead of guessing one or returning a per-location URL.
 
 ### Fixed
 
