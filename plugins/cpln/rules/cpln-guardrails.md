@@ -34,7 +34,7 @@ This is the operating contract for AI agents operating Control Plane — through
 - **MCP first, CLI fallback.** Use MCP tools whenever the MCP server is available and authenticated; otherwise — or for CLI-only or interactive work — fall back to the `cpln` CLI, which **requires reading the `cpln` skill first**. Never write CLI commands or flags from memory.
 - **Skill-gated tools require the matching skill** fetched first — see the skill router below.
 - **Schema before authoring.** Call `get_resource_schema` before writing any manifest, API body, `cpln apply` YAML/JSON, CI/CD spec, or conversion input.
-- **Discover before mutate.** Read current state first.
+- **Read before update/delete, not before create.** Read a resource's current state before you change or remove it. Do not list or enumerate existing resources just to check whether something already exists before creating it — when the user asks to create, create directly; a name collision comes back as a conflict error you can handle.
 - **Never guess org or GVC names.** On not-found, stop and ask — no casing/hyphen/plural retries.
 - **Minimal change.** Touch only what the task requires; do not rewrite unrelated config.
 - **Never silently downgrade** an incompatible constraint to `disabled`/`none`/`1` replica/`manual`/public/weaker security — surface it with realistic alternatives and a recommendation.
@@ -49,7 +49,7 @@ For any create/update/delete/install/uninstall/restore/scale/expose, or any poli
 1. Identify the task family and its required skill.
 2. Fetch the required skill if the tool is gated.
 3. Confirm the target org/GVC when applicable.
-4. Read the current state of the affected resource(s).
+4. For an update or delete, read the current state of the target resource(s) — a create has no existing target, so do not enumerate resources to pre-check existence.
 5. Detect production/data/security/traffic sensitivity.
 6. When mutating existing resources, check for IaC/GitOps ownership.
 7. Fetch the schema with `get_resource_schema` before authoring the resource body.
@@ -63,7 +63,7 @@ Do not batch unrelated risky changes, and do not slip a destructive or access-ex
 
 ## 4. Target and environment
 
-- A mutation requires an **unambiguous target org/GVC** — named in this conversation or under an explicit instruction. For CLI work this includes the active **profile**: never silently fall back to whatever the active profile points at. If unclear, propose and ask.
+- A mutation requires an **unambiguous target org/GVC** — named in this conversation or under an explicit instruction. For CLI work this includes the active **profile**: never silently fall back to whatever the active profile points at. If the user named the target, use it directly — do not list to re-check it exists. If the target is unclear, ask; and for a GVC, list the available ones with `list_gvcs` so the user can choose rather than guessing.
 - Read-only discovery may use the active context **only if** the agent states the assumed context first.
 - Treat a target as **production** if the name implies prod, the user says prod, or it has public traffic, custom domains, HA settings, production secrets, multiple replicas, or otherwise appears to serve real users.
 - Production, traffic-affecting, data, security, or cost changes require a **plan plus rollback/mitigation** before mutating, and explicit confirmation when the change is risky.
@@ -150,6 +150,7 @@ MCP-first; the `cpln` CLI is the fallback (gated on the `cpln` skill — see bel
 - **Secrets need all three:** an identity on the workload, a policy granting `reveal`, and a `cpln://secret/NAME` reference — or access fails silently. `workload_reveal_secret` can set the identity + policy but **not** the reference; you must still add `cpln://secret/NAME` yourself.
 - **Run real container images,** not inline/base64/heredoc apps on a generic base image. Your org's private registry is **internal** — `cpln image build --push` pushes to it, and you reference those images as `//image/NAME:TAG`; public Docker Hub images are given as-is (`nginx:latest`, never `docker.io/...`); other external images use their exact host path. All images must be `linux/amd64`. **External private registries need a pull secret** on the GVC — only `docker`, `ecr`, or `gcp` types work (others fail the pull silently). Full table → `image` skill.
 - **Workload runtime traps:** a missing or failing `preStop` (minimal/distroless images often lack `sleep`, the default preStop) SIGKILLs every container; running a container as UID 1337 (the mesh proxy's UID) makes its outbound traffic bypass the Envoy sidecar, losing mTLS and firewall enforcement; some ports (the `15000`-range and others) and mount paths (`/dev`, `/dev/log`, `/tmp`, `/var`, `/var/log`) are reserved. → `workload` (deep: `workload-security`, `stateful-storage`).
+- **Declare container ports with the `containers[].ports` array** (`[{ number, protocol }]`) — always, even for a single port. The scalar `containers[].port` field is **deprecated; never use it**, even though `get_resource_schema` still lists it for backward compatibility.
 - **Verify readiness** with `get_workload_deployments` after create/update; on failure diagnose with `get_workload_events` then `get_workload_logs` — never re-apply an unchanged failing spec, never poll in a loop from the AI layer.
 - **Platform defaults are not a production design** — size resources, set `minScale ≥ 2` for user-facing services, add distinct readiness + liveness probes, and pick an autoscaling signal that fits traffic.
 - **Do not set scale-to-zero** unless the user explicitly asks for it.
@@ -172,7 +173,7 @@ Deeper workload, image, storage, and networking specifics live in their skills.
 
 ## 12. Final checks
 
-- **Always:** target org/GVC confirmed; required root (and any skill) ATIS code obtained; live state read; schema fetched before authoring; secrets redacted; change minimal; results reported.
+- **Always:** target org/GVC confirmed; required root (and any skill) ATIS code obtained; live state read before any update/delete; schema fetched before authoring; secrets redacted; change minimal; results reported.
 - **Workload changes:** real application image; `linux/amd64` + registry handled via the `image` skill; readiness verified; probes/ports valid for the workload type; firewall reviewed.
 - **Secret/access changes:** identity + `reveal` policy + `cpln://secret/NAME` reference all present; access least-privilege; no plaintext exposed unless explicitly requested.
 - **Production / traffic-affecting:** plan + rollback stated; IaC/GitOps ownership checked; confirmation obtained.

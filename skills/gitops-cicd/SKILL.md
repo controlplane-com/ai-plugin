@@ -13,7 +13,7 @@ All CI/CD pipelines require a service account for non-interactive authentication
 
 ### 1. Create a service account and generate a key
 
-The fastest path is the MCP tool `mcp__cpln__add_key_to_service_account` — it creates the service account if it does not exist, adds a key, and can add it to a group in one call (read state first with `mcp__cpln__list_service_accounts` / `mcp__cpln__get_service_account`). The CLI equivalent, useful when scripting key rotation inside the pipeline itself:
+The fastest path is the MCP tool `mcp__cpln__add_key_to_service_account` — it creates the service account if it does not exist, adds a key, and can add it to a group in one call. The CLI equivalent, useful when scripting key rotation inside the pipeline itself:
 
 ```bash
 cpln serviceaccount create --name ci-deployer --org my-org

@@ -68,7 +68,7 @@ If Private Service Connect is not available, proceed with an agent.
 
 ## Step 1: Create the Agent Resource
 
-Create an agent in the user's org. The output is a bootstrap config JSON — **it must be saved immediately** because it cannot be retrieved later. First check whether an agent already exists with `mcp__cpln__list_agents` before creating a new one.
+Create an agent in the user's org. The output is a bootstrap config JSON — **it must be saved immediately** because it cannot be retrieved later. If the user asked you to set up an agent, create it directly; only list agents first when they explicitly want to reuse or reconnect to an existing one.
 
 **Preferred — MCP:** call `mcp__cpln__create_agent` with the org and agent name (plus optional `description` / `tags`). It returns the full bootstrap config in the response — copy it out immediately.
 
