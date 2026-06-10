@@ -1,309 +1,176 @@
 ---
 name: autoscaling-capacity
-description: "Configures workload autoscaling and Capacity AI on Control Plane. Use when the user asks about scaling up/down, min/max replicas, concurrency or RPS scaling, CPU/memory/latency-based scaling, KEDA, Capacity AI optimization, scale-to-zero, or custom metrics scaling."
+description: "Workload autoscaling and Capacity AI on Control Plane. Use when the user asks about scaling up/down, min/max replicas, scale-to-zero, concurrency/RPS/CPU/memory/latency scaling, KEDA, event-driven scaling, or right-sizing."
 ---
 
 # Autoscaling & Capacity AI
 
-Self-contained deep skill for scaling strategy, per-metric configuration, Capacity AI, custom-metric scaling, and resource allocation. For the cross-cutting basics (workload types, production defaults, spec shape), see the `workload` skill.
+Deep skill for scaling and resource optimization. Everything scaling lives in **one block** — `spec.defaultOptions.autoscaling` (with `capacityAI` beside it); `spec.localOptions[]` overrides it per location. The platform keeps the chosen metric near but below `target`. For workload types, production defaults, and the spec shape, start with the **`workload`** skill.
 
-## Scaling Strategy Overview
+## Picking a metric
 
-Set via `spec.defaultOptions.autoscaling.metric`. The system scales to keep the chosen metric near but below the **target**. The metric must be valid for the workload type (see the matrix) or the spec is rejected.
+| Metric | Scales on | Types | Notes |
+|---|---|---|---|
+| `concurrency` | avg in-flight requests per replica | **serverless only** (its default) | pair with `maxConcurrency` for a hard per-replica cap |
+| `rps` | requests per second per replica | all three | consistent-response-time HTTP |
+| `cpu` | % of allocated CPU | all three (standard/stateful default) | `target` ≤ 100; conflicts with Capacity AI (below) |
+| `memory` | % of allocated memory | all three | `target` ≤ 100 |
+| `latency` | response time in **ms** at `metricPercentile` | standard / stateful | `p50` (default) / `p75` / `p99`; `target` is ms, not % |
+| `multi[]` | several metrics; highest replica count wins | standard / stateful | entries from `cpu` / `memory` / `rps` only, each at most once; **replaces** `metric` and top-level `target` |
+| `keda` | external / event-driven triggers | standard / stateful | GVC must enable KEDA first; `target` is rejected |
+| `disabled` | nothing — fixed at `minScale` | all | realized as min = max |
 
-| Strategy | Metric | Best For | How It Works | Key Config |
-|---|---|---|---|---|
-| Concurrency | `concurrency` | HTTP APIs with variable request duration (**Serverless only**) | Avg concurrent requests across replicas: `(requests * duration) / (period * replicas)` | `target`, `maxConcurrency` |
-| Requests Per Second | `rps` | HTTP services with consistent response times | Raw request count per second / replica count | `target` |
-| CPU Utilization | `cpu` | Compute-heavy work (encoding, ML inference) | % CPU consumed vs allocated | `target` (max 100) |
-| Request Latency | `latency` | Latency-sensitive APIs with SLOs (**Standard/Stateful only**) | Response time at a configurable percentile (p50/p75/p99) in ms | `target`, `metricPercentile` |
-| Memory Utilization | `memory` | Memory-intensive work (caching, data processing) | % memory consumed vs allocated | `target` (max 100) |
-| Multi Metric | `multi` | Compound scaling signals (**Standard/Stateful only**) | Multiple metrics evaluated independently; highest replica count wins | `multi[]` array |
-| KEDA | `keda` | Event-driven (queues, streams, external metrics) (**Standard/Stateful only**) | KEDA triggers poll external sources; scales on custom rules | `keda.triggers[]` |
-| Disabled | `disabled` | Fixed replica count | No autoscaling; replicas stay at `minScale` | `minScale` |
+If `metric` is omitted, serverless defaults to `concurrency`; standard/stateful default to `cpu`. A metric invalid for the workload type is **rejected** (e.g. `concurrency` on standard).
 
-**If a type/compatibility constraint pushes the decision toward `disabled` against the user's stated intent** (e.g. they asked for concurrency scaling but the workload is stateful, or for Capacity AI on a stateful/CPU-autoscaled workload), **do NOT silently downgrade.** Per the **"Constraint Conflicts — Surface, Don't Silently Default"** rule in `rules/cpln-guardrails.md`: enumerate the realistic alternatives that fit the goal, recommend one with project-grounded reasoning (e.g. a single-writer SQLite-backed app → `disabled` with `min=max=1` is often correct — but say so explicitly with that reasoning), and let the user choose. The conservative default is sometimes right, but never silent.
+**The metric constrains the type — decide them together.** Type is chosen at creation and is immutable, so a metric-type mismatch is a *type* problem, not a metric problem. The most common case: concurrency-style scaling on a standard workload — the fix is to create the workload as **serverless** (concurrency lives only there) or use **`rps`** on standard (the closest equivalent), not to retry with the same pairing.
 
-## Per-Metric Configuration
+**Don't silently downgrade.** If a type constraint blocks the user's stated intent (concurrency scaling on stateful, Capacity AI on a CPU-scaled workload), surface the conflict with realistic alternatives and a recommendation — per the constraint-conflicts rule in `cpln-guardrails.md`. `disabled` with `min=max=1` is sometimes right (single-writer app), but say so explicitly.
 
-Set the `autoscaling` block with `mcp__cpln__create_workload` (new) or `mcp__cpln__update_workload` (existing — PATCH; call `mcp__cpln__get_workload` first), then poll `mcp__cpln__get_workload_deployments` until ready. CLI fallback / CI-CD: `cpln apply --file manifest.yaml`.
+## The autoscaling block
 
-### Concurrency (Serverless only)
-
-```yaml
-spec:
-  defaultOptions:
-    autoscaling:
-      metric: concurrency
-      target: 100             # avg in-flight requests per replica
-      maxConcurrency: 0       # 0 = unlimited; 1-30000 for a hard cap (excess queues)
-      minScale: 1
-      maxScale: 10
-      scaleToZeroDelay: 300   # seconds (30-3600); only applies at minScale 0
-```
-
-Serverless evaluates capacity every ~2s (averaged over 60s; bursts trigger 6s averaging for 60s).
-
-### Requests Per Second
+Set with `mcp__cpln__create_workload` / `mcp__cpln__update_workload`, then verify with `mcp__cpln__list_deployments`. All fields:
 
 ```yaml
 spec:
   defaultOptions:
     autoscaling:
       metric: rps
-      target: 100
-      minScale: 1
-      maxScale: 10
+      target: 100             # default 95; integer 1-20000; ≤100 for cpu/memory; ms for latency
+      minScale: 2             # default 1; must be ≤ maxScale; 0 = scale-to-zero (rules below)
+      maxScale: 10            # default 5; no schema maximum
+      scaleToZeroDelay: 300   # 30-3600s, default 300
+      maxConcurrency: 0       # serverless only; 0-30000, default 0 = unlimited (excess queues)
+      metricPercentile: p99   # latency only: p50 (default) / p75 / p99
+    capacityAI: true
 ```
 
-Scales to zero on Serverless at `minScale: 0`.
+- **Per-location overrides:** `spec.localOptions[]` (same fields + `location`) via `mcp__cpln__configure_workload_local_options` — also the only MCP home of `capacityAIUpdateMinutes`, `spot`, and `multiZone`; it replaces the full list.
+- **`scaleToZeroDelay` is dual-purpose:** on serverless it is the idle period before scaling to 0; on standard/stateful it sets the **scale-down stabilization window** (default 300s) — scale-up is immediate.
 
-### CPU Utilization
+### Multi-metric (standard/stateful)
 
 ```yaml
-spec:
-  defaultOptions:
-    autoscaling:
-      metric: cpu
-      target: 80              # percent, max 100
-      minScale: 1
-      maxScale: 5
+autoscaling:
+  minScale: 2
+  maxScale: 10
+  multi:
+    - metric: cpu
+      target: 80
+    - metric: memory
+      target: 80
 ```
 
-**Capacity AI is NOT available with the `cpu` metric** — dynamic CPU allocation conflicts with CPU-based scaling.
+Each entry is evaluated independently; the highest replica count wins. Only `cpu` / `memory` / `rps`, each at most once; targets go inside the entries (`metric`/`target` at the top level are rejected alongside `multi`). With `multi`, Capacity AI defaults to off.
 
-### Request Latency (Standard/Stateful only)
+## minScale / maxScale & scale-to-zero
 
-```yaml
-spec:
-  defaultOptions:
-    autoscaling:
-      metric: latency
-      target: 100            # milliseconds (not a percent)
-      metricPercentile: p99  # p50 (default), p75, or p99
-      minScale: 1
-      maxScale: 5
-```
+- **Production default is `minScale: 2`** for user-facing services; pick `1` only with a named reason (single-writer DB, leader election, dev/staging). `maxScale` stays at its default `5` unless the user names a maximum — set exactly what they name, never invent a cap.
+- **Scale-to-zero (`minScale: 0`) by type:** serverless — allowed freely; standard/stateful — **only with `metric: keda`** (anything else is rejected); cron — never. On serverless it reaches zero with `concurrency`/`rps`; `cpu`/`memory` ride an HPA that won't drop to zero.
+- **Never the AI's default** — even on serverless, even when the user said "auto-scale". Configure it only when the user asked for scale-to-zero by name; the next request after idle pays a cold start. Acceptable (still opt-in): rarely-used internal tools, dev/preview environments, KEDA workers behind a retry-tolerant queue. Full rule: `cpln-guardrails.md`.
 
-Target is in milliseconds at the chosen percentile (not a percentage).
+## KEDA (event-driven, standard/stateful)
 
-### Memory Utilization
+**1. Enable on the GVC first** — `mcp__cpln__update_gvc`:
 
 ```yaml
-spec:
-  defaultOptions:
-    autoscaling:
-      metric: memory
-      target: 80              # percent, max 100
-      minScale: 1
-      maxScale: 5
-```
-
-### Multi Metric (Standard/Stateful only)
-
-```yaml
-spec:
-  defaultOptions:
-    autoscaling:
-      minScale: 1
-      maxScale: 5
-      multi:
-        - metric: cpu
-          target: 80
-        - metric: memory
-          target: 80
-```
-
-Each metric in `multi[]` is evaluated independently; the highest resulting replica count applies. Each must be unique. `metric`/`multi` and `target`/`multi` are mutually exclusive (targets go inside each entry). Capacity AI is not available with `multi`.
-
-### KEDA (Standard/Stateful only)
-
-Event-driven autoscaling using [KEDA](https://keda.sh/) triggers (queue length, Kafka lag, Prometheus queries, …). **Enable KEDA on the GVC first:**
-
-```yaml
-# GVC spec
 spec:
   keda:
-    enabled: true
-    identityLink: //identity/keda-identity   # optional, for cloud/network access
-    secrets:                                  # optional, for TriggerAuthentication
-      - //secret/keda-secret-1
+    enabled: true                            # default false
+    identityLink: //gvc/GVC/identity/NAME    # optional: cloud/network access for the KEDA operator
+    secrets: [//secret/NAME]                 # optional: each becomes a TriggerAuthentication named after the secret
 ```
+
+**2. Set the workload** — `metric: keda` plus raw [KEDA trigger specs](https://keda.sh/) (passed through as-is):
 
 ```yaml
-# Workload spec
-spec:
-  defaultOptions:
-    autoscaling:
-      metric: keda
-      keda:
-        triggers:
-          - type: redis
-            metadata:
-              address: my-redis.my-gvc.cpln.local:6379
-              queueLength: '5'
-              passwordFromEnv: REDIS_PASSWORD
+autoscaling:
+  metric: keda          # target is rejected with keda
+  minScale: 0           # maps to KEDA minReplicaCount — this is how standard/stateful scale to zero
+  maxScale: 10
+  keda:
+    triggers:
+      - type: redis
+        metadata:
+          address: my-redis.my-gvc.cpln.local:6379
+          queueLength: '5'
+          passwordFromEnv: REDIS_PASSWORD
 ```
 
-**Do NOT set `target` with `keda`** (rejected). If the trigger source is a Control Plane workload, allow KEDA in that source's firewall (`internal.inboundAllowWorkload: [cpln://internal/keda]`). For triggers needing auth, reference a secret on the GVC's keda config via `authenticationRef.name`. Advanced options support `scalingModifiers` with custom formulas.
-
-### KEDA with Prometheus
-
-Scale on a PromQL query against Control Plane's metrics endpoint:
-
-```yaml
-spec:
-  defaultOptions:
-    autoscaling:
-      metric: keda
-      keda:
-        triggers:
-          - type: prometheus
-            metadata:
-              serverAddress: https://metrics.cpln.io:443/metrics/org/ORG_NAME
-              customHeaders: >-
-                Authorization=Bearer SERVICE_ACCOUNT_TOKEN
-              query: >
-                histogram_quantile(0.99, sum(rate(request_duration_ms_bucket{
-                  gvc="GVC_NAME", workload="WORKLOAD_NAME"
-                }[5m])) by (le))
-              threshold: '1000'
-              activationThreshold: '0'
-            name: workload-latency
-```
-
-Requires a service account with `readMetrics` permission (see the [export metrics guide](https://docs.controlplane.com/guides/export-metrics.md)). Before wiring the trigger, confirm the query returns a signal: `mcp__cpln__list_metrics` to find the metric name/labels, then `mcp__cpln__query_metrics` to run the PromQL.
+- Triggers needing auth reference a GVC-listed secret via `authenticationRef.name` (the TriggerAuthentication is named after the secret).
+- If the trigger source is a Control Plane workload, allow KEDA in the source's firewall: `internal.inboundAllowWorkload: [cpln://internal/keda]`.
+- Also supported: `keda.advanced.scalingModifiers` (custom formulas), `fallback`, `pollingInterval`, `cooldownPeriod`.
+- **Prometheus trigger** — scale on any platform or custom metric: `type: prometheus` with `serverAddress: https://metrics.cpln.io:443/metrics/org/ORG`, a `query` (PromQL), `threshold`, and `customHeaders: Authorization=Bearer SERVICE_ACCOUNT_TOKEN` (service account needs `readMetrics`). **Before wiring any trigger, confirm the signal resolves:** `mcp__cpln__list_metrics` for real names/labels, then `mcp__cpln__query_metrics` to run the PromQL — a never-resolving signal pins the workload at `minScale`. Custom app metrics come from the container `metrics` block (see **metrics-observability**).
 
 ## Capacity AI
 
-Optimizes container CPU/memory using historical usage, adjusting **between** the configured `minCpu`/`minMemory` (floor) and `cpu`/`memory` (ceiling). **Enabled by default for Standard and Serverless.** On **Standard**, adjustments happen **in place** — no pod restart. It maintains a CPU-to-memory ratio to prevent divergence.
+Right-sizes each container's **reserved** resources (what you're billed for) from usage history, between the `minCpu`/`minMemory` floor and the `cpu`/`memory` ceiling. **On by default for serverless and standard; stripped on stateful and cron.**
 
 ```yaml
 spec:
   containers:
-    - name: my-container
-      cpu: '500m'        # max CPU (Capacity AI ceiling)
-      memory: '512Mi'    # max memory (Capacity AI ceiling)
-      minCpu: '50m'      # min CPU (Capacity AI floor)
-      minMemory: '128Mi' # min memory (Capacity AI floor)
+    - name: app
+      cpu: '1000m'       # ceiling (and the fixed allocation when Capacity AI is off)
+      memory: '1Gi'      # ceiling
+      minCpu: '100m'     # floor
+      minMemory: '256Mi' # floor
   defaultOptions:
-    capacityAI: true     # default for standard/serverless
-    capacityAIUpdateMinutes: 30   # optional throttle
+    capacityAI: true
 ```
 
-### Restrictions
+- **With `metric: cpu`:** explicitly enabling Capacity AI is **rejected** (dynamic CPU allocation fights CPU-based scaling); left unset with `cpu` or `multi`, it silently defaults to **off**.
+- **GPU containers reject Capacity AI.**
+- Adjustments land **in place** on standard when the cluster supports pod resize (no restart; otherwise a rolling update); on serverless they roll a new revision. Throttle frequency with `capacityAIUpdateMinutes` (min 2 — via `localOptions` or `cpln apply`; not on create/update tools).
+- Idle floor is **25m** CPU, rising with memory at **1 millicore per 3 MiB**. A just-changed workload pauses adjustments while history rebuilds — apps that reserve resources at startup may not benefit.
 
-| Restriction | Reason |
-|---|---|
-| Not available with `cpu` autoscaling metric | Dynamic CPU allocation conflicts with CPU-based scaling |
-| Not available with `multi` metric | Multi-metric requires stable resource baselines |
-| Not supported for **Stateful** workloads | Stateful workloads need predictable resource allocation |
-| Not available with **GPU** workloads | GPU workloads require fixed resource allocation |
-| Cron workloads | Not applicable |
+### Resource bounds (all types)
 
-When idle, Capacity AI scales CPU down to a minimum of **25 millicores**; the floor scales up with memory using a **1:3 ratio** of CPU millicores to memory MiB.
+- Floors: CPU ≥ `25m`, memory ≥ `32Mi`; `minCpu ≤ cpu`, `minMemory ≤ memory`; `memory(MiB) / cpu(millicores) ≤ 8` (32 with tag `cpln/relaxMemoryToCpuRatio`).
+- **Without Capacity AI** (standard/serverless, explicit off): `cpu`/`memory` are the fixed allocation; `minCpu`/`minMemory` are ignored.
+- **Stateful** has no Capacity AI, but `minCpu`/`minMemory` still work: they become the static **reserved** request while `cpu`/`memory` stay the burst ceiling. Constraints: max/min ratio ≤ **4** AND gap ≤ **4000m** CPU / **4096Mi** memory.
+- **GPU:** `nvidia` model `t4` (quantity up to 4) or `a10g` (exactly 1); strict per-model CPU/memory minimums — fetch exact numbers with `mcp__cpln__get_resource_schema` (`kind: workload`).
+- **Cost:** billing follows reserved resources, so Capacity AI (or stateful `minCpu`) directly lowers cost.
 
-### Resource allocation & scaling interaction
+## Type × scaling matrix
 
-- **With Capacity AI:** `cpu`/`memory` are upper bounds and `minCpu`/`minMemory` lower bounds — it adjusts within the range.
-- **Without Capacity AI:** `cpu`/`memory` are the fixed allocation; `minCpu`/`minMemory` are ignored (except for Stateful).
-- **`memory(MiB) / cpu(millicores)` ratio must be ≤ 8** (relaxed to 32 with the `cpln/relaxMemoryToCpuRatio` tag).
-- **GPU:** cannot use Capacity AI. Models — **Nvidia T4** (1–4 per replica), **Nvidia A10g** (1 per replica) — have strict minimum CPU/memory (fetch exact constraints with `mcp__cpln__get_resource_schema`, `kind: workload`). Standard CPU/memory/egress billing applies (no extra GPU charge).
-- **Stateful (no Capacity AI):** optimize with `minCpu`/`minMemory` — `minCpu`↔`cpu` at most **4000m** apart (ratio ≥ 1:4); `minMemory`↔`memory` at most **4096Mi** apart (ratio ≥ 1:4).
-- **Cost:** billing is on **reserved** resources, so Capacity AI right-sizing lowers cost. Any workload change resets usage history and restarts analysis; apps that reserve resources at startup may not benefit.
+| | standard | serverless | stateful | cron |
+|---|---|---|---|---|
+| Metrics | cpu, memory, latency, rps, multi, keda, disabled | concurrency, cpu, memory, rps, disabled | same as standard | none — autoscaling stripped |
+| Capacity AI | default on | default on | stripped | stripped |
+| Scale to zero | keda only | yes (concurrency/rps) | keda only | no |
+| Resize without restart | yes | no (new revision) | — | — |
 
-## Workload Type × Scaling Capabilities
-
-| Capability | Standard | Serverless | Stateful | Cron |
-|---|:---:|:---:|:---:|:---:|
-| Capacity AI | Yes (default on) | Yes (default on) | No | N/A |
-| Scale to zero | KEDA only | Yes (rps/concurrency) | KEDA only | No |
-| Concurrency metric | No | Yes | No | N/A |
-| RPS metric | Yes | Yes | Yes | N/A |
-| CPU metric | Yes | Yes | Yes | N/A |
-| Latency metric | Yes | No | Yes | N/A |
-| Memory metric | Yes | Yes | Yes | N/A |
-| Multi metric | Yes | No | Yes | N/A |
-| KEDA metric | Yes | No | Yes | N/A |
-| In-place resource sizing | Yes | No | No | Yes |
-| Min replicas | 1 | 0 | 1 | N/A |
-
-## MinScale / MaxScale
-
-| Scenario | `minScale` | `maxScale` | Notes |
-|---|---|---|---|
-| Production API | **2+** | `5` (default) or as specified | Avoid cold starts; ensure HA. `1` is a single point of failure. |
-| Dev/staging | 0-1 | `5` (default) or as specified | Cost savings; accept cold starts. Flag as dev-only when proposing. |
-| Scale-to-zero (Serverless) | 0 | `5` (default) or as specified | Set `scaleToZeroDelay` (default 300s). **Only when the user asked for scale-to-zero by name.** |
-| Fixed replicas | Same value | Same value | Set `metric: disabled` or set min=max |
-| Background worker | 1 | `5` (default) or as specified | Use KEDA for event-driven scaling |
-
-**Production default is `minScale: 2`** (see the `workload` skill). Pick `1` only with a named reason (single-writer DB, leader-election service, single-owner worker, or a dev/staging workload). **`maxScale` keeps its default of `5` unless the user gives an explicit maximum** — if they name a number, set exactly that; otherwise leave it at `5` rather than inventing a cap.
-
-### Scale-to-zero is NOT the production default
-
-`minScale: 0` (true scale-to-zero) is a separate, more aggressive choice and is **never** the AI's default — even on Serverless, even when the user said "auto-scale." Configure it only when the user explicitly asked for scale-to-zero by name. When a workload scales to 0, the next request waits for a cold replica to schedule, pull, and start; after `scaleToZeroDelay` (default 300s) of idle, the next user pays that latency again.
-
-Acceptable cases (still require opt-in by name): internal admin tools used rarely; dev/staging/preview environments; event-driven KEDA workers behind a retry-tolerant queue; background batch jobs ("scale up only when there's work"). Never default to it for customer-facing HTTP APIs, websites, login/auth, payments, B2B endpoints, or anything behind a public domain. Do not set `scaleToZeroDelay` on a workload with `minScale ≥ 1` — it has no effect there. Full rule: `rules/cpln-guardrails.md → "Scale-to-Zero — Never the Default for Production"`.
-
-## Custom Metrics for Autoscaling
-
-To scale on an application metric: expose a Prometheus-formatted endpoint and configure the container `metrics` block (`port` required; `path` default `/metrics`; `dropMetrics` regex to drop noise) — full config in the **`metrics-observability`** skill. The platform scrapes all replicas every **30s**; names prefixed `cpln_` are ignored. Then scale on the metric with the **KEDA Prometheus trigger** above (`sum(my_app_queue_depth{gvc="…", workload="…"})`, etc.).
-
-Before wiring the trigger, confirm the platform is scraping the metric: `mcp__cpln__list_metrics` to see it alongside the built-ins, then `mcp__cpln__query_metrics` to verify the PromQL returns data. Scaling on a metric that never resolves keeps the workload pinned at `minScale`.
-
-## Gotchas
-
-- **KEDA must be enabled on the GVC first** (`spec.keda.enabled: true`) before any workload can use `metric: keda`.
-- **Scale-to-zero on Serverless requires `metric: rps` or `concurrency`** — other Serverless metrics don't scale to zero natively (use KEDA). **Cron cannot scale to zero.**
-- **Workload type is immutable** — switching to a strategy that needs a different type means delete + recreate (destructive; see the `workload` skill).
-
-## Quick Reference
-
-### MCP Tools
-
-| Tool | Purpose |
-|---|---|
-| `mcp__cpln__create_workload` | Create a workload with autoscaling config |
-| `mcp__cpln__update_workload` | Update autoscaling settings on existing workload |
-| `mcp__cpln__get_workload` | Inspect current autoscaling configuration |
-| `mcp__cpln__get_workload_deployments` | Check deployment status and replica counts |
-| `mcp__cpln__get_workload_events` | View scaling events and errors |
-| `mcp__cpln__get_workload_logs` | View workload logs to diagnose scaling issues |
-| `mcp__cpln__list_metrics` | Discover metric names/labels (default + custom) before `query_metrics` — never guess |
-| `mcp__cpln__query_metrics` | Run a PromQL query to confirm a scaling signal exists before/while debugging |
-
-### CLI Commands
-
-Prefer the MCP tools above. Reach for the CLI when the MCP server is unavailable/unauthenticated, and as the primary interface in CI/CD (service-account `CPLN_TOKEN` + `cpln apply --ready`).
-
-| Command | Purpose |
-|---|---|
-| `cpln workload create` | Create workload from manifest |
-| `cpln workload get WORKLOAD -o yaml` | Inspect autoscaling config |
-| `cpln workload get-deployments WORKLOAD` | Check replica counts per location |
-| `cpln workload eventlog WORKLOAD` | View scaling events |
-| `cpln apply --file manifest.yaml` | Apply autoscaling changes (idempotent) |
-
-### Troubleshooting Scaling
+## Troubleshooting
 
 | Symptom | Check |
 |---|---|
-| Not scaling up | Verify the signal exists (`mcp__cpln__list_metrics` then `mcp__cpln__query_metrics`); check `maxScale`; check readiness probe via `mcp__cpln__get_workload_deployments` |
-| Not scaling down | Standard: 5-minute stabilization window; check `minScale` |
-| Slow cold starts | Increase `minScale`; optimize container startup; use readiness probe |
-| KEDA not triggering | Verify KEDA enabled on GVC; check trigger credentials; verify firewall allows KEDA access |
-| Capacity AI not adjusting | Check restrictions (CPU metric, multi metric, stateful, GPU); changes reset history |
-| Scale-to-zero not working | Only Serverless with rps/concurrency, or KEDA; check `scaleToZeroDelay` |
-| Cron run failed, logs noisy | Per-run logs are scoped by the `replica` label, not just `workload` — use `cpln workload get-deployments` to enumerate `status.jobExecutions[]` (each with its own `replica`, `startTime`, `completionTime`), then query logs with the `replica` label and the execution's time window. See **`logql-observability` → "Cron Workloads — Per-Execution Logs"**. |
+| Not scaling up | Does the signal exist? `mcp__cpln__list_metrics` then `mcp__cpln__query_metrics`; check `maxScale`; check replica readiness via `mcp__cpln__list_deployments` |
+| Not scaling down | Standard/stateful stabilization window = `scaleToZeroDelay` (default 300s); check `minScale` |
+| Scale-to-zero not happening | Serverless needs `concurrency`/`rps`; standard/stateful need `metric: keda`; check `scaleToZeroDelay` |
+| KEDA not triggering | KEDA enabled on the GVC? Trigger auth secret listed in `gvc.spec.keda.secrets`? Source firewall allows `cpln://internal/keda`? |
+| Capacity AI not adjusting | Restrictions (cpu metric, stateful, GPU); recent spec change pauses it; `capacityAIUpdateMinutes` throttle |
+| Replicas stuck at `minScale` | The scaling metric never resolves — verify the PromQL/trigger returns data |
 
-### Related Skills
+## Quick reference — MCP tools
 
-- **cpln-workload** — Start here: the primary workload skill (types, defaults, spec shape) that routes here for scaling & Capacity AI.
-- **cpln-metrics-observability** — Built-in metrics, the custom-metrics `metrics` block, Prometheus federation.
-- **cpln-workload-security** — Production hardening that pairs with autoscaling.
-- **cpln-logql-observability** — LogQL syntax including the per-execution log query for cron workloads.
-- **cpln-stateful-storage** — Stateful workloads have different sizing constraints.
+| Tool | Purpose |
+|---|---|
+| `mcp__cpln__create_workload` / `mcp__cpln__update_workload` | The `autoscaling` block (incl. `multi`, `keda`) and `capacityAI` |
+| `mcp__cpln__configure_workload_local_options` | Per-location overrides; `capacityAIUpdateMinutes`, `spot`, `multiZone` |
+| `mcp__cpln__update_gvc` | Enable KEDA on the GVC (`keda.enabled`, `identityLink`, `secrets`) |
+| `mcp__cpln__list_deployments` | Replica counts and readiness per location |
+| `mcp__cpln__get_workload_events` | Scaling/scheduling events and errors |
+| `mcp__cpln__list_metrics` / `mcp__cpln__query_metrics` | Discover metric names/labels, then verify the scaling signal — never guess |
+
+**CLI fallback** (read the `cpln` skill first): `cpln apply -f manifest.yaml` for the full spec incl. `capacityAIUpdateMinutes`; primary interface in CI/CD (`CPLN_TOKEN` + `cpln apply --ready`).
+
+## Related skills
+
+| Need | Skill |
+|---|---|
+| Workload types, production defaults, spec shape — start here | `workload` |
+| Custom `metrics` block, built-in metrics, PromQL | `metrics-observability` |
+| Scaling-event and per-execution cron logs | `logql-observability` |
+| Stateful sizing and volume sets | `stateful-storage` |
 
 ## Documentation
 

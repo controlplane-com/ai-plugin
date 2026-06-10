@@ -1,55 +1,34 @@
 ---
 name: audit-compliance
-description: "Manages audit trail, compliance, and security monitoring on Control Plane. Use when the user asks about audit logs, SOC 2, HIPAA, PCI compliance, audit context, who changed what, change tracking, or regulatory requirements. Covers tamper-proof audit events, audit context configuration, compliance certifications, and security monitoring."
+description: "Audit trail and compliance on Control Plane. Use when the user asks about audit logs, who changed what, change tracking, audit contexts, writing custom audit events, security monitoring, SOC 2, HIPAA, or PCI compliance."
 ---
 
 # Audit Trail & Compliance
 
-## Audit trail overview
+Every mutation on every Control Plane resource — via Console, CLI, API, Terraform, Pulumi, or MCP — is recorded automatically in an append-only, tamper-proof audit trail; nothing to configure. Most tasks are answering **"who changed what, when"** with `mcp__cpln__query_audit_events`. Custom audit contexts exist for one purpose only: letting your own workloads write their own audit events.
 
-Control Plane provides a tamper-proof audit trail service that captures every mutation performed via the Console UI, CLI, API, Terraform, Pulumi, or MCP Server. Events are securely stored and indexed for querying.
+## The model
 
-### What gets captured
+Events live in **audit contexts** (org-scoped namespaces):
 
-Every action on any Control Plane resource (workloads, secrets, policies, identities, GVCs, etc.) produces an audit entry automatically. No configuration is required for platform events.
+| Context | Origin | Holds |
+|---|---|---|
+| `cpln` — built-in, one per org | `builtin` | every platform mutation, automatically |
+| custom — user-created | `default` | only events your workloads POST to it |
 
-### Audit event structure
+- Platform events go **only** to `cpln`; custom contexts never receive them — querying one returns only what workloads wrote.
+- The `origin` value `default` means "user-created", not "default for the org".
+- **No audit context can be deleted** — there is no delete in the API, CLI, MCP, or Console, and `terraform destroy` only removes the context from Terraform state; events are append-only. The built-in `cpln` context can't be edited either. Creating a context is permanent.
 
-Each audit event contains:
+## Event anatomy
 
-| Field                 | Description                                                |
-| --------------------- | ---------------------------------------------------------- |
-| `id`                  | Unique event identifier                                    |
-| `eventTime`           | When the action occurred                                   |
-| `postedTime`          | When the event was posted to the audit service             |
-| `receivedTime`        | When the audit service received the event                  |
-| `requestId`           | Correlation ID for the request                             |
-| `context.org`         | Organization where the action occurred                     |
-| `context.name`        | Audit context name (e.g., `cpln` for platform events)      |
-| `context.location`    | Location where the action occurred                         |
-| `context.remoteIp`    | IP address of the caller                                   |
-| `context.eventSource` | Source of the event                                        |
-| `subject.email`       | Email of the user who performed the action                 |
-| `subject.name`        | Name of the principal (user, service account)              |
-| `resource.id`         | ID of the affected resource                                |
-| `resource.type`       | Kind of the affected resource (e.g., `workload`, `secret`) |
-| `resource.name`       | Name of the affected resource                              |
-| `resource.data`       | Full resource snapshot at the time of the event            |
-| `action.type`         | Type of action performed                                   |
-| `result.status`       | Outcome status                                             |
-| `result.message`      | Human-readable result description                          |
+Each event carries `id`, `eventTime` / `postedTime` / `receivedTime`, `requestId`, `context` (`org`, audit-context `name`, `location`, `gvcAlias`, `podId`, `remoteIp`, `eventSource`), `subject` (`name`, `email`), `resource` (`id`, `type`, `name`, `data` — the resource snapshot), `action.type` (`create` / `edit` / `delete` / `exec`), and `result` (`status`, `message`).
 
-### Querying and retention
+Secret snapshots are scrubbed: `resource.data` for a secret never includes the payload, so the audit trail itself stores no secret values.
 
-- The built-in audit context `cpln` captures all Control Plane platform events
-- Audit events are returned in paginated pages, with a `next` link in the response for fetching subsequent pages
-- The audit API supports querying by resource, subject, request ID, audit context, and time window (see the [OpenAPI spec](https://audit.cpln.io/openapi.json) for full parameters)
+## Querying events
 
-## Viewing audit events
-
-### MCP (preferred for agents)
-
-Use `mcp__cpln__query_audit_events` to fetch audit events. One call handles a single resource, multiple resources of the same kind, or every resource of that kind in the org.
+### MCP — `query_audit_events`
 
 ```json
 // all workload mutations in the last 24h
@@ -58,296 +37,89 @@ Use `mcp__cpln__query_audit_events` to fetch audit events. One call handles a si
 // who changed a specific secret in the last 30 days
 { "kind": "secret", "name": "db-password", "since": "30d" }
 
-// audit several policies in one call (merged, newest-first)
-{ "kind": "policy", "names": ["admin", "readonly", "secret-access"], "since": "7d" }
+// several policies in one call (merged, newest-first)
+{ "kind": "policy", "names": ["admin", "readonly"], "since": "7d" }
 
-// filter by subject across all workloads
-{ "kind": "workload", "subject": "user@example.com", "since": "30d" }
+// everything one subject touched across all secrets
+{ "kind": "secret", "subject": "user@example.com", "since": "30d" }
 
-// query a custom audit context instead of the built-in cpln context
-{ "kind": "workload", "name": "my-app", "context": "my-app-audit", "since": "7d" }
+// a custom context — kind matches the resource.type your workload wrote
+{ "kind": "order", "context": "my-app-audit", "since": "7d" }
+
+// a past window — relative from/to mean "that long ago from now"
+{ "kind": "workload", "org": "my-org", "from": "3mo", "to": "1mo" }
 ```
 
-Inputs: `kind` (required), `org`, `name` **or** `names[]` (mutually exclusive, max 25 names), `subject`, `context` (default `cpln`), `since` (default `7d`) **or** `from`/`to` (ISO 8601), `limit` (default 200, max 1000). Results come back merged, sorted newest-first, and truncated to `limit`.
+Inputs: `kind` (required) · `name` **or** `names[]` (max 25, mutually exclusive; omit both for every resource of the kind) · `gvc` (**required** when `kind` is `workload` / `identity` / `volumeset` and a name is given) · `subject` (user email, full link, or bare service-account name) · `context` (default `cpln`) · `since` (default `7d`) **or** `from` / `to` (ISO 8601, or a relative duration meaning that long ago — units `m`, `h`, `d`, `w`, `mo`, `y`; months are `mo`, not `M`) · `limit` (default 50, max 1000). Results are merged, sorted newest-first, truncated to `limit`.
 
-To **create** a custom audit context, use `mcp__cpln__create_audit_context`:
+### CLI
 
-```json
-// minimal
-{ "name": "my-app-audit", "org": "my-org" }
-
-// with description and tags
-{
-  "name": "my-app-audit",
-  "org": "my-org",
-  "description": "Audit trail for my-app",
-  "tags": [{ "key": "env", "value": "production" }]
-}
-```
-
-For other audit context operations:
-
-- **List** all contexts: `mcp__cpln__list_audit_contexts`
-- **Get** one context: `mcp__cpln__get_audit_context` (confirm a context exists before granting write access to it)
-- **Edit** description/tags: `mcp__cpln__edit_audit_context` (the `origin` field is immutable; built-in `cpln` cannot be edited)
-- **Delete** a context: no MCP tool exists — fall back to the CLI (`cpln auditctx delete my-app-audit --org my-org`)
-
-### Per-resource audit trail (CLI)
-
-Every resource type supports the `audit` subcommand to view its audit history:
+Every resource type has an `audit` subcommand with the same flags:
 
 ```bash
-# View audit events for a specific workload
-cpln workload audit my-app --gvc my-gvc --org my-org
-
-# View audit events for a secret
-cpln secret audit db-password --org my-org
-
-# View audit events for a policy
-cpln policy audit secret-access --org my-org
-
-# View audit events for an audit context itself
-cpln auditctx audit my-context --org my-org
-```
-
-The `audit` subcommand supports time-range filtering:
-
-```bash
-# Relative lookback (default: 7d)
-cpln workload audit my-app --gvc my-gvc --since 24h
-
-# Absolute time range (ISO 8601)
+cpln workload audit my-app --gvc my-gvc --org my-org --since 24h
+cpln secret audit db-password --org my-org --subject user@example.com
+cpln workload audit --org my-org --since 24h     # omit the ref: every workload in the org
 cpln workload audit my-app --gvc my-gvc \
   --from 2025-10-23T07:00:00Z --to 2025-10-24T07:00:00Z
-
-# Relative time range — --from/--to accept "now-<duration>" (e.g., the day before yesterday)
-cpln workload audit my-app --gvc my-gvc --from now-2d --to now-1d
-
-# Filter by subject
-cpln workload audit my-app --gvc my-gvc --subject user@example.com
-
-# Filter by custom audit context (default is cpln)
-cpln workload audit my-app --gvc my-gvc --context my-app-audit
-
-# Omit the positional ref to get ALL audit events for that resource kind in the org
-cpln workload audit --org my-org --since 24h       # every workload mutation in the last 24h
-cpln secret audit --org my-org --subject user@example.com
+cpln workload audit my-app --gvc my-gvc --from now-3M --to now-1M   # window: 3 months ago to 1 month ago
 ```
 
-**Flags:** `--since` (relative, default `7d`), `--from`/`--to` (ISO 8601, relative duration like `7d`, or `now-<duration>` like `now-2d`), `--subject` (user email, service account name, or full link), `--context` (audit context name, default `cpln`; set to a custom context to query workload-written events). `--since` is mutually exclusive with `--from`/`--to`. When the positional resource ref is omitted, the command returns events for every resource of that kind in the org.
+Flags: `--since` (default `7d`; mutually exclusive with `--from`/`--to`), `--from`/`--to` (ISO 8601, a relative duration like `7d` or `3M`, or `now-` prefixed like `now-30d` — the CLI accepts `M` for months; MCP only accepts `mo`), `--subject`, `--context` (default `cpln`), `--max` (default 50).
 
-### Org-wide audit trail (Console UI)
+## Managing audit contexts
 
-The Console UI Audit Trail page (`Audit Trail` in the left menu) provides org-wide querying with filters:
+- **Create:** `mcp__cpln__create_audit_context` (`name`; `description` defaults to the name; `tags`). CLI: `cpln auditctx create --name my-app-audit --org my-org`.
+- **Read:** `mcp__cpln__list_resources` (kind="audit_context") / `mcp__cpln__get_resource` (kind="audit_context").
+- **Edit:** `mcp__cpln__edit_audit_context` — description and tags only; `origin` is immutable; the built-in `cpln` context rejects edits. CLI: `cpln auditctx update my-app-audit --set description="..."`.
+- **Delete:** impossible by design (see The model) — don't promise it.
 
-- **Kind**: Filter by resource type (workload, secret, policy, etc.)
-- **Audit Context**: Select which context to query (default: `cpln`)
-- **Resource Name or ID**: Search by specific resource
-- **Subject Name**: Filter by the user or service account that performed the action
-- **Date Range**: Start and optional end date with time presets
+## Writing events from a workload
 
-The Console also supports **diff view** for comparing audit snapshots and **applying a previous version** of a resource directly from an audit entry.
-
-### Audit API
-
-The audit API is available at `https://audit.cpln.io`. View the [OpenAPI spec](https://audit.cpln.io/openapi.json) for the full schema and available methods.
-
-API query pattern:
-
-```
-GET /audit/org/{org}?contextName=cpln&resourceType=workload&fromEvent={ISO}&toEvent={ISO}
-GET /audit/org/{org}/resource/name/{name}?resourceType=secret
-GET /audit/org/{org}/resource/id/{id}?subjectName=user@example.com
-```
-
-## Audit contexts
-
-An **audit context** is an org-scoped resource that acts as a namespace for audit events. It enables custom workloads and third-party systems to write their own tamper-proof audit entries alongside platform events.
-
-### Built-in `cpln` context vs. custom contexts
-
-Every org has exactly one built-in audit context named `cpln` (origin: `builtin`). It is created automatically, captures every Control Plane platform mutation, and cannot be deleted. The `cpln` context is the default target of `cpln <resource> audit` — platform events go here regardless of the resource you are auditing.
-
-Custom audit contexts (origin: `default`) are user-created and exist only for workloads or third-party systems that want to write their own tamper-proof audit entries. Platform events never flow into custom contexts — you must explicitly POST to them from your workload. Querying a custom context returns only the events that workload wrote.
-
-Terminology note: the `origin` enum uses `builtin` for the `cpln` context and `default` for every user-created context — the label `default` here means "user-created", not "default for the org".
-
-### Creating custom audit contexts
-
-Create custom contexts to separate audit streams for different workloads or systems. Prefer `mcp__cpln__create_audit_context` (see [Viewing audit events → MCP](#mcp-preferred-for-agents) for the input shape); the CLI below is the fallback when the MCP server is unavailable or unauthenticated, or as the primary interface in CI/CD:
-
-```bash
-# Create a custom audit context
-cpln auditctx create --name my-app-audit --org my-org
-
-# With description and tags
-cpln auditctx create --name my-app-audit \
-  --desc "Audit trail for my-app" \
-  --tag env=production --org my-org
-```
-
-### Audit context properties
-
-| Property      | Type                   | Description                                                  |
-| ------------- | ---------------------- | ------------------------------------------------------------ |
-| `name`        | string                 | Unique name within the org (required)                        |
-| `description` | string                 | Optional, defaults to name                                   |
-| `origin`      | `default` or `builtin` | `builtin` for the `cpln` context, `default` for user-created |
-| `tags`        | key-value pairs        | Optional metadata                                            |
-
-### Writing audit events from workloads
-
-To write custom audit events from a workload:
-
-1. **Create an audit context** for your workload — `mcp__cpln__create_audit_context`
-2. **Create an identity** for the workload — `mcp__cpln__create_identity`
-3. **Grant the identity `writeAudit`** on the audit context — `mcp__cpln__create_policy` with `targetKind: "auditctx"`, the context in `targetLinks`, and a binding of permission `writeAudit` to the identity (see the **cpln-access-control** skill for binding shape)
-4. **Assign the identity** to the workload via `spec.identityLink` (`mcp__cpln__update_workload`)
-5. **POST events** to the internal audit endpoint from within the workload:
+1. **Create a context** — `mcp__cpln__create_audit_context`.
+2. **Create an identity** — `mcp__cpln__create_identity`.
+3. **Grant `writeAudit`** — `mcp__cpln__create_policy` with `targetKind: auditctx`, the context in `targetLinks`, and a binding of `writeAudit` to the identity (binding shape: **access-control** skill).
+4. **Attach the identity** to the workload via `spec.identityLink` — `mcp__cpln__update_workload`.
+5. **POST from inside the container:**
 
 ```bash
 curl -H "Content-Type: application/json" \
-  -X POST http://127.0.0.1:43000/audit/org/${CPLN_ORG}/auditctx/my-app-audit?async=true \
-  -d '{"resource": {"id": "anyid123", "type": "anytype"}}'
+  -X POST "http://127.0.0.1:43000/audit/org/${CPLN_ORG}/auditctx/my-app-audit?async=true" \
+  -d '{"resource": {"id": "order-1234", "type": "order"}, "action": {"type": "refund"}}'
 ```
 
-The internal endpoint (`127.0.0.1:43000`) is available to every workload via the sidecar. The workload's `CPLN_TOKEN` is used automatically for authentication.
+- The sidecar serves `127.0.0.1:43000` in every workload pod and attaches the workload's identity automatically — no token or auth header needed. The write is rejected unless that identity has `writeAudit` on the context.
+- Body: `resource.id` and `resource.type` are required; `eventTime` (ISO 8601, defaults to now), `subject`, `action.type`, and `result` are optional; unknown fields are rejected.
+- `?async=true` is fire-and-forget; drop it to get the stored event's `id` back in the response.
 
-### Audit context permissions
+## Permissions (kind `auditctx`)
 
-| Permission   | Description                            | Implies                                                       |
-| ------------ | -------------------------------------- | ------------------------------------------------------------- |
-| `create`     | Create new contexts                    |                                                               |
-| `edit`       | Modify existing contexts               | `view`                                                        |
-| `manage`     | Full access                            | `create`, `edit`, `manage`, `readAudit`, `view`, `writeAudit` |
-| `readAudit`  | Read events from this context          | `view`                                                        |
-| `view`       | Read-only view of the context resource |                                                               |
-| `writeAudit` | Write events to this context           | `view`                                                        |
+`create`, `edit`, `view`, `manage`, and the two that matter: **`readAudit`** (query events) and **`writeAudit`** (post events) — both distinct from `view`, which only reads the context resource itself. `manage` implies all; `edit`, `readAudit`, and `writeAudit` each imply `view`. Confirm with `mcp__cpln__get_permissions` (`kind: auditctx`).
 
-### Managing audit contexts (CLI)
+## Compliance
 
-For agents, prefer the MCP tools: `mcp__cpln__list_audit_contexts` (list), `mcp__cpln__get_audit_context` (get), and `mcp__cpln__edit_audit_context` (update description/tags). The CLI below is the fallback when MCP is unavailable, for query/access-report/permissions (no MCP equivalent), and for delete (no MCP tool).
+Control Plane is **PCI DSS Level 1** and **SOC 2 Type II** certified (audited by Prescient Assurance). For the SOC 2 report or PCI Attestation of Compliance, contact [support@controlplane.com](mailto:support@controlplane.com); the [PCI Responsibility Matrix](https://controlplane.com/downloads/Control_Plane_PCI_Responsibilities_Matrix.pdf) is public. Stripe handles all payment data.
 
-```bash
-# List all audit contexts
-cpln auditctx get --org my-org
+## Quick reference — MCP tools
 
-# Get a specific context
-cpln auditctx get my-app-audit --org my-org
+| Tool | Purpose | Key params |
+|---|---|---|
+| `mcp__cpln__query_audit_events` | Query events for a kind | `kind`, `name`/`names`, `gvc`, `subject`, `context`, `since`/`from`/`to`, `limit` |
+| `mcp__cpln__create_audit_context` | Create a custom context (permanent) | `name`, `description`, `tags` |
+| `mcp__cpln__list_resources` (kind="audit_context") / `get_resource` (kind="audit_context") | List / read contexts | `name` |
+| `mcp__cpln__edit_audit_context` | Update description / tags | `name`, `description`, `tags`, `removeTagKeys` |
 
-# Update description
-cpln auditctx update my-app-audit --set description="Updated description" --org my-org
+**CLI fallback** (read the `cpln` skill first; verify with `cpln auditctx --help`): `cpln RESOURCE audit [ref]`, `cpln auditctx create / get / update / query / access-report / permissions`. There is no delete.
 
-# Query contexts by property
-cpln auditctx query --match any --prop name=my-app-audit --org my-org
+## Related skills
 
-# View access report
-cpln auditctx access-report my-app-audit --org my-org
-
-# View permissions
-cpln auditctx permissions --org my-org
-```
-
-## Compliance certifications
-
-### PCI DSS Level 1
-
-Control Plane is Level 1 PCI DSS compliant. Stripe handles payment information and credit card processing. Annual on-site assessments and continuous risk management are performed.
-
-- [Download PCI Responsibility Matrix](https://controlplane.com/downloads/Control_Plane_PCI_Responsibilities_Matrix.pdf)
-- For a copy of the PCI Attestation of Compliance (AoC), contact [support@controlplane.com](mailto:support@controlplane.com)
-
-### SOC 2 Type II
-
-Control Plane has completed the AICPA SOC 2 Type II audit, confirming that information security practices, policies, procedures, and operations meet SOC 2 standards for security.
-
-Key practices:
-
-- **Secure personnel**: Background checks, NDAs, continuous security training
-- **Secure development**: Secure development lifecycle, design reviews, OWASP Top 10 alignment
-- **Secure testing**: Third-party penetration testing, vulnerability scanning, SAST/DAST
-- **Cloud security**: Customer isolation via patented approach, encryption at rest and in transit, unique encryption keys per customer, role-based access controls
-
-Audited by Prescient Assurance. For a copy of the audit report, contact [support@controlplane.com](mailto:support@controlplane.com).
-
-### Compliance summary
-
-| Certification   | Status    | Contact for Details      |
-| --------------- | --------- | ------------------------ |
-| PCI DSS Level 1 | Compliant | support@controlplane.com |
-| SOC 2 Type II   | Compliant | support@controlplane.com |
-
-## Security monitoring patterns
-
-### Track secret access
-
-Use the audit trail to monitor who reveals or modifies secrets:
-
-```bash
-# View all audit events for a secret
-cpln secret audit db-password --org my-org --since 30d
-
-# Filter by specific subject
-cpln secret audit db-password --org my-org --subject suspicious-user@example.com
-```
-
-### Monitor policy changes
-
-Track changes to access control policies:
-
-```bash
-cpln policy audit secret-access --org my-org --since 7d
-```
-
-### Monitor identity and service account changes
-
-```bash
-cpln identity audit my-identity --gvc my-gvc --since 7d
-cpln serviceaccount audit deploy-sa --org my-org --since 7d
-```
-
-### Org-wide security review
-
-Use the Console UI Audit Trail with filters to review all actions across the org for a specific time period, subject, or resource kind.
-
-## Quick reference
-
-### CLI commands
-
-| Command                                      | Purpose                                       |
-| -------------------------------------------- | --------------------------------------------- |
-| `cpln <resource> audit [ref]`                | View audit events for any resource            |
-| `cpln auditctx create --name NAME`           | Create a custom audit context                 |
-| `cpln auditctx get [ref]`                    | List or get audit contexts                    |
-| `cpln auditctx update <ref> --set KEY=VALUE` | Update audit context properties               |
-| `cpln auditctx query --prop KEY=VALUE`       | Search audit contexts                         |
-| `cpln auditctx access-report <ref>`          | View who has access to an audit context       |
-| `cpln auditctx permissions`                  | List grantable permissions for audit contexts |
-| `cpln auditctx clone <ref> --name NAME`      | Clone an audit context                        |
-| `cpln auditctx patch <ref> --file FILE`      | Patch audit context from file                 |
-
-### API endpoint
-
-`https://audit.cpln.io` -- [OpenAPI spec](https://audit.cpln.io/openapi.json)
-
-### MCP Server
-
-- **`mcp__cpln__query_audit_events`** — query audit events (see the [MCP (preferred for agents)](#mcp-preferred-for-agents) section for input shape and examples)
-- **`mcp__cpln__create_audit_context`** — create a custom audit context (inputs: `name`, optional `org`, `description`, `tags`)
-- **`mcp__cpln__list_audit_contexts`** — list all audit contexts in the org
-- **`mcp__cpln__get_audit_context`** — get one audit context (confirm it exists before granting write access)
-- **`mcp__cpln__edit_audit_context`** — update an audit context's description and tags
-- Granting write access: **`mcp__cpln__create_identity`** + **`mcp__cpln__create_policy`** (`targetKind: "auditctx"`, `writeAudit` binding). Deleting a context has no MCP tool — use `cpln auditctx delete` (CLI).
-
-### Related Skills
-
-- **cpln** — CLI setup, command lookup, deploy/secret/GitOps/debug workflows
-- **cpln-access-control** — Policies, permissions, identity bindings
-- **cpln-external-logging** — Ship logs to external destinations for long-term retention
+| Need | Skill |
+|---|---|
+| Policy and binding shape for `writeAudit` / `readAudit` grants | `access-control` |
+| Ship runtime logs to external destinations for retention | `external-logging` |
+| CLI setup and command reference | `cpln` |
 
 ## Documentation
-
-For the latest reference, see:
 
 - [Audit Trail](https://docs.controlplane.com/core/audittrail.md)
 - [Audit Context Reference](https://docs.controlplane.com/reference/auditctx.md)
