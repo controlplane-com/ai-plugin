@@ -19,7 +19,7 @@ Diagnose why a Control Plane workload is unhealthy, crashing, or not starting.
 
 Diagnosis is read-only and MCP-first. Lead with the MCP tools below; fall back to the `cpln` CLI (`cpln workload get`, `cpln logs`) only when the MCP server is unavailable, and use interactive `cpln workload exec` / `cpln connect` when you need a live shell rather than a single command.
 
-1. Fetches workload status, events, and deployment history — `mcp__cpln__get_workload_deployments` is the PRIMARY readiness check across all locations; pair with `mcp__cpln__get_workload_events` and `mcp__cpln__get_workload_logs`. For a partial failure where one location is unhealthy, drill in with `mcp__cpln__list_deployments` / `mcp__cpln__get_deployment`. Capture the spec via `mcp__cpln__get_workload` (and `mcp__cpln__list_workloads` to confirm the target).
+1. Fetches workload status, events, and deployment history — `mcp__cpln__list_deployments` is the PRIMARY readiness check across all locations; pair with `mcp__cpln__get_workload_events` and `mcp__cpln__get_workload_logs`. For a partial failure where one location is unhealthy, drill in by passing the optional `location` param to `mcp__cpln__list_deployments`. Capture the spec via `mcp__cpln__get_resource` (kind="workload") (and `mcp__cpln__list_resources` (kind="workload") to confirm the target).
 2. Checks for common failure patterns (most common first):
    - Insufficient memory / OOMKilled (the #1 customer issue)
    - Image pull errors (wrong reference, missing pull secret, wrong platform)

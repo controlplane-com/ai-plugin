@@ -129,11 +129,11 @@ cpln cloudaccount create-ngs \
 
 | Tool | Action |
 |:---|:---|
-| `mcp__cpln__list_cloud_accounts` | List all cloud accounts in an organization |
-| `mcp__cpln__get_cloud_account` | Get detailed info about a specific cloud account |
+| `mcp__cpln__list_resources` (kind="cloud_account") | List all cloud accounts in an organization |
+| `mcp__cpln__get_resource` (kind="cloud_account") | Get detailed info about a specific cloud account |
 | `mcp__cpln__create_cloud_account` | Create a cloud account (aws, gcp, azure, or ngs) |
 | `mcp__cpln__update_cloud_account` | Update a cloud account's description, tags, or provider data (provider itself is immutable) |
-| `mcp__cpln__delete_cloud_account` | Delete a cloud account (irreversible) |
+| `mcp__cpln__delete_resource` (kind="cloud_account") | Delete a cloud account (irreversible) |
 
 Verify the cloud account was created:
 
@@ -242,7 +242,7 @@ cpln apply --file identity.yaml --gvc my-gvc --org my-org
 
 **No MCP path for cloud-access blocks.** There is no MCP tool that sets the `aws` / `gcp` / `azure` / `ngs` cloud-access spec on an identity (and there is no generic passthrough tool). The CLI `cpln apply` flow shown above is the path. To author the manifest accurately, call `mcp__cpln__get_resource_schema` (kind `identity`) first to confirm the exact `spec` shape, then `cpln apply -f identity.yaml`. Replace the `aws` block with `gcp`, `azure`, or `ngs` as needed.
 
-After applying, verify the identity's cloud access status with `mcp__cpln__get_identity` (CLI fallback below):
+After applying, verify the identity's cloud access status with `mcp__cpln__get_resource` (kind="identity") (CLI fallback below):
 
 ```bash
 cpln identity get my-app-identity --gvc my-gvc --org my-org -o yaml
@@ -265,7 +265,7 @@ cpln workload update my-app \
 
 From within the workload, cloud SDKs automatically pick up credentials through the Control Plane credential vending process — no SDK configuration needed.
 
-To verify, check the identity status first with `mcp__cpln__get_identity` (CLI fallback below):
+To verify, check the identity status first with `mcp__cpln__get_resource` (kind="identity") (CLI fallback below):
 
 ```bash
 cpln identity get my-app-identity --gvc my-gvc --org my-org -o yaml

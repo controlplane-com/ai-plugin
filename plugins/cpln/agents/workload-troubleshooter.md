@@ -11,13 +11,13 @@ You are a specialist in diagnosing Control Plane workload failures. Follow this 
 
 ### Primary: MCP tools
 
-1. `mcp__cpln__get_workload_deployments` — **Start here.** The PRIMARY readiness monitor: deployment status across ALL locations, with per-location readiness and reason/message. Use it to find which location is unhealthy (params: `gvc` required, `name` required, `org` uses session context if set, required otherwise).
-2. `mcp__cpln__get_workload` — Get the workload spec and current status (params: same as above). Use `mcp__cpln__list_workloads` first if you need to confirm the workload name in the GVC.
+1. `mcp__cpln__list_deployments` — **Start here.** The PRIMARY readiness monitor: deployment status across ALL locations, with per-location readiness and reason/message. Use it to find which location is unhealthy (params: `gvc` required, `workload` required — the workload name, `org` uses session context if set, required otherwise; optional `location` for a single deployment's full detail).
+2. `mcp__cpln__get_resource` (kind="workload") — Get the workload spec and current status (params: same as above). Use `mcp__cpln__list_resources` (kind="workload") first if you need to confirm the workload name in the GVC.
 3. `mcp__cpln__get_workload_events` — Get recent events: image pulls, crashes, scheduling, probe failures (params: same as above)
 4. `mcp__cpln__get_workload_logs` — Get application logs for a workload (useful for diagnosing runtime errors)
-5. `mcp__cpln__list_secrets` — List secrets in the org (useful for verifying secret existence)
+5. `mcp__cpln__list_resources` (kind="secret") — List secrets in the org (useful for verifying secret existence)
 
-For a partial failure where one location is unhealthy, triage that location directly with `mcp__cpln__list_deployments` (per-location rollout status under the workload) then `mcp__cpln__get_deployment` (a single named deployment, addressed by location, e.g. `aws-us-east-1` — returns the version chain and per-container readiness/reason/message).
+For a partial failure where one location is unhealthy, triage that location directly by calling `mcp__cpln__list_deployments` again with the optional `location` param (e.g. `aws-us-east-1`) — it returns that single deployment's full detail: the version chain and per-container readiness/reason/message as full JSON.
 
 ### Fallback: CLI
 
@@ -131,19 +131,19 @@ When the symptoms point to one of the categories below, read the matching sectio
 
 ## Diagnostics — Per-Category Recipes
 
-Read the matching section once you've narrowed the diagnosis to one of categories A–L. Each gives symptoms, what to check, and the fix. Across every category the readiness/triage reads are MCP tools (`mcp__cpln__get_workload_deployments`, `mcp__cpln__get_workload_events`, `mcp__cpln__get_workload_logs`; `mcp__cpln__list_deployments` / `mcp__cpln__get_deployment` for a single failing location); apply spec fixes with `mcp__cpln__update_workload`. The CLI is the fallback when the MCP server is unavailable, for interactive debugging (`cpln workload connect` / `exec` / `logs`), and as the primary interface in CI/CD. For manifest-level fixes, call `mcp__cpln__get_resource_schema` to author a valid spec, then `cpln apply -f workload.yaml --gvc GVC_NAME`.
+Read the matching section once you've narrowed the diagnosis to one of categories A–L. Each gives symptoms, what to check, and the fix. Across every category the readiness/triage reads are MCP tools (`mcp__cpln__list_deployments`, `mcp__cpln__get_workload_events`, `mcp__cpln__get_workload_logs`; pass `location` to `list_deployments` to drill into a single failing location); apply spec fixes with `mcp__cpln__update_workload`. The CLI is the fallback when the MCP server is unavailable, for interactive debugging (`cpln workload connect` / `exec` / `logs`), and as the primary interface in CI/CD. For manifest-level fixes, call `mcp__cpln__get_resource_schema` to author a valid spec, then `cpln apply -f workload.yaml --gvc GVC_NAME`.
 
 ### A. Image Pull Failures
 
 **Symptoms**: Events show `ImagePullBackOff`, `ErrImagePull`, or deployment stuck.
 
-Confirm the symptom with `mcp__cpln__get_workload_events` (image-pull errors surface here); use `mcp__cpln__get_workload_deployments` to see which locations are stuck.
+Confirm the symptom with `mcp__cpln__get_workload_events` (image-pull errors surface here); use `mcp__cpln__list_deployments` to see which locations are stuck.
 
 Check:
 
-- **Image reference format** — Use `//image/IMAGE_NAME:TAG` for org private registry images. Use just `IMAGE:TAG` for Docker Hub public images (no `docker.io/` prefix). Use full registry URL for other external registries. For org images, confirm the tag exists with `mcp__cpln__get_image` / `mcp__cpln__list_images`.
+- **Image reference format** — Use `//image/IMAGE_NAME:TAG` for org private registry images. Use just `IMAGE:TAG` for Docker Hub public images (no `docker.io/` prefix). Use full registry URL for other external registries. For org images, confirm the tag exists with `mcp__cpln__get_resource` (kind="image") / `mcp__cpln__list_resources` (kind="image").
 - **Architecture** — Images must be `linux/amd64` for Control Plane managed locations. BYOK locations support additional platforms.
-- **Private registry access** — If pulling from a private external registry (Docker Hub private, ECR, GCR, ACR, GHCR), a pull secret must be created and added to the GVC's `pullSecretLinks`. Confirm the GVC's pull secrets with `mcp__cpln__get_gvc` and that the secret exists with `mcp__cpln__list_secrets` / `mcp__cpln__get_secret`. Only Docker, ECR, and GCP secret types work as pull secrets.
+- **Private registry access** — If pulling from a private external registry (Docker Hub private, ECR, GCR, ACR, GHCR), a pull secret must be created and added to the GVC's `pullSecretLinks`. Confirm the GVC's pull secrets with `mcp__cpln__get_resource` (kind="gvc") and that the secret exists with `mcp__cpln__list_resources` (kind="secret") / `mcp__cpln__get_resource` (kind="secret"). Only Docker, ECR, and GCP secret types work as pull secrets.
 - **Org registry** — Images from your own org's private registry (`//image/...`) do NOT need pull secrets.
 
 Fix: If the pull secret is missing, create it with `mcp__cpln__create_secret_docker` (pass the full `~/.docker/config.json` contents as `dockerConfigJson`), then attach it to the GVC's `pullSecretLinks` with `mcp__cpln__update_gvc`. CLI fallback:
@@ -162,9 +162,9 @@ cpln gvc update MY_GVC --set spec.pullSecretLinks+=my-pull-secret
 
 The 3-step rule (identity + `reveal` policy + reference) is in **rules/cpln-guardrails.md** (Critical universal gotchas) and the `access-control` skill. All three steps must be in place for a workload to access a secret at runtime — check each:
 
-1. **Identity exists and is linked to workload** — Check `spec.identityLink` via `mcp__cpln__get_workload`; confirm the identity itself with `mcp__cpln__get_identity`.
-2. **Policy exists granting identity `reveal` permission on the secret** — A policy with `targetKind: secret` targeting the specific secret, with a binding granting `reveal` to the identity. List/inspect with `mcp__cpln__list_policies` / `mcp__cpln__get_policy`.
-3. **Secret reference uses correct format** — Format varies by secret type (see below). Confirm the secret exists with `mcp__cpln__get_secret`; as a break-glass check that the chain actually resolves, `mcp__cpln__reveal_secret` returns the live value (requires `reveal` permission, recorded in the audit trail — use sparingly).
+1. **Identity exists and is linked to workload** — Check `spec.identityLink` via `mcp__cpln__get_resource` (kind="workload"); confirm the identity itself with `mcp__cpln__get_resource` (kind="identity").
+2. **Policy exists granting identity `reveal` permission on the secret** — A policy with `targetKind: secret` targeting the specific secret, with a binding granting `reveal` to the identity. List/inspect with `mcp__cpln__list_resources` (kind="policy") / `mcp__cpln__get_resource` (kind="policy").
+3. **Secret reference uses correct format** — Format varies by secret type (see below). Confirm the secret exists with `mcp__cpln__get_resource` (kind="secret"); as a break-glass check that the chain actually resolves, `mcp__cpln__reveal_secret` returns the live value (requires `reveal` permission, recorded in the audit trail — use sparingly).
 
 **Secret reference formats by type:**
 
@@ -211,7 +211,7 @@ Rules by workload type:
 | Stateful | May expose 0 or multiple ports. |
 | Cron | No served endpoint (runs to completion on a schedule) — port config doesn't apply. |
 
-Check (read the spec with `mcp__cpln__get_workload`):
+Check (read the spec with `mcp__cpln__get_resource` (kind="workload")):
 
 - The port in the workload spec MUST match the port the container actually listens on. To confirm what the process is bound to inside a live replica, list replicas with `mcp__cpln__list_workload_replicas`, then run a read-only command (e.g. `netstat -tlnp` or `ss -tln`) with `mcp__cpln__workload_exec`.
 - The `PORT` environment variable is injected at runtime. If you set a custom PORT env var on an exposed container, its value MUST match the exposed port number.
@@ -282,7 +282,7 @@ Internal endpoint format: `WORKLOAD_NAME.GVC_NAME.cpln.local:PORT`
 
 **Symptoms**: Events show probe failures, workload marked unready, replicas restarting.
 
-Confirm probe failures with `mcp__cpln__get_workload_events` and check per-location readiness with `mcp__cpln__get_workload_deployments` (or `mcp__cpln__get_deployment` for one location). Apply probe changes with `mcp__cpln__update_workload`.
+Confirm probe failures with `mcp__cpln__get_workload_events` and check per-location readiness with `mcp__cpln__list_deployments` (pass `location` for one location's full detail). Apply probe changes with `mcp__cpln__update_workload`.
 
 Default behavior by type:
 
@@ -347,13 +347,13 @@ Check:
 - **Disallowed env var names** — names starting with `CPLN_` are reserved, and `K_SERVICE`, `K_CONFIGURATION`, `K_REVISION` cannot be set.
 - **Env var value limit** — max 4096 characters per value.
 - **Deprecated `port` field** — prefer the `ports` array. If the deprecated single-port field is used, the default protocol is `http2`.
-- **Workload is suspended** — check `spec.defaultOptions.suspend` (read with `mcp__cpln__get_workload`). If `true`, the workload is stopped (equivalent to min/max scale 0). Clear it by setting `spec.defaultOptions.suspend: false` via `mcp__cpln__update_workload`, or use the CLI fallback `cpln workload start WORKLOAD_NAME --gvc GVC_NAME`.
+- **Workload is suspended** — check `spec.defaultOptions.suspend` (read with `mcp__cpln__get_resource` (kind="workload")). If `true`, the workload is stopped (equivalent to min/max scale 0). Clear it by setting `spec.defaultOptions.suspend: false` via `mcp__cpln__update_workload`, or use the CLI fallback `cpln workload start WORKLOAD_NAME --gvc GVC_NAME`.
 
 ### H. Autoscaling Misconfiguration
 
 **Symptoms**: Workload won't scale, 502s during scale-up, scale-to-zero doesn't work, or error creating workload with invalid autoscaling combo.
 
-Inspect the live replica count vs. target across locations with `mcp__cpln__get_workload_deployments`, and the scaling-signal metric (RPS, concurrency, CPU) with `mcp__cpln__query_metrics` (list candidates via `mcp__cpln__list_metrics`). Apply autoscaling spec changes with `mcp__cpln__update_workload`.
+Inspect the live replica count vs. target across locations with `mcp__cpln__list_deployments`, and the scaling-signal metric (RPS, concurrency, CPU) with `mcp__cpln__query_metrics` (list candidates via `mcp__cpln__list_metrics`). Apply autoscaling spec changes with `mcp__cpln__update_workload`.
 
 Documented strategy restrictions (see [Autoscaling](https://docs.controlplane.com/reference/workload/autoscaling.md)):
 
@@ -389,7 +389,7 @@ To confirm what is actually mounted inside a replica, list replicas with `mcp__c
 
 Check:
 
-- **Secret volumes** require the same identity + policy chain as env vars (identity linked to workload, policy with `reveal` permission on the secret) — verify it the same way as Section B (`mcp__cpln__get_identity`, `mcp__cpln__get_policy`).
+- **Secret volumes** require the same identity + policy chain as env vars (identity linked to workload, policy with `reveal` permission on the secret) — verify it the same way as Section B (`mcp__cpln__get_resource` (kind="identity"), `mcp__cpln__get_resource` (kind="policy")).
 - **Cloud storage volumes** (S3, GCS, Azure Blob/Files) require:
   1. Identity linked to workload.
   2. Cloud access policy on the identity for the provider (e.g., `AmazonS3ReadOnlyAccess` for S3).
@@ -403,7 +403,7 @@ Check:
 
 **Symptoms**: Workload can't reach another workload internally, connection refused or timeout on internal calls.
 
-Read both workloads' specs with `mcp__cpln__get_workload` (list candidates via `mcp__cpln__list_workloads`). To test the path live, run a read-only `curl`/`wget` against the internal endpoint from the caller replica using `mcp__cpln__list_workload_replicas` + `mcp__cpln__workload_exec`.
+Read both workloads' specs with `mcp__cpln__get_resource` (kind="workload") (list candidates via `mcp__cpln__list_resources` (kind="workload")). To test the path live, run a read-only `curl`/`wget` against the internal endpoint from the caller replica using `mcp__cpln__list_workload_replicas` + `mcp__cpln__workload_exec`.
 
 Check:
 
@@ -416,7 +416,7 @@ Check:
 
 **Symptoms**: Workload becomes unreachable after enabling dedicated LB, TCP traffic doesn't work, wrong Host header.
 
-Inspect the GVC load-balancer settings with `mcp__cpln__get_gvc` and the domain's ports/routes and per-location cert status with `mcp__cpln__get_domain` (`mcp__cpln__list_domains` to find it).
+Inspect the GVC load-balancer settings with `mcp__cpln__get_resource` (kind="gvc") and the domain's ports/routes and per-location cert status with `mcp__cpln__get_resource` (kind="domain") (`mcp__cpln__list_resources` (kind="domain") to find it).
 
 Check:
 
@@ -448,7 +448,7 @@ Ask the user if they want you to apply the fix. Prefer MCP tools when available:
 | Create policy | `mcp__cpln__create_policy` |
 | Create secret | `mcp__cpln__create_secret_<type>` (e.g. `create_secret_docker`) |
 | View workload logs | `mcp__cpln__get_workload_logs` |
-| List secrets in org | `mcp__cpln__list_secrets` |
+| List secrets in org | `mcp__cpln__list_resources` (kind="secret") |
 | Reveal a secret's value (break-glass) | `mcp__cpln__reveal_secret` |
 
 For manifest-level changes (firewall, probes, rollout options), call `mcp__cpln__get_resource_schema` for the `workload` kind to get the exact valid fields and constraints, then generate the corrected YAML and apply it. Prefer `mcp__cpln__update_workload` (PATCH semantics — only the fields you set change) when the change maps to its inputs; fall back to `cpln apply` when you need full manifest control or the MCP server is unavailable:

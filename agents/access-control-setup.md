@@ -34,7 +34,7 @@ Groups are the recommended way to manage team access. Permissions granted to a g
 
 #### Via MCP (preferred)
 
-Use `mcp__cpln__list_groups` to see all groups, or `mcp__cpln__get_group` with a `name` to check a specific group's members.
+Use `mcp__cpln__list_resources` (kind="group") to see all groups, or `mcp__cpln__get_resource` (kind="group") with a `name` to check a specific group's members.
 
 #### Via CLI
 
@@ -68,7 +68,7 @@ Use `mcp__cpln__edit_group` to add or remove members. It manages member links in
 - `addMemberLinks` (optional) — e.g., `["//user/alice@example.com", "//serviceaccount/sa-name"]`
 - `removeMemberLinks` (optional) — member links to detach
 
-Call `mcp__cpln__get_group` first to capture current membership before editing.
+Call `mcp__cpln__get_resource` (kind="group") first to capture current membership before editing.
 
 #### Via CLI
 
@@ -241,7 +241,7 @@ This is the preferred approach when the user wants to version-control their poli
 
 #### Via MCP
 
-Use `mcp__cpln__get_permissions` to double-check valid permissions, then confirm the policy was created with `mcp__cpln__get_policy` (`name: POLICY_NAME`).
+Use `mcp__cpln__get_permissions` to double-check valid permissions, then confirm the policy was created with `mcp__cpln__get_resource` (kind="policy") (`name: POLICY_NAME`).
 
 #### Via CLI
 
@@ -371,23 +371,23 @@ Every org has built-in groups and policies:
 
 | Tool                                    | Purpose                                                          |
 | :-------------------------------------- | :--------------------------------------------------------------- |
-| `mcp__cpln__list_policies`              | List all policies in an org                                      |
-| `mcp__cpln__get_policy`                 | Get a specific policy's details and bindings                     |
+| `mcp__cpln__list_resources` (kind="policy") | List all policies in an org                                      |
+| `mcp__cpln__get_resource` (kind="policy")   | Get a specific policy's details and bindings                     |
 | `mcp__cpln__create_policy`              | Create a policy with target, permissions, and principal bindings |
 | `mcp__cpln__update_policy`              | Update policy description, tags, targetLinks, or merge bindings  |
-| `mcp__cpln__delete_policy`              | Delete a policy (irreversible)                                   |
+| `mcp__cpln__delete_resource` (kind="policy") | Delete a policy (irreversible)                                   |
 | `mcp__cpln__get_permissions`            | Discover valid permissions for a resource kind                   |
-| `mcp__cpln__list_groups`                | List all groups in an org                                        |
-| `mcp__cpln__get_group`                  | Get a specific group's details and members                       |
+| `mcp__cpln__list_resources` (kind="group") | List all groups in an org                                        |
+| `mcp__cpln__get_resource` (kind="group")   | Get a specific group's details and members                       |
 | `mcp__cpln__create_group`               | Create a new group with optional initial members                 |
 | `mcp__cpln__edit_group`                 | Update description, tags, and add/remove member links in one call |
-| `mcp__cpln__delete_group`               | Delete a group (irreversible; strips its members from policies)  |
-| `mcp__cpln__list_service_accounts`      | List all service accounts in an org                              |
-| `mcp__cpln__get_service_account`        | Get service account details, keys, and group memberships         |
+| `mcp__cpln__delete_resource` (kind="group") | Delete a group (irreversible; strips its members from policies)  |
+| `mcp__cpln__list_resources` (kind="service_account") | List all service accounts in an org                              |
+| `mcp__cpln__get_resource` (kind="service_account")   | Get service account details, keys, and group memberships         |
 | `mcp__cpln__create_service_account`     | Create a service account (no keys; issue one separately)         |
 | `mcp__cpln__add_key_to_service_account` | Create SA (if needed) + generate key + optional group assignment |
 | `mcp__cpln__update_service_account`     | Update SA metadata or revoke keys by name                        |
-| `mcp__cpln__delete_service_account`     | Delete a service account (revokes all its keys immediately)      |
+| `mcp__cpln__delete_resource` (kind="service_account") | Delete a service account (revokes all its keys immediately)      |
 | `mcp__cpln__invite_user_to_org`         | Invite a user by email, optionally assign to a group             |
-| `mcp__cpln__list_users`                 | List users in an org (or look up one by email)                   |
-| `mcp__cpln__get_user`                   | Get a user by id or email                                        |
+| `mcp__cpln__list_resources` (kind="user") | List users in an org (or look up one by email)                   |
+| `mcp__cpln__get_resource` (kind="user")   | Get a user by id or email                                        |

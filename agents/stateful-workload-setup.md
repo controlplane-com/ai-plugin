@@ -55,7 +55,7 @@ Both ext4 and xfs require **stateful** workload type.
 
 #### Via MCP (preferred)
 
-Use `mcp__cpln__create_volumeset` with explicit `fileSystemType`, `performanceClass`, `initialCapacity`, and (for ext4/xfs) a snapshot policy + optional autoscaling. Filesystem type and performance class are **immutable** — choose carefully. Confirm with `mcp__cpln__get_volumeset` after creation.
+Use `mcp__cpln__create_volumeset` with explicit `fileSystemType`, `performanceClass`, `initialCapacity`, and (for ext4/xfs) a snapshot policy + optional autoscaling. Filesystem type and performance class are **immutable** — choose carefully. Confirm with `mcp__cpln__get_resource` (kind="volumeset") after creation.
 
 #### Via CLI (fallback)
 
@@ -244,7 +244,7 @@ cpln apply -f workload.yaml --gvc my-gvc
 
 Check that the workload is running with the volume mounted:
 
-1. Use `mcp__cpln__get_workload_deployments` to check deployment status
+1. Use `mcp__cpln__list_deployments` to check deployment status
 2. Use `mcp__cpln__get_workload_events` if there are issues
 
 Or via CLI:
@@ -319,12 +319,12 @@ The mount tool creates the volumeset automatically if it does not exist.
 | `mcp__cpln__create_workload` | Create workload (set `type: 'stateful'` for ext4/xfs volumes) |
 | `mcp__cpln__mount_volumeset_to_workload` | **Composite** — creates volumeset if needed + mounts to stateful workload |
 | `mcp__cpln__update_workload` | Update workload spec (manual volume mounting) |
-| `mcp__cpln__get_workload` | Get workload details |
-| `mcp__cpln__get_workload_deployments` | Check deployment status |
+| `mcp__cpln__get_resource` (kind="workload") | Get workload details |
+| `mcp__cpln__list_deployments` | Check deployment status |
 | `mcp__cpln__get_workload_events` | Diagnose deployment issues |
 | `mcp__cpln__create_volumeset` | Create a volumeset (filesystem type + performance class are immutable) |
-| `mcp__cpln__get_volumeset` | Get volumeset details |
-| `mcp__cpln__list_volumesets` | List volumesets in a GVC |
+| `mcp__cpln__get_resource` (kind="volumeset") | Get volumeset details |
+| `mcp__cpln__list_resources` (kind="volumeset") | List volumesets in a GVC |
 | `mcp__cpln__update_volumeset` | Update mutable fields (snapshot policy, autoscaling, initialCapacity, tags) |
 | `mcp__cpln__expand_volumeset` | Increase volume capacity (once per 6h) |
 | `mcp__cpln__create_volumeset_snapshot` | Create point-in-time snapshot (ext4/xfs only) |
@@ -333,4 +333,4 @@ The mount tool creates the volumeset automatically if it does not exist.
 | `mcp__cpln__delete_volumeset_snapshot` | **Destructive** — delete a snapshot |
 | `mcp__cpln__shrink_volumeset` | **Destructive** — shrink a volume (permanent data loss; snapshot first) |
 | `mcp__cpln__delete_volumeset_volume` | **Destructive** — delete a single volume (snapshot first) |
-| `mcp__cpln__delete_volumeset` | **Destructive** — delete a volumeset (permanent data loss) |
+| `mcp__cpln__delete_resource` (kind="volumeset") | **Destructive** — delete a volumeset (permanent data loss) |

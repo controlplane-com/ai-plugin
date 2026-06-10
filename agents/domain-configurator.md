@@ -84,7 +84,7 @@ Prefer the MCP tool `mcp__cpln__create_domain` — it provisions the domain, map
 
 ### Option A: `mcp__cpln__create_domain` (recommended)
 
-Call `mcp__cpln__create_domain` with the domain name, DNS mode, and ports/routes (or `gvcLink` for subdomain routing). Run it in the org that will own the domain. Then call `mcp__cpln__get_domain` to read the pending DNS-validation records and per-location cert status. The manifest shapes below map directly onto the create_domain inputs.
+Call `mcp__cpln__create_domain` with the domain name, DNS mode, and ports/routes (or `gvcLink` for subdomain routing). Run it in the org that will own the domain. Then call `mcp__cpln__get_resource` (kind="domain") to read the pending DNS-validation records and per-location cert status. The manifest shapes below map directly onto the create_domain inputs.
 
 ### Option B: `cpln domain create` (CLI fallback)
 
@@ -190,7 +190,7 @@ The CLI will either create the domain or output the DNS records needed (ownershi
 
 ## Step 4: Set DNS Records
 
-After the domain is created, read its status for the required DNS records with `mcp__cpln__get_domain` (returns spec, pending DNS-validation records, and per-location cert status). CLI fallback:
+After the domain is created, read its status for the required DNS records with `mcp__cpln__get_resource` (kind="domain") (returns spec, pending DNS-validation records, and per-location cert status). CLI fallback:
 
 ```bash
 cpln domain get app.example.com --org my-org -o yaml
@@ -217,7 +217,7 @@ app  NS  1800  ns2.cpln.live
 
 After DNS records propagate, Control Plane automatically provisions TLS certificates via Let's Encrypt.
 
-Poll the domain status with `mcp__cpln__get_domain` until certificates issue. CLI fallback:
+Poll the domain status with `mcp__cpln__get_resource` (kind="domain") until certificates issue. CLI fallback:
 
 ```bash
 cpln domain get app.example.com --org my-org -o yaml
@@ -258,11 +258,11 @@ Prefer these tools for every domain operation; fall back to `cpln domain` / `cpl
 
 | Tool | Purpose |
 | :--- | :--- |
-| `mcp__cpln__list_domains` | List all domains in an organization |
-| `mcp__cpln__get_domain` | Get detailed domain configuration (DNS mode, ports, routes, TLS), pending DNS records, per-location cert status |
+| `mcp__cpln__list_resources` (kind="domain") | List all domains in an organization |
+| `mcp__cpln__get_resource` (kind="domain") | Get detailed domain configuration (DNS mode, ports, routes, TLS), pending DNS records, per-location cert status |
 | `mcp__cpln__create_domain` | Create a domain with DNS mode, ports, routes, and TLS settings |
 | `mcp__cpln__update_domain` | Update metadata (description, tags), top-level spec flags (`acceptAllHosts`, `acceptAllSubdomains`), or GVC binding |
-| `mcp__cpln__delete_domain` | Delete a domain by name (destructive — confirm blast radius) |
+| `mcp__cpln__delete_resource` (kind="domain") | Delete a domain by name (destructive — confirm blast radius) |
 
 **Modify an existing domain's listeners (use these instead of `update_domain` for ports/routes/TLS/CORS):**
 
@@ -280,7 +280,7 @@ Prefer these tools for every domain operation; fall back to `cpln domain` / `cpl
 
 ## Domain manifest reference
 
-Full schema for the `domain` resource. These `spec` shapes are the inputs to `mcp__cpln__create_domain` / `mcp__cpln__update_domain`; each listener block is also managed by its own focused patch tool (see the MCP Tools Reference table above). CLI fallback: `cpln apply -f domain.yaml`, then `mcp__cpln__get_domain` to read back the applied spec and DNS-validation status.
+Full schema for the `domain` resource. These `spec` shapes are the inputs to `mcp__cpln__create_domain` / `mcp__cpln__update_domain`; each listener block is also managed by its own focused patch tool (see the MCP Tools Reference table above). CLI fallback: `cpln apply -f domain.yaml`, then `mcp__cpln__get_resource` (kind="domain") to read back the applied spec and DNS-validation status.
 
 ### Spec fields
 

@@ -24,7 +24,7 @@ Create a workload with persistent storage — volumeset, stateful workload, and 
 5. Mounts the volume to the workload (`mcp__cpln__mount_volumeset_to_workload`)
 6. Configures snapshot schedule for backups (`mcp__cpln__create_volumeset_snapshot`)
 
-The agent leads with these MCP tools and verifies readiness with `mcp__cpln__get_workload_deployments`. The `cpln` CLI is the fallback when the MCP server is unavailable or in CI/CD (`cpln apply -f manifest`).
+The agent leads with these MCP tools and verifies readiness with `mcp__cpln__list_deployments`. The `cpln` CLI is the fallback when the MCP server is unavailable or in CI/CD (`cpln apply -f manifest`).
 
 ## Why This Exists
 

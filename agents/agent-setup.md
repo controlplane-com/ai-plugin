@@ -83,7 +83,7 @@ cpln agent create --name AGENT_NAME --org ORG_NAME > AGENT_NAME-bootstrap.json
 - `--description` / `--desc` — optional description
 - `--tag` — optional tags (e.g., `--tag env=production`)
 
-To inspect or rename an existing agent later, use `mcp__cpln__get_agent` (registration token is hidden) and `mcp__cpln__update_agent` (description/tags only — the bootstrap config and registration token are immutable; rotating them means delete + recreate).
+To inspect or rename an existing agent later, use `mcp__cpln__get_resource` (kind="agent") (registration token is hidden) and `mcp__cpln__update_agent` (description/tags only — the bootstrap config and registration token are immutable; rotating them means delete + recreate).
 
 **Warning: Save the bootstrap config JSON immediately. It contains the `registrationToken`, `agentId`, `agentLink`, and `hubEndpoint`. It will not be accessible again after creation. If lost, delete and recreate the agent.**
 
@@ -216,7 +216,7 @@ MCP tools for identity + network resources:
 | Tool | Purpose |
 |---|---|
 | `mcp__cpln__create_identity` | Create an identity; optionally seed `networkResources` / `nativeNetworkResources` in the same call |
-| `mcp__cpln__get_identity` | Inspect an identity including its network resources |
+| `mcp__cpln__get_resource` (kind="identity") | Inspect an identity including its network resources |
 | `mcp__cpln__list_identity_network_resources` | List both agent-based and cloud-native resources on an identity |
 | `mcp__cpln__add_identity_network_resource` | Add a single agent-based (wormhole) resource |
 | `mcp__cpln__add_identity_native_network_resource` | Add a single PrivateLink / PSC resource |
@@ -409,7 +409,7 @@ Agents run in **active-passive** mode — if the active agent misses heartbeats,
 
 The bootstrap config contains a `registrationToken` that is generated at agent creation time. If the agent cannot register, delete and recreate the agent (the token cannot be rotated in place):
 
-1. Delete the agent: `mcp__cpln__delete_agent` (DESTRUCTIVE — every identity routing through this agent loses connectivity; confirm the blast radius with the user first). CLI fallback: `cpln agent delete AGENT_NAME --org ORG_NAME`.
+1. Delete the agent: `mcp__cpln__delete_resource` (kind="agent") (DESTRUCTIVE — every identity routing through this agent loses connectivity; confirm the blast radius with the user first). CLI fallback: `cpln agent delete AGENT_NAME --org ORG_NAME`.
 2. Recreate: `mcp__cpln__create_agent` (CLI fallback: `cpln agent create --name AGENT_NAME --org ORG_NAME > new-bootstrap.json`).
 3. Redeploy with the new bootstrap config.
 

@@ -55,7 +55,7 @@ Ask the user what type of secret they need. The 12 types are:
 | keypair | `cpln secret create-keypair` | Public/private keys |
 | nats-account | `cpln secret create-nats` | NATS credentials |
 
-Use MCP: there is one typed create tool per type — `mcp__cpln__create_secret_<type>` (e.g. `create_secret_opaque`, `create_secret_aws`, `create_secret_docker`, `create_secret_nats_account`). Each exposes only that type's fields, so fill them directly (no generic `data` blob). Use `mcp__cpln__list_secrets` to find existing secrets.
+Use MCP: there is one typed create tool per type — `mcp__cpln__create_secret_<type>` (e.g. `create_secret_opaque`, `create_secret_aws`, `create_secret_docker`, `create_secret_nats_account`). Each exposes only that type's fields, so fill them directly (no generic `data` blob). Use `mcp__cpln__list_resources` (kind="secret") to find existing secrets.
 
 ### Step 2 & 3: Grant the Workload Access to the Secret
 
@@ -76,13 +76,15 @@ Parameters:
 
 This tool does NOT modify the workload's env vars or volumes — you still need Step 4 below to inject the secret reference.
 
+The workload must **already exist** before you call this tool. For a brand-new workload that references a secret, the order is: `mcp__cpln__create_workload` first (its deployment pauses on the unresolved secret reference), then `mcp__cpln__workload_reveal_secret` — the grant lets the deployment resume. Never call `workload_reveal_secret` before the workload exists.
+
 #### Via individual MCP tools (when you need granular control over identity/policy)
 
 If you want to manage the identity and policy yourself instead of the composite `workload_reveal_secret`:
 
-- `mcp__cpln__create_identity` (or `mcp__cpln__get_identity` to reuse an existing one) — create the identity in the GVC.
+- `mcp__cpln__create_identity` (or `mcp__cpln__get_resource` (kind="identity") to reuse an existing one) — create the identity in the GVC.
 - `mcp__cpln__update_workload` — set `spec.identityLink` so the workload uses that identity.
-- `mcp__cpln__create_policy` with target kind `secret` and a `reveal` binding for the identity. Capture current state with `mcp__cpln__get_policy` before `mcp__cpln__update_policy` when amending an existing policy.
+- `mcp__cpln__create_policy` with target kind `secret` and a `reveal` binding for the identity. Capture current state with `mcp__cpln__get_resource` (kind="policy") before `mcp__cpln__update_policy` when amending an existing policy.
 
 #### Via CLI (fallback — when the MCP server is unavailable or unauthenticated)
 
@@ -120,7 +122,7 @@ cpln policy add-binding WORKLOAD-secret-access \
 
 ### Step 4: Inject Secret into Workload
 
-Use `mcp__cpln__update_workload` to add the `cpln://secret/NAME` reference to the container's env or volumes (call `mcp__cpln__get_workload` first to capture current state for rollback). Fall back to the CLI shapes below when the MCP server is unavailable.
+Use `mcp__cpln__update_workload` to add the `cpln://secret/NAME` reference to the container's env or volumes (call `mcp__cpln__get_resource` (kind="workload") first to capture current state for rollback). Fall back to the CLI shapes below when the MCP server is unavailable.
 
 **As environment variable (CLI fallback):**
 
@@ -181,8 +183,8 @@ Max 15 volumes per container. Volumes are read-only (except Azure Files). Reserv
 
 Prefer the MCP read tools; the CLI greps below are the fallback.
 
-1. Confirm identity is linked: `mcp__cpln__get_workload` and check `spec.identityLink` (CLI: `cpln workload get WORKLOAD --gvc GVC -o json | grep identityLink`). Inspect the identity itself with `mcp__cpln__get_identity` if needed.
-2. Confirm policy grants reveal: `mcp__cpln__get_policy` (or `mcp__cpln__get_permissions` for the available permission set). CLI: `cpln policy get POLICY -o json`.
+1. Confirm identity is linked: `mcp__cpln__get_resource` (kind="workload") and check `spec.identityLink` (CLI: `cpln workload get WORKLOAD --gvc GVC -o json | grep identityLink`). Inspect the identity itself with `mcp__cpln__get_resource` (kind="identity") if needed.
+2. Confirm policy grants reveal: `mcp__cpln__get_resource` (kind="policy") (or `mcp__cpln__get_permissions` for the available permission set). CLI: `cpln policy get POLICY -o json`.
 3. Confirm secret reference format: must start with `cpln://secret/`
 
 ### Step 6: Redeploy
@@ -201,18 +203,18 @@ The `--ready` flag blocks until the workload is healthy with the new secret conf
 |:---|:---|
 | `mcp__cpln__workload_reveal_secret` | **Composite** — creates identity + policy + links workload in one call |
 | `mcp__cpln__create_secret_<type>` | Create a secret — one typed tool per type (`create_secret_opaque`, `create_secret_aws`, `create_secret_ecr`, `create_secret_gcp`, `create_secret_docker`, `create_secret_azure_sdk`, `create_secret_azure_connector`, `create_secret_tls`, `create_secret_keypair`, `create_secret_userpass`, `create_secret_dictionary`, `create_secret_nats_account`) |
-| `mcp__cpln__list_secrets` | List all secrets in an org |
-| `mcp__cpln__get_secret` | Get secret metadata (values hidden) |
+| `mcp__cpln__list_resources` (kind="secret") | List all secrets in an org |
+| `mcp__cpln__get_resource` (kind="secret") | Get secret metadata (values hidden) |
 | `mcp__cpln__reveal_secret` | Reveal actual secret data (break-glass, requires `reveal` permission) |
 | `mcp__cpln__update_secret_<type>` | Update a secret — one typed tool per type (same `<type>` suffixes as create); rotate data by re-supplying the type's fields |
-| `mcp__cpln__delete_secret` | Delete a secret |
+| `mcp__cpln__delete_resource` (kind="secret") | Delete a secret |
 | `mcp__cpln__create_identity` | Create an identity (manual approach) |
-| `mcp__cpln__get_identity` | Get an identity (reuse an existing one) |
+| `mcp__cpln__get_resource` (kind="identity") | Get an identity (reuse an existing one) |
 | `mcp__cpln__create_policy` | Create a policy (manual approach) |
-| `mcp__cpln__get_policy` | Get a policy's bindings (capture state before update) |
+| `mcp__cpln__get_resource` (kind="policy") | Get a policy's bindings (capture state before update) |
 | `mcp__cpln__update_policy` | Update a policy's bindings or targets |
 | `mcp__cpln__get_permissions` | List available permissions for a resource kind |
-| `mcp__cpln__get_workload` | Get workload spec (capture state, check identityLink) |
+| `mcp__cpln__get_resource` (kind="workload") | Get workload spec (capture state, check identityLink) |
 | `mcp__cpln__update_workload` | Update workload spec (set identityLink, env vars) |
 
 ## Common Mistakes to Prevent
