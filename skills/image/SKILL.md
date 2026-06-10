@@ -1,11 +1,11 @@
 ---
 name: image
-description: "Builds, pushes, pulls, and manages container images on Control Plane. Use when the user asks about Docker build, image registry, image tags, Dockerfile, buildpacks, pull secrets, private registry, ECR/GCR/DockerHub integration, cross-org image sharing, or image permissions. Covers image reference formats, buildpack conventions, tagging strategies, and platform requirements."
+description: "Builds, pushes, and manages container images on Control Plane. Use when the user asks about Docker build, image registry, tags, Dockerfile, buildpacks, pull secrets, private registries, ECR/GCR/DockerHub, or image sharing and permissions."
 ---
 
 # Control Plane Images
 
-Reference for working with container images on Control Plane: where they live, how to refer to them, how to build/push them, and how to share them across orgs. MCP image tools are `mcp__cpln__list_images`, `mcp__cpln__get_image` (read) and `mcp__cpln__delete_image` (delete); build, push, and copy are CLI-exclusive.
+Reference for working with container images on Control Plane: where they live, how to refer to them, how to build/push them, and how to share them across orgs. MCP image reads use the generic resource tools — `mcp__cpln__list_resources` (kind="image") and `mcp__cpln__get_resource` (kind="image") — and removal uses `mcp__cpln__delete_resource` (kind="image"); build, push, and copy are CLI-exclusive.
 
 ## Image Reference Formats
 
@@ -26,7 +26,7 @@ Reference for working with container images on Control Plane: where they live, h
 
 ## Building & Pushing
 
-Building and pushing are **CLI-exclusive** — there is no create- or update-image MCP tool (`delete_image` exists for removal). Verify a build afterward with `mcp__cpln__get_image` (inspect tags, digest, manifest); CLI fallback when MCP is unavailable: `cpln image get my-app:v1.0 --org my-org -o json`.
+Building and pushing are **CLI-exclusive** — there is no create- or update-image MCP tool (`delete_resource` with kind="image" exists for removal). Verify a build afterward with `mcp__cpln__get_resource` (kind="image") (inspect tags, digest, manifest); CLI fallback when MCP is unavailable: `cpln image get my-app:v1.0 --org my-org -o json`.
 
 **Before authoring any `cpln image build` command, run `cpln image build --help` to verify flags and defaults.**
 
@@ -137,7 +137,7 @@ Private registries (Docker Hub private, ECR, GCR, ACR, GAR, GHCR, other Control 
 | `ecr` | Amazon ECR (dedicated type — handles IAM role assumption) |
 | `gcp` | Google Container Registry (via GCP service account JSON) |
 
-Pull secrets live at the **GVC level** — once attached they apply to all workloads in that GVC; you cannot attach them per-workload. Attach via `mcp__cpln__update_gvc` (merges into `spec.pullSecretLinks`, preserving existing links; read first with `mcp__cpln__get_gvc` for rollback). CLI fallback (MCP unavailable, or CI/CD):
+Pull secrets live at the **GVC level** — once attached they apply to all workloads in that GVC; you cannot attach them per-workload. Attach via `mcp__cpln__update_gvc` (merges into `spec.pullSecretLinks`, preserving existing links; read first with `mcp__cpln__get_resource` (kind="gvc") for rollback). CLI fallback (MCP unavailable, or CI/CD):
 
 ```bash
 cpln gvc update my-gvc --set spec.pullSecretLinks+=my-pull-secret --org my-org
@@ -149,7 +149,7 @@ Images are org-scoped. To use another org's image (e.g., dev's image in staging)
 
 **Option 1: Pull secret (preferred for continuous access).**
 
-1. **Source-org service account with pull access.** Create the SA + first key with `mcp__cpln__add_key_to_service_account` (creates the SA if absent, optional group), then grant access with `mcp__cpln__create_policy` (target kind `image`, target all or specific links, bind the SA principal with permission `pull`); amend later via `mcp__cpln__get_policy` + `mcp__cpln__update_policy`. CLI fallback:
+1. **Source-org service account with pull access.** Create the SA + first key with `mcp__cpln__add_key_to_service_account` (creates the SA if absent, optional group), then grant access with `mcp__cpln__create_policy` (target kind `image`, target all or specific links, bind the SA principal with permission `pull`); amend later via `mcp__cpln__get_resource` (kind="policy") + `mcp__cpln__update_policy`. CLI fallback:
 
    ```bash
    cpln serviceaccount create --name image-puller --org dev-org
@@ -173,7 +173,7 @@ Images are org-scoped. To use another org's image (e.g., dev's image in staging)
 
 4. **Add the pull secret to the target GVC** — `mcp__cpln__update_gvc` (see "Pull secrets" above), or `cpln gvc update staging-gvc --set spec.pullSecretLinks+=dev-registry-pull --org staging-org`.
 
-5. **Point the target workload at the source image** (`<source-org>.registry.cpln.io/<image-name>:<image-tag>`). Either PATCH in place with `mcp__cpln__update_workload` (read first with `mcp__cpln__get_workload` to find `spec.containers[].name`), or export → edit → `cpln apply` (GitOps-friendly, version-controlled). CLI in-place fallback (look up the container name first via `cpln workload get ... -o yaml-slim`):
+5. **Point the target workload at the source image** (`<source-org>.registry.cpln.io/<image-name>:<image-tag>`). Either PATCH in place with `mcp__cpln__update_workload` (read first with `mcp__cpln__get_resource` (kind="workload") to find `spec.containers[].name`), or export → edit → `cpln apply` (GitOps-friendly, version-controlled). CLI in-place fallback (look up the container name first via `cpln workload get ... -o yaml-slim`):
 
    ```bash
    cpln workload update my-app \
@@ -205,7 +205,7 @@ cpln image copy my-app:v1 --to-org staging-org --to-profile dest-profile --clean
 | `pull` | Pull an image | `view` |
 | `view` | Read-only access | — |
 
-**Push** needs `create` bound to the pushing principal; **pull** needs `pull`. Prefer `mcp__cpln__create_policy` (target kind `image`, target all, binding with the permission bound to the CI/puller principal); amend via `mcp__cpln__get_policy` + `mcp__cpln__update_policy` (`addBindings` to merge). Discover grantable permissions with `mcp__cpln__get_permissions`. CLI fallback:
+**Push** needs `create` bound to the pushing principal; **pull** needs `pull`. Prefer `mcp__cpln__create_policy` (target kind `image`, target all, binding with the permission bound to the CI/puller principal); amend via `mcp__cpln__get_resource` (kind="policy") + `mcp__cpln__update_policy` (`addBindings` to merge). Discover grantable permissions with `mcp__cpln__get_permissions`. CLI fallback:
 
 ```bash
 cpln policy create --name image-push-policy --target-kind image --all --org my-org
@@ -254,7 +254,7 @@ Workload option that triggers automatic redeployment when a tag's underlying dig
 
 ### Updating a workload's image
 
-Use `mcp__cpln__update_workload` (PATCH — change only the container image); read first with `mcp__cpln__get_workload` to find the container name (`spec.containers[].name` — varies per workload) and capture state for rollback. CLI fallback (MCP unavailable, or CI/CD): `cpln workload update WORKLOAD --set spec.containers.<container-name>.image=//image/my-app:v1.0 --gvc GVC --org ORG`.
+Use `mcp__cpln__update_workload` (PATCH — change only the container image); read first with `mcp__cpln__get_resource` (kind="workload") to find the container name (`spec.containers[].name` — varies per workload) and capture state for rollback. CLI fallback (MCP unavailable, or CI/CD): `cpln workload update WORKLOAD --set spec.containers.<container-name>.image=//image/my-app:v1.0 --gvc GVC --org ORG`.
 
 ## `cpln image` Subcommand Reference
 
@@ -289,9 +289,9 @@ Use `mcp__cpln__update_workload` (PATCH — change only the container image); re
 
 ### MCP Tools
 
-- `mcp__cpln__list_images` — List images in an org (read).
-- `mcp__cpln__get_image` — Inspect a specific image including tags, digest, and manifest details (read).
-- `mcp__cpln__delete_image` — Delete one or more images (destructive).
+- `mcp__cpln__list_resources` (kind="image") — List images in an org (read).
+- `mcp__cpln__get_resource` (kind="image") — Inspect a specific image including tags, digest, and manifest details (read).
+- `mcp__cpln__delete_resource` (kind="image") — Delete one or more images (destructive).
 
 Over MCP, images are list/get/delete only — there is no create- or update-image tool: build and push via `cpln image build --push` (CLI, exclusive), copy across orgs via `cpln image copy` (CLI). For workload image updates, use `mcp__cpln__update_workload`.
 

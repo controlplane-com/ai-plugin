@@ -1,6 +1,6 @@
 ---
 name: ipset-load-balancing
-description: "Reserves static IP addresses and configures load balancers on Control Plane. Use when the user asks about IP sets, static IPs, dedicated load balancers, direct load balancers, fixed IPs, IP whitelisting, or egress IPs. Covers IP set reservation, direct load balancers (per-workload), and GVC dedicated load balancers."
+description: "Reserves static IP addresses and configures load balancers on Control Plane. Use when the user asks about IP sets, static or fixed IPs, dedicated or direct load balancers, IP whitelisting, or egress IPs."
 ---
 
 # IP Sets & Load Balancing
@@ -42,7 +42,7 @@ An IP set reserves a **static public IP address in each location** of a GVC. Use
 
 ### Create an IP Set
 
-Prefer `mcp__cpln__create_ipset` — pass `name`, optional `link` (workload/GVC), and `locations[]`. Read with `mcp__cpln__list_ipsets` / `mcp__cpln__get_ipset`. Fall back to `cpln apply -f ipset.yaml --org MY_ORG` when MCP is unavailable, or in CI/CD.
+Prefer `mcp__cpln__create_ipset` — pass `name`, optional `link` (workload/GVC), and `locations[]`. Read with `mcp__cpln__list_resources` (kind="ipset") / `mcp__cpln__get_resource` (kind="ipset"). Fall back to `cpln apply -f ipset.yaml --org MY_ORG` when MCP is unavailable, or in CI/CD.
 
 ```yaml
 kind: ipset
@@ -63,7 +63,7 @@ Set `retentionPolicy: free` to release an allocated IP and stop charges. Use `mc
 
 ### Manage an IP Set
 
-Typed MCP tools map one-to-one to these operations — see the **MCP Tools** table below (`create_ipset`, `get_ipset`/`list_ipsets`, `add_ipset_location`, `remove_ipset_location`, `update_ipset`, `delete_ipset`).
+Typed MCP tools map one-to-one to these operations — see the **MCP Tools** table below (`create_ipset`, `get_resource`/`list_resources` (kind="ipset"), `add_ipset_location`, `remove_ipset_location`, `update_ipset`, `delete_resource` (kind="ipset")).
 
 CLI fallback when MCP is unavailable or unauthenticated:
 
@@ -213,12 +213,12 @@ Both the GVC and IP set must reference each other (bidirectional):
 | Tool | Purpose |
 |---|---|
 | `mcp__cpln__create_ipset` | Create an IP set with optional `link` (workload/GVC) and `locations[]` (`name`, `retentionPolicy`). |
-| `mcp__cpln__list_ipsets` | List all IP sets with locations, retention policies, and allocated IPs (read-only). |
-| `mcp__cpln__get_ipset` | Inspect one IP set: bound link, locations, retention, allocated IPs (`bound`/`unbound`), status. |
+| `mcp__cpln__list_resources` (kind="ipset") | List all IP sets with locations, retention policies, and allocated IPs (read-only). |
+| `mcp__cpln__get_resource` (kind="ipset") | Inspect one IP set: bound link, locations, retention, allocated IPs (`bound`/`unbound`), status. |
 | `mcp__cpln__add_ipset_location` | Add new locations or overwrite the retentionPolicy of existing ones (use `free` to release an IP). |
 | `mcp__cpln__remove_ipset_location` | Drop one or more locations from the IP set entirely (DESTRUCTIVE). |
 | `mcp__cpln__update_ipset` | Edit description, tags, or bound workload/GVC link; pass `removeLink: true` to detach. |
-| `mcp__cpln__delete_ipset` | Delete an IP set, releasing every reserved IP (DESTRUCTIVE — confirm blast radius first). |
+| `mcp__cpln__delete_resource` (kind="ipset") | Delete an IP set, releasing every reserved IP (DESTRUCTIVE — confirm blast radius first). |
 
 Location names accept friendly names (`"frankfurt"`, `"tel aviv"`), location IDs (`"aws-us-west-2"`), or full links (`"//location/aws-us-west-2"`) — the MCP server resolves them automatically.
 

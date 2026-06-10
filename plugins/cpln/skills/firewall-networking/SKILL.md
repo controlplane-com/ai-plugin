@@ -1,6 +1,6 @@
 ---
 name: firewall-networking
-description: "Configures firewall rules and service-to-service communication on Control Plane. Use when the user asks about inbound/outbound rules, CIDR whitelisting, IP blocking, hostname filtering, geo-blocking, header-based routing, internal endpoints, or network security. Covers external/internal firewall configuration, geo-filtering, header matching, and service mesh connectivity."
+description: "Firewall rules and service-to-service communication on Control Plane. Use when the user asks about inbound/outbound rules, CIDR whitelisting, IP blocking, hostname filtering, geo-blocking, header routing, internal endpoints, or network security."
 ---
 
 # Firewall & Networking Patterns
@@ -157,11 +157,11 @@ Full LB config, static IP reservation, and dedicated LB setup: see the **cpln-ip
 
 `firewallConfig` (and `loadBalancer`) live in the workload spec — patch them with the typed workload tools:
 
-1. `mcp__cpln__get_workload` — read current `spec.firewallConfig` / `spec.loadBalancer` for a rollback baseline (`update_workload` is PATCH — only sent fields change).
+1. `mcp__cpln__get_resource` (kind="workload") — read current `spec.firewallConfig` / `spec.loadBalancer` for a rollback baseline (`update_workload` is PATCH — only sent fields change).
 2. `mcp__cpln__update_workload` — set `firewallConfig` (external inbound/outbound, internal, header filters). Load balancer is separate: `mcp__cpln__configure_workload_load_balancer`.
-3. `mcp__cpln__get_workload_deployments` — poll until ready; rules apply within about a minute and trigger a new deployment.
+3. `mcp__cpln__list_deployments` — poll until ready; rules apply within about a minute and trigger a new deployment.
 
-Use `mcp__cpln__create_workload` to stand up a new workload with firewall rules from the start. Reserve static IPs for Direct/Dedicated LBs with `mcp__cpln__create_ipset` / `mcp__cpln__get_ipset` (see **cpln-ipset-load-balancing**).
+Use `mcp__cpln__create_workload` to stand up a new workload with firewall rules from the start. Reserve static IPs for Direct/Dedicated LBs with `mcp__cpln__create_ipset` / `mcp__cpln__get_resource` (kind="ipset") (see **cpln-ipset-load-balancing**).
 
 ### Fallback: CLI
 
@@ -176,12 +176,12 @@ cpln apply --file workload.yaml --gvc GVC_NAME
 
 | Tool | Purpose |
 |---|---|
-| `mcp__cpln__get_workload` | Inspect current `spec.firewallConfig` and `spec.loadBalancer` before changing them. |
+| `mcp__cpln__get_resource` (kind="workload") | Inspect current `spec.firewallConfig` and `spec.loadBalancer` before changing them. |
 | `mcp__cpln__update_workload` | Patch `firewallConfig` on an existing workload (PATCH — only sent fields change). |
 | `mcp__cpln__configure_workload_load_balancer` | Set/clear the workload load balancer (direct, geo headers, replicaDirect). |
 | `mcp__cpln__create_workload` | Create a new workload with firewall rules from the start (load balancer is set separately). |
-| `mcp__cpln__create_ipset` / `mcp__cpln__get_ipset` | Reserve and inspect static public IPs for Direct/Dedicated load balancers and IP allow-lists. |
-| `mcp__cpln__get_workload_deployments` | Poll deployment readiness after a firewall change lands. |
+| `mcp__cpln__create_ipset` / `mcp__cpln__get_resource` (kind="ipset") | Reserve and inspect static public IPs for Direct/Dedicated load balancers and IP allow-lists. |
+| `mcp__cpln__list_deployments` | Poll deployment readiness after a firewall change lands. |
 | `mcp__cpln__get_workload_logs` | Query workload logs to diagnose connectivity issues. |
 
 ### Related Skills

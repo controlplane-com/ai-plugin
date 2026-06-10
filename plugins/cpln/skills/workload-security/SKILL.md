@@ -1,6 +1,6 @@
 ---
 name: workload-security
-description: "Hardens workloads for production on Control Plane. Use when the user asks about JWT authentication, workload security options, TLS configuration, geo-location headers, graceful shutdown, readiness/liveness probes, or securing public-facing workloads. Covers JWT validation via Envoy sidecar, security options, geo headers, and graceful termination."
+description: "Hardens workloads for production on Control Plane. Use when the user asks about JWT authentication, workload security options, TLS, geo-location headers, graceful shutdown, readiness/liveness probes, or securing public-facing workloads."
 ---
 
 # Workload Security & Production Hardening
@@ -394,10 +394,10 @@ spec:
 | `mcp__cpln__update_workload` | Update security options, probes, or rollout config (PATCH — only sent fields change) |
 | `mcp__cpln__configure_workload_load_balancer` | Set/clear the load balancer (direct, geo headers, replicaDirect) |
 | `mcp__cpln__configure_workload_sidecar` | Set/clear the Envoy sidecar (JWT auth, filter chain) |
-| `mcp__cpln__get_workload` | Inspect current workload configuration (read before any update for rollback) |
-| `mcp__cpln__list_workloads` | Find workloads in a GVC before targeting one |
-| `mcp__cpln__delete_workload` | Delete a workload (destructive — confirm blast radius first) |
-| `mcp__cpln__get_workload_deployments` | PRIMARY post-deploy readiness monitor — poll until ready, surfaces probe failures per location |
+| `mcp__cpln__get_resource` (kind="workload") | Inspect current workload configuration (read before any update for rollback) |
+| `mcp__cpln__list_resources` (kind="workload") | Find workloads in a GVC before targeting one |
+| `mcp__cpln__delete_resource` (kind="workload") | Delete a workload (destructive — confirm blast radius first) |
+| `mcp__cpln__list_deployments` | PRIMARY post-deploy readiness monitor — poll until ready, surfaces probe failures per location |
 | `mcp__cpln__get_workload_events` | Probe/liveness reason + message when a deploy fails |
 | `mcp__cpln__get_workload_logs` | App-side logs to diagnose security/probe issues |
 | `mcp__cpln__list_workload_replicas` | List running replicas before exec |

@@ -1,6 +1,6 @@
 ---
 name: template-catalog
-description: "Recommends and installs production-ready templates from the Control Plane Template Catalog. Use when the user asks about deploying postgres, redis, kafka, rabbitmq, mysql, mongodb, elasticsearch, nginx, or any database/cache/queue/gateway. Also when asking what templates are available, how to install a template, or which infrastructure fits a use case. Covers 30+ templates with HA variants."
+description: "Recommends and installs templates from the Control Plane Template Catalog. Use when the user asks to deploy postgres, redis, kafka, rabbitmq, mysql, mongodb, elasticsearch, nginx, or any database/cache/queue/gateway, or asks what templates are available."
 ---
 
 # Template Catalog Guide
@@ -169,8 +169,8 @@ cpln apply -f secret.yaml
 
 After installing a template:
 1. Confirm the release succeeded and inspect the resources it created with `mcp__cpln__get_installed_template` (CLI fallback: `cpln helm get all <RELEASE>`).
-2. Verify the created workloads are healthy with `mcp__cpln__get_workload_deployments` (CLI fallback: `cpln workload get --gvc my-gvc`).
-3. Check operational secrets were created with `mcp__cpln__list_secrets` (CLI fallback: `cpln secret get`).
+2. Verify the created workloads are healthy with `mcp__cpln__list_deployments` (CLI fallback: `cpln workload get --gvc my-gvc`).
+3. Check operational secrets were created with `mcp__cpln__list_resources` (kind="secret") (CLI fallback: `cpln secret get`).
 4. Configure firewall rules if workloads need external access.
 5. Set up backup schedule for production databases.
 6. Monitor via Grafana dashboards.

@@ -1,6 +1,6 @@
 ---
 name: environment-promotion
-description: "Promotes workloads across dev/staging/production environments on Control Plane. Use when the user asks about environment promotion, deploying to production, rollback, blue-green deployment, canary release, image promotion, or multi-environment workflows. Covers org-based and GVC-based strategies, image tagging, cross-org sharing, and CI/CD integration."
+description: "Promotes workloads across dev/staging/production on Control Plane. Use when the user asks about environment promotion, deploying to production, rollback, blue-green or canary releases, image promotion, or multi-environment workflows."
 ---
 
 # Environment Promotion
@@ -264,7 +264,7 @@ jobs:
 
 ### Re-deploy a previous image tag
 
-The simplest rollback: update the workload to point at the previous known-good image. Lead with `mcp__cpln__get_workload` to capture the current image for a rollback record, then `mcp__cpln__update_workload` (PATCH semantics — only the image field changes). Verify the rollback landed with `mcp__cpln__get_workload_deployments`.
+The simplest rollback: update the workload to point at the previous known-good image. Lead with `mcp__cpln__get_resource` (kind="workload") to capture the current image for a rollback record, then `mcp__cpln__update_workload` (PATCH semantics — only the image field changes). Verify the rollback landed with `mcp__cpln__list_deployments`.
 
 CLI fallback when the MCP server is unavailable (or as the primary interface in CI/CD):
 
@@ -296,7 +296,7 @@ This sets a `cpln/deployTimestamp` tag on the workload, triggering a rolling res
 
 ### Check deployment history
 
-Use `mcp__cpln__get_workload_deployments` to inspect the version chain and per-location readiness across every location the workload runs in. CLI fallback:
+Use `mcp__cpln__list_deployments` to inspect per-location readiness across every location the workload runs in; pass the optional `location` to see one deployment's full version chain. CLI fallback:
 
 ```bash
 # View recent deployments
@@ -307,8 +307,8 @@ cpln workload get-deployments my-app --gvc my-gvc --org my-org
 
 1. Identify the last known-good image tag (check git history or deployment logs)
 2. Update the workload image to that tag — `mcp__cpln__update_workload` (CLI fallback: `cpln workload update`)
-3. Verify the rollback with health checks — poll `mcp__cpln__get_workload_deployments` until every location reports ready
-4. If using org-based promotion, ensure the image still exists in the target org's registry — `mcp__cpln__list_images` / `mcp__cpln__get_image`
+3. Verify the rollback with health checks — poll `mcp__cpln__list_deployments` until every location reports ready
+4. If using org-based promotion, ensure the image still exists in the target org's registry — `mcp__cpln__list_resources` (kind="image") / `mcp__cpln__get_resource` (kind="image")
 
 ## Quick Reference
 
@@ -332,13 +332,13 @@ cpln workload get-deployments my-app --gvc my-gvc --org my-org
 | `mcp__cpln__create_gvc` / `mcp__cpln__create_workload` | Stand up a GVC and workload in a target environment |
 | `mcp__cpln__update_workload` | Patch workload properties (image, `firewallConfig`, env, scaling) |
 | `mcp__cpln__update_gvc` | Patch GVC metadata, env, or pull secrets |
-| `mcp__cpln__get_workload` | Get workload details and current image (capture before update) |
-| `mcp__cpln__get_workload_deployments` | Verify a promoted/rolled-back workload is ready across locations |
+| `mcp__cpln__get_resource` (kind="workload") | Get workload details and current image (capture before update) |
+| `mcp__cpln__list_deployments` | Verify a promoted/rolled-back workload is ready across locations |
 | `mcp__cpln__get_resource_schema` | Author an accurate manifest before a `cpln apply` fallback |
 | `mcp__cpln__export_terraform` / `mcp__cpln__export_terraform_batch` | Export existing resources to Terraform for IaC promotion |
 | `mcp__cpln__convert_to_terraform` / `mcp__cpln__list_terraform_kinds` | Convert a manifest to HCL; list supported kinds |
-| `mcp__cpln__list_images` | List images in an org |
-| `mcp__cpln__get_image` | Get image details |
+| `mcp__cpln__list_resources` (kind="image") | List images in an org |
+| `mcp__cpln__get_resource` (kind="image") | Get image details |
 
 **Note:** No MCP tool exists for image copy/build — use the CLI directly (`cpln image copy`, `cpln image build --push`).
 

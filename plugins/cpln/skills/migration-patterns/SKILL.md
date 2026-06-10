@@ -1,6 +1,6 @@
 ---
 name: migration-patterns
-description: "Migrates workloads from Kubernetes, Docker Compose, or Helm charts to Control Plane. Use when the user asks about converting k8s manifests, docker-compose.yml, or Helm charts to Control Plane YAML. Covers resource mapping (Deployment to workload, Ingress to domain), secret conversion, workload type detection, and post-migration validation."
+description: "Migrates workloads from Kubernetes, Docker Compose, or Helm to Control Plane. Use when the user asks about converting k8s manifests, docker-compose.yml, or Helm charts to Control Plane YAML, or migrating an app onto the platform."
 ---
 
 # Migration Patterns
@@ -126,7 +126,7 @@ When `--protocol` is not set, each container port is resolved in this priority o
 4. Validate Ingress → Domain route mapping
 5. Update service-to-service URLs in your app code to `<workload>.<gvc>.cpln.local[:port]`
 
-After the fix-ups, create the resources. Prefer the typed MCP tools so each gets production-grade defaults — `mcp__cpln__create_gvc` (if the target GVC does not exist), `mcp__cpln__create_secret_<type>` (e.g. `create_secret_opaque`), `mcp__cpln__create_identity`, `mcp__cpln__create_volumeset`, then `mcp__cpln__create_workload`. Apply the converter's manifest directly with `cpln apply -f cpln-manifest.yaml --ready` when you want a one-shot apply or the MCP server is unavailable. Either way, verify the result: poll `mcp__cpln__get_workload_deployments` until each workload reports ready and pair every mutation with a read.
+After the fix-ups, create the resources. Prefer the typed MCP tools so each gets production-grade defaults — `mcp__cpln__create_gvc` (if the target GVC does not exist), `mcp__cpln__create_secret_<type>` (e.g. `create_secret_opaque`), `mcp__cpln__create_identity`, `mcp__cpln__create_volumeset`, then `mcp__cpln__create_workload`. Apply the converter's manifest directly with `cpln apply -f cpln-manifest.yaml --ready` when you want a one-shot apply or the MCP server is unavailable. Either way, verify the result: poll `mcp__cpln__list_deployments` until each workload reports ready and pair every mutation with a read.
 
 ## Docker Compose Migration (`cpln stack`)
 

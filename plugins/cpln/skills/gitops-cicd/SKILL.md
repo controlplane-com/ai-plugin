@@ -1,11 +1,11 @@
 ---
 name: gitops-cicd
-description: "Sets up CI/CD pipelines and GitOps workflows for Control Plane. Use when the user asks about GitHub Actions, GitLab CI, Bitbucket Pipelines, CircleCI, Google Cloud Build, automated deployment, cpln apply in CI, or service account tokens for pipelines. Covers pipeline authentication, environment setup, manifest application, and provider-specific examples."
+description: "Sets up CI/CD pipelines and GitOps workflows for Control Plane. Use when the user asks about GitHub Actions, GitLab CI, Bitbucket Pipelines, CircleCI, automated deployment, cpln apply in CI, or service account tokens for pipelines."
 ---
 
 # GitOps & CI/CD Patterns
 
-In CI/CD the **CLI is the primary interface** — pipelines authenticate non-interactively with a service-account `CPLN_TOKEN`, build and push images with `cpln image build --push`, and apply manifests with `cpln apply --ready`. The MCP tools are for the authoring and verification work around the pipeline: discover manifest shapes before you write them (`mcp__cpln__get_resource_schema`), generate or import Terraform for IaC pipelines (`mcp__cpln__export_terraform`, `mcp__cpln__convert_to_terraform`), and confirm a deploy landed (`mcp__cpln__get_workload_deployments`).
+In CI/CD the **CLI is the primary interface** — pipelines authenticate non-interactively with a service-account `CPLN_TOKEN`, build and push images with `cpln image build --push`, and apply manifests with `cpln apply --ready`. The MCP tools are for the authoring and verification work around the pipeline: discover manifest shapes before you write them (`mcp__cpln__get_resource_schema`), generate or import Terraform for IaC pipelines (`mcp__cpln__export_terraform`, `mcp__cpln__convert_to_terraform`), and confirm a deploy landed (`mcp__cpln__list_deployments`).
 
 ## Service Account Authentication
 
@@ -73,7 +73,7 @@ Add `--ready` to block until workloads are healthy:
 cpln apply --file ./manifests/ --ready
 ```
 
-For an out-of-band readiness check — for example a post-deploy verification step or an agent confirming a rollout from outside the pipeline — use `mcp__cpln__get_workload_deployments`; it reports per-location readiness for the workload.
+For an out-of-band readiness check — for example a post-deploy verification step or an agent confirming a rollout from outside the pipeline — use `mcp__cpln__list_deployments`; it reports per-location readiness for the workload.
 
 ## GitHub Actions Example
 

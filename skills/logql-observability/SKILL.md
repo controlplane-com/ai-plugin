@@ -1,6 +1,6 @@
 ---
 name: logql-observability
-description: "Queries workload logs and builds log dashboards on Control Plane. Use when the user asks about LogQL syntax, log search, viewing logs in Grafana, log stream selectors, log filtering, log patterns, log metrics extraction, or setting up log-based dashboards."
+description: "Queries workload logs and builds log dashboards on Control Plane. Use when the user asks about LogQL syntax, log search, viewing logs in Grafana, stream selectors, log filtering, log patterns, or log-based metrics and dashboards."
 ---
 
 # LogQL & Observability Patterns
@@ -114,7 +114,7 @@ JobExecutionStatus = {
 - **`replica` is `optional()`** in the schema. In practice it's set for any execution that actually got a pod; if it's missing, the run never reached the running phase and there are no logs to fetch — diagnose via `containers[].message` and the parent workload events instead.
 - **`completionTime: null` is server-stripped** by a custom Joi transform (`if (value.completionTime == null) delete value.completionTime`). So in the wire JSON the field is either present with a real timestamp or absent — never literal `null`. `jq` filters using `// empty` handle this correctly.
 
-**Step 1 — list executions and pick one.** Agents call `mcp__cpln__get_workload_deployments` to fetch deployment status across all locations; each location's `status.jobExecutions[]` holds the per-execution metadata. The CLI equivalent is `cpln workload get-deployments`, which returns the same shape:
+**Step 1 — list executions and pick one.** Agents call `mcp__cpln__list_deployments` with the optional `location` param to fetch that location's full deployment JSON — its `status.jobExecutions[]` holds the per-execution metadata (without `location` the tool returns a readiness summary across all locations). The CLI equivalent is `cpln workload get-deployments`, which returns the same per-location shape:
 
 ```bash
 # Per-execution metadata for a cron workload (defensive against list-envelope vs bare-array response shapes)

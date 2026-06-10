@@ -1,6 +1,6 @@
 ---
 name: stateful-storage
-description: "Creates persistent storage for stateful workloads on Control Plane. Use when the user asks about volumes, volume sets, disk, mounting storage, snapshots, volume expansion, ext4/xfs filesystem, shared storage, or backup patterns for stateful containers."
+description: "Creates persistent storage for stateful workloads on Control Plane. Use when the user asks about volumes, volume sets, disks, mounting storage, snapshots, volume expansion, filesystems, shared storage, or backups."
 ---
 
 # Stateful Storage & VolumeSets
@@ -31,7 +31,7 @@ Performance class is **immutable** after creation; throughput/IOPS vary by cloud
 
 ## VolumeSet lifecycle
 
-Prefer the MCP tools: `mcp__cpln__create_volumeset` (performance class, filesystem, initial capacity, snapshot policy, autoscaling), `mcp__cpln__get_volumeset`, `mcp__cpln__list_volumesets`, `mcp__cpln__update_volumeset` (mutable fields only — filesystem and performance class are immutable). CLI fallback: `cpln volumeset` / `cpln apply`.
+Prefer the MCP tools: `mcp__cpln__create_volumeset` (performance class, filesystem, initial capacity, snapshot policy, autoscaling), `mcp__cpln__get_resource` (kind="volumeset"), `mcp__cpln__list_resources` (kind="volumeset"), `mcp__cpln__update_volumeset` (mutable fields only — filesystem and performance class are immutable). CLI fallback: `cpln volumeset` / `cpln apply`.
 
 ### YAML Manifest (fallback / IaC)
 
@@ -163,7 +163,7 @@ wait $APPLY_PID
 cpln workload get <workload> --gvc <gvc>
 ```
 
-If the watcher killed the apply, `--ready` exited non-zero, or step 6 shows an unhealthy state, **diagnose** — `mcp__cpln__get_workload_deployments` (failed deployment + exact error; CLI `cpln workload get-deployments <workload> --gvc <gvc>`), `mcp__cpln__get_workload_logs` for stderr where most startup failures land (CLI `cpln logs '{gvc="<gvc>", workload="<workload>"}' --org <org>`), and re-read the manifest for the culprit the error points at (DSN, secret refs, port, image tag, env). **Then fix and re-apply with the safety net wrapped again** — re-applying a broken manifest plain costs more wall-clock and obscures the issue. Restore from `<workload>.bak.yaml` if unrecoverable.
+If the watcher killed the apply, `--ready` exited non-zero, or step 6 shows an unhealthy state, **diagnose** — `mcp__cpln__list_deployments` (failed deployment + exact error; CLI `cpln workload get-deployments <workload> --gvc <gvc>`), `mcp__cpln__get_workload_logs` for stderr where most startup failures land (CLI `cpln logs '{gvc="<gvc>", workload="<workload>"}' --org <org>`), and re-read the manifest for the culprit the error points at (DSN, secret refs, port, image tag, env). **Then fix and re-apply with the safety net wrapped again** — re-applying a broken manifest plain costs more wall-clock and obscures the issue. Restore from `<workload>.bak.yaml` if unrecoverable.
 
 For waits on operations that lack a `--ready` flag (e.g. after `cpln workload force-redeployment`), use a bounded shell wait, never an AI polling loop:
 
@@ -206,7 +206,7 @@ CLI fallback (`cpln volumeset snapshot create|get|restore|delete my-data --gvc m
 
 ## Volume Management
 
-Inspect via `mcp__cpln__get_volumeset` — status reports per-location volume counts, bound workload, snapshot counts. To delete a single volume (**permanent data loss, ext4/xfs only**), snapshot first, then `mcp__cpln__delete_volumeset_volume` — destructive, confirm the blast radius first. CLI `cpln volumeset volume get|delete my-data --gvc my-gvc [--location aws-us-east-2] [--volume-index 0]`.
+Inspect via `mcp__cpln__get_resource` (kind="volumeset") — status reports per-location volume counts, bound workload, snapshot counts. To delete a single volume (**permanent data loss, ext4/xfs only**), snapshot first, then `mcp__cpln__delete_volumeset_volume` — destructive, confirm the blast radius first. CLI `cpln volumeset volume get|delete my-data --gvc my-gvc [--location aws-us-east-2] [--volume-index 0]`.
 
 ## Common Patterns
 
@@ -317,9 +317,9 @@ For Bring Your Own Kubernetes clusters:
 | `mcp__cpln__create_volumeset` | Create a volumeset (filesystem, perf class, capacity, snapshot policy) |
 | `mcp__cpln__mount_volumeset_to_workload` | Mount volumeset to workload (creates volumeset if needed) |
 | `mcp__cpln__update_volumeset` | Update mutable fields (capacity, snapshot policy, autoscaling, tags) |
-| `mcp__cpln__delete_volumeset` | Delete a volumeset |
-| `mcp__cpln__list_volumesets` | List volumesets in a GVC |
-| `mcp__cpln__get_volumeset` | Get volumeset details (spec + per-location status) |
+| `mcp__cpln__delete_resource` (kind="volumeset") | Delete a volumeset |
+| `mcp__cpln__list_resources` (kind="volumeset") | List volumesets in a GVC |
+| `mcp__cpln__get_resource` (kind="volumeset") | Get volumeset details (spec + per-location status) |
 | `mcp__cpln__expand_volumeset` | Increase volume capacity |
 | `mcp__cpln__shrink_volumeset` | Decrease volume capacity (data loss) |
 | `mcp__cpln__delete_volumeset_volume` | Delete a specific volume (data loss) |

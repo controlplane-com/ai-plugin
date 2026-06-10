@@ -1,6 +1,6 @@
 ---
 name: mk8s-byok
-description: "Provisions managed Kubernetes (mk8s) clusters and registers existing clusters via BYOK on Control Plane. Use when the user asks about creating a Kubernetes cluster, mk8s, BYOK, registering an existing cluster, node pools, cluster add-ons, or multi-cloud Kubernetes. Covers AWS/GCP/Azure/Hetzner provisioning, BYOK bootstrap, add-ons, and node configuration."
+description: "Provisions managed Kubernetes (mk8s) clusters and registers existing clusters via BYOK on Control Plane. Use when the user asks about creating a Kubernetes cluster, mk8s, BYOK, node pools, cluster add-ons, or multi-cloud Kubernetes."
 ---
 
 # Managed Kubernetes & BYOK Patterns
@@ -67,7 +67,7 @@ The `spec.firewall` array contains allow-list rules. Each rule has `sourceCIDR` 
 
 Prefer the MCP server. Each provider has its own create tool — pick the one matching your infrastructure: `mcp__cpln__create_mk8s_aws`, `mcp__cpln__create_mk8s_azure`, `mcp__cpln__create_mk8s_gcp`, `mcp__cpln__create_mk8s_digitalocean`, `mcp__cpln__create_mk8s_hetzner`, `mcp__cpln__create_mk8s_linode`, `mcp__cpln__create_mk8s_oblivus`, `mcp__cpln__create_mk8s_lambdalabs`, `mcp__cpln__create_mk8s_paperspace`, `mcp__cpln__create_mk8s_triton`, or `mcp__cpln__create_mk8s_generic`. Supply at least one node pool to get worker capacity. Several providers need a credential secret first (use the typed `mcp__cpln__create_secret_<type>` tool): Azure (`sdkSecretLink` → `create_secret_azure_sdk`), GCP (`saKeyLink` → `create_secret_gcp`), DigitalOcean / Hetzner / Linode / Oblivus / Lambdalabs / Paperspace (`tokenSecretLink` → `create_secret_opaque`), Triton (`connection.privateKeySecretLink` → `create_secret_keypair`). AWS uses an assumed `deployRoleArn` instead of a secret.
 
-Inspect with `mcp__cpln__get_mk8s` and `mcp__cpln__list_mk8s`. Update an existing cluster with the per-provider `mcp__cpln__update_mk8s_<provider>` tool (merge-patch — supply only the fields to change; provided `nodePools`/`firewall` replace the existing values). Delete with `mcp__cpln__delete_mk8s` (destructive — confirm the blast radius first).
+Inspect with `mcp__cpln__get_resource` (kind="mk8s") and `mcp__cpln__list_resources` (kind="mk8s"). Update an existing cluster with the per-provider `mcp__cpln__update_mk8s_<provider>` tool (merge-patch — supply only the fields to change; provided `nodePools`/`firewall` replace the existing values). Delete with `mcp__cpln__delete_resource` (kind="mk8s") (destructive — confirm the blast radius first).
 
 Fallback (MCP unavailable, or CI/CD): create via `cpln apply` with a YAML manifest. Author it from the live schema with `mcp__cpln__get_resource_schema` (kind `mk8s`).
 
@@ -78,7 +78,7 @@ cpln apply --file mk8s-cluster.yaml
 
 ### mk8s CLI Commands
 
-For read/update/delete, prefer the MCP tools above (`get_mk8s`, `list_mk8s`, `update_mk8s_<provider>`, `delete_mk8s`). The CLI is the fallback when MCP is unavailable and the only interface for the operations below that have no MCP equivalent (`kubeconfig`, `dashboard`, `join`, `eventlog`, `clone`).
+For read/update/delete, prefer the MCP tools above (`get_resource`/`list_resources` (kind="mk8s"), `update_mk8s_<provider>`, `delete_resource` (kind="mk8s")). The CLI is the fallback when MCP is unavailable and the only interface for the operations below that have no MCP equivalent (`kubeconfig`, `dashboard`, `join`, `eventlog`, `clone`).
 
 | Command | Description |
 |:--------|:------------|
@@ -156,7 +156,7 @@ To remove a BYOK cluster, use `cpln location uninstall <ref>` and run the printe
 After the agent connects:
 1. Add the BYOK location to your GVC — `mcp__cpln__add_gvc_locations`
 2. Deploy workloads that target the new location
-3. Verify workload health across all locations — `mcp__cpln__get_workload_deployments` (poll until ready), then `mcp__cpln__get_workload`
+3. Verify workload health across all locations — `mcp__cpln__list_deployments` (poll until ready), then `mcp__cpln__get_resource` (kind="workload")
 
 The BYOK location create/install/uninstall steps above are CLI-only (no MCP equivalent). Once the location exists, prefer MCP for the GVC and workload work:
 

@@ -1,6 +1,6 @@
 ---
 name: native-networking
-description: "Connects Control Plane workloads to private VPCs, on-prem networks, and cross-cloud resources. Use when the user asks about AWS PrivateLink, GCP Private Service Connect, VPN alternatives, wormhole agents, or accessing resources inside private networks from Control Plane."
+description: "Connects Control Plane workloads to private VPCs, on-prem networks, and cross-cloud resources. Use when the user asks about AWS PrivateLink, GCP Private Service Connect, VPN alternatives, wormhole agents, or reaching private networks."
 ---
 
 # Native Networking & Agent Connectivity
@@ -257,7 +257,7 @@ aws ec2 describe-instance-types \
 
 ## Agent CLI Commands
 
-MCP-first: manage the agent resource itself with the agent MCP tools in the Quick Reference below (`create_agent`, `get_agent`, `get_agent_info`, `get_agent_eventlog`, `update_agent`, `delete_agent`). Reach for the CLI for the deployment-artifact steps the MCP server does not cover — `cpln agent manifest`, `cpln agent up`, `cpln agent edit` — and when the MCP server is unavailable or unauthenticated.
+MCP-first: manage the agent resource itself with the agent MCP tools in the Quick Reference below (`create_agent`, `get_resource` (kind="agent"), `get_agent_info`, `get_agent_eventlog`, `update_agent`, `delete_resource` (kind="agent")). Reach for the CLI for the deployment-artifact steps the MCP server does not cover — `cpln agent manifest`, `cpln agent up`, `cpln agent edit` — and when the MCP server is unavailable or unauthenticated.
 
 | Command | Description |
 |:--------|:------------|
@@ -331,15 +331,15 @@ Each `networkResource` must have exactly one of `IPs` or `FQDN`.
 
 | Tool | Use |
 |:-----|:----|
-| `mcp__cpln__list_agents` | List all agents in an org |
-| `mcp__cpln__get_agent` | Get agent details (registration token hidden) |
+| `mcp__cpln__list_resources` (kind="agent") | List all agents in an org |
+| `mcp__cpln__get_resource` (kind="agent") | Get agent details (registration token hidden) |
 | `mcp__cpln__create_agent` | Create agent and return bootstrap config |
 | `mcp__cpln__update_agent` | Update agent description/tags (bootstrap config and token are immutable) |
-| `mcp__cpln__delete_agent` | Delete an agent |
+| `mcp__cpln__delete_resource` (kind="agent") | Delete an agent |
 | `mcp__cpln__get_agent_info` | Real-time agent status: active/inactive, lastActive, peerCount, serviceCount |
 | `mcp__cpln__get_agent_eventlog` | Agent event log for troubleshooting connectivity |
 
-**Identity tools (for network resource configuration):** see the **cpln-agent-setup** agent, Step 4 — it documents `create_identity`, `update_identity`, `add_identity_network_resource`, `add_identity_native_network_resource`, `remove_identity_network_resource`, and `list_identity_network_resources` with JSON input examples. To inspect what is attached, read with `mcp__cpln__get_identity` or `mcp__cpln__list_identity_network_resources` (lists both `networkResources` and `nativeNetworkResources`).
+**Identity tools (for network resource configuration):** see the **cpln-agent-setup** agent, Step 4 — it documents `create_identity`, `update_identity`, `add_identity_network_resource`, `add_identity_native_network_resource`, `remove_identity_network_resource`, and `list_identity_network_resources` with JSON input examples. To inspect what is attached, read with `mcp__cpln__get_resource` (kind="identity") or `mcp__cpln__list_identity_network_resources` (lists both `networkResources` and `nativeNetworkResources`).
 
 ### Related Skills
 

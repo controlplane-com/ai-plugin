@@ -46,6 +46,7 @@ Skills and commands use bare names because the plugin namespace (`cpln:`) handle
 
 - **Never write a `cpln` command from memory.** Verify with `cpln <command> --help`. The `cpln` skill (`plugins/cpln/skills/cpln/SKILL.md`) is the canonical CLI reference — command structure, the resource command map, and hallucination traps live there (no longer a rule).
 - Frontmatter on skills, agents, commands: `name` and `description` only. Do not add `version:` — Claude/Codex/Gemini ignore it.
+- Skill `description` budget: ≤ ~220 characters (≤ ~270 for the primary `workload` skill). One "what it is" sentence plus a "Use when the user asks about…" trigger-keyword list — no trailing "Covers…" sentence, no MCP tool names. Clients cap the per-session skill listing (Claude Code: ~1% of context); over-budget descriptions get truncated to bare names, which kills intent routing.
 - YAML placeholders in examples use uppercase: `WORKLOAD`, `GVC`, `ORG`.
 - MCP tool names in Claude examples use the `mcp__cpln__` prefix; Gemini/Codex use the bare name.
 

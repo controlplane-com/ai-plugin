@@ -1,6 +1,6 @@
 ---
 name: k8s-operator
-description: "Manages Control Plane resources as Kubernetes CRDs and sets up ArgoCD GitOps. Use when the user asks about the Control Plane Kubernetes operator, CRDs, custom resources, ArgoCD integration, managing Control Plane from a k8s cluster, or converting YAML to CRD format."
+description: "Manages Control Plane resources as Kubernetes CRDs and sets up ArgoCD GitOps. Use when the user asks about the Control Plane Kubernetes operator, CRDs, custom resources, ArgoCD, or managing Control Plane from a k8s cluster."
 ---
 
 # Kubernetes Operator Patterns
@@ -164,7 +164,7 @@ Agent, AuditCtx, CloudAccount, Domain, Group, GVC, Identity, IPSet, Location, MK
 
 ## Export Existing Resources as CRDs
 
-CRD-format export (`-o crd`) is CLI-only — no MCP tool emits CRD YAML. Use the typed read tools (`mcp__cpln__get_workload`, `mcp__cpln__get_gvc`, `mcp__cpln__get_secret`, `mcp__cpln__list_workloads`) to discover and inspect the resources first, then export the chosen ones:
+CRD-format export (`-o crd`) is CLI-only — no MCP tool emits CRD YAML. Use the generic read tools (`mcp__cpln__get_resource` (kind="workload"), `mcp__cpln__get_resource` (kind="gvc"), `mcp__cpln__get_resource` (kind="secret"), `mcp__cpln__list_resources` (kind="workload")) to discover and inspect the resources first, then export the chosen ones:
 
 ```bash
 cpln workload get my-app --gvc my-gvc -o crd > workload-crd.yaml

@@ -1,6 +1,6 @@
 ---
 name: org-management
-description: "Manages organizations, billing, users, and authentication on Control Plane. Use when the user asks about creating an org, billing setup, inviting users, SSO login, SAML authentication, CLI profiles, switching orgs, or multi-org membership. Covers org creation, billing accounts, user invitation, SSO/SAML, service account auth, and CLI profiles."
+description: "Manages organizations, billing, users, and authentication on Control Plane. Use when the user asks about creating an org, billing setup, inviting users, SSO or SAML login, CLI profiles, switching orgs, or multi-org membership."
 ---
 
 # Organization & User Management
@@ -50,7 +50,7 @@ Org (top-level boundary)
 | `domainAutoMembers` | string[] | — | Email domains for automatic org membership |
 | `samlOnly` | boolean | `false` | Restrict authentication to SAML only |
 
-> **Editing org-level spec blocks** — `authConfig`, `observability`, `security`, and `sessionTimeoutSeconds` are set with `mcp__cpln__update_org` (read current state with `mcp__cpln__get_org`). `logging`/`extraLogging` are the exception — use `mcp__cpln__configure_external_logging` (see the **cpln-external-logging** skill). For a block not covered by `update_org` (e.g. `tracing`), call `mcp__cpln__get_resource_schema` (kind `org`) and apply with `cpln apply -f org.yaml`.
+> **Editing org-level spec blocks** — `authConfig`, `observability`, `security`, and `sessionTimeoutSeconds` are set with `mcp__cpln__update_org` (read current state with `mcp__cpln__get_resource` (kind="org")). `logging`/`extraLogging` are the exception — use `mcp__cpln__configure_external_logging` (see the **cpln-external-logging** skill). For a block not covered by `update_org` (e.g. `tracing`), call `mcp__cpln__get_resource_schema` (kind `org`) and apply with `cpln apply -f org.yaml`.
 
 ## Creating an Organization
 
@@ -134,7 +134,7 @@ The initial billing account can only be created via the Console. The creation fo
 3. Add a user: enter email, select role(s), click **Add User**.
 4. Edit a user: click **Edit**, modify roles, click **Confirm**.
 
-A user must have at least one role (`billing_admin`, `billing_viewer`, or `org_creator`); access is immediate once added. These are **billing-account** users, not org members — to add or remove a user inside an org use the org-level MCP tools (`mcp__cpln__invite_user_to_org`, `mcp__cpln__delete_user`).
+A user must have at least one role (`billing_admin`, `billing_viewer`, or `org_creator`); access is immediate once added. These are **billing-account** users, not org members — to add or remove a user inside an org use the org-level MCP tools (`mcp__cpln__invite_user_to_org`, `mcp__cpln__delete_resource` (kind="user")).
 
 ### Spend Threshold Alerts
 
@@ -193,12 +193,12 @@ Lead with the MCP tools; fall back to the CLI when the MCP server is unavailable
 
 | Action | MCP | CLI fallback |
 |:---|:---|:---|
-| List users | `mcp__cpln__list_users` | `cpln user get` |
-| Get user | `mcp__cpln__get_user` (by id or email) | `cpln user get USER_EMAIL` |
-| Delete user | `mcp__cpln__delete_user` | `cpln user delete USER_EMAIL` |
+| List users | `mcp__cpln__list_resources` (kind="user") | `cpln user get` |
+| Get user | `mcp__cpln__get_resource` (kind="user", by id or email) | `cpln user get USER_EMAIL` |
+| Delete user | `mcp__cpln__delete_resource` (kind="user") | `cpln user delete USER_EMAIL` |
 | Update tags | — (no typed tool) | `cpln user update USER_EMAIL --set tags.key=value` |
 
-> `delete_user` is destructive — confirm the blast radius (group memberships, policy bindings the user participates in) before calling.
+> `delete_resource` (kind="user") is destructive — confirm the blast radius (group memberships, policy bindings the user participates in) before calling.
 
 ### User Permissions (for Policies)
 
@@ -224,13 +224,13 @@ Groups aggregate users and service accounts for easier policy management.
 
 | Action | MCP Tool | Key Parameters |
 |:---|:---|:---|
-| List groups | `mcp__cpln__list_groups` | `org`, `limit` (max 500) |
-| Get group | `mcp__cpln__get_group` | `org`, `name` |
+| List groups | `mcp__cpln__list_resources` (kind="group") | `org`, `limit` (max 500) |
+| Get group | `mcp__cpln__get_resource` (kind="group") | `org`, `name` |
 | Create group | `mcp__cpln__create_group` | `name`, `description`, `tags`, `memberLinks` |
 | Edit group (description, tags, members) | `mcp__cpln__edit_group` | `name`, `description`, `tags`, `addMemberLinks`, `removeMemberLinks` |
-| Delete group | `mcp__cpln__delete_group` | `name` |
+| Delete group | `mcp__cpln__delete_resource` (kind="group") | `name` |
 
-> `edit_group` is the single tool for updating a group's description/tags **and** adding or removing member links — there is no separate add-/remove-member tool. Call `get_group` first to confirm current membership.
+> `edit_group` is the single tool for updating a group's description/tags **and** adding or removing member links — there is no separate add-/remove-member tool. Call `get_resource` (kind="group") first to confirm current membership.
 
 **Member link format:** `//user/EMAIL` for users, `//serviceaccount/NAME` for service accounts.
 
@@ -391,19 +391,19 @@ Tokens can come from a service account key or `cpln profile token PROFILE_NAME`.
 | Tool | Action |
 |:---|:---|
 | `mcp__cpln__invite_user_to_org` | Invite user by email to org (optional group) |
-| `mcp__cpln__list_users` | List users in an org |
-| `mcp__cpln__get_user` | Get a user by id or email |
-| `mcp__cpln__delete_user` | Remove a user from the org (destructive) |
-| `mcp__cpln__list_groups` | List all groups in an org |
-| `mcp__cpln__get_group` | Get group details |
+| `mcp__cpln__list_resources` (kind="user") | List users in an org |
+| `mcp__cpln__get_resource` (kind="user") | Get a user by id or email |
+| `mcp__cpln__delete_resource` (kind="user") | Remove a user from the org (destructive) |
+| `mcp__cpln__list_resources` (kind="group") | List all groups in an org |
+| `mcp__cpln__get_resource` (kind="group") | Get group details |
 | `mcp__cpln__create_group` | Create a group with optional members |
 | `mcp__cpln__edit_group` | Update group description, tags, and member links |
-| `mcp__cpln__delete_group` | Delete a group |
+| `mcp__cpln__delete_resource` (kind="group") | Delete a group |
 | `mcp__cpln__create_service_account` | Create a service account (no keys) |
 | `mcp__cpln__add_key_to_service_account` | Add a key (creates the SA if needed) |
 | `mcp__cpln__list_quotas` | List per-org resource quotas |
 | `mcp__cpln__get_quota` | Get a single quota by GUID id |
-| `mcp__cpln__get_org` / `mcp__cpln__update_org` | Read / update org spec — `authConfig`, `observability`, `security`, `sessionTimeoutSeconds` |
+| `mcp__cpln__get_resource` (kind="org") / `mcp__cpln__update_org` | Read / update org spec — `authConfig`, `observability`, `security`, `sessionTimeoutSeconds` |
 | `mcp__cpln__get_resource_schema` | Author an org manifest for `cpln apply` (for blocks not on `update_org`, e.g. `tracing`) |
 
 ### CLI Commands

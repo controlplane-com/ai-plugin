@@ -1,6 +1,6 @@
 ---
 name: cpln
-description: "Writes cpln CLI commands and workflows for deploying and managing workloads on Control Plane. Use when the user asks about cpln login, cpln apply, cpln workload, deploying via CLI, container debugging with cpln exec/logs, or any cpln resource command. Covers CLI setup, authentication, the resource command map, deployment workflows, interactive debugging, and hallucination traps."
+description: "Writes cpln CLI commands and workflows for Control Plane. Use when the user asks about cpln login, cpln apply, cpln workload, deploying via CLI, container debugging with cpln exec/logs, or any cpln resource command."
 ---
 
 # cpln CLI
@@ -21,7 +21,9 @@ Five operations have **no MCP equivalent** — the CLI's primary job:
 | `cpln convert` | Translate Kubernetes / Compose manifests into Control Plane specs |
 | `cpln cp` | Copy files in or out of a running container |
 
-Also CLI-only: interactive debugging (`exec`, `connect`, `logs`) and scripted GitOps (`cpln apply`). Everything else — discovery and CRUD — prefer the MCP tools (`list_*`/`get_*` for discovery, `create_*`/`update_*`/`delete_*` for mutations; e.g. `mcp__cpln__list_workloads`, `mcp__cpln__create_workload`). The `image` commands have no MCP create/update path — read images with `mcp__cpln__get_image` / `mcp__cpln__list_images`, but build/copy stay CLI.
+Also CLI-only: interactive debugging (`exec`, `connect`, `logs`) and scripted GitOps (`cpln apply`). Everything else — discovery and CRUD — prefer the MCP tools (generic `mcp__cpln__list_resources` / `mcp__cpln__get_resource` / `mcp__cpln__delete_resource` with a `kind` for discovery and removal, dedicated `create_*`/`update_*` for mutations; e.g. `mcp__cpln__list_resources` (kind="workload"), `mcp__cpln__create_workload`). The `image` commands have no MCP create/update path — read images with `mcp__cpln__get_resource` (kind="image") / `mcp__cpln__list_resources` (kind="image"), but build/copy stay CLI.
+
+When no MCP tool (typed or generic) covers a resource, field, or sub-endpoint, reach for **`mcp__cpln__cpln_api_request`** — a raw GET/POST/PATCH/DELETE escape hatch onto the Control Plane API. Call `mcp__cpln__get_resource_schema` first to get the exact path and body shape, and prefer the dedicated `create_*`/`update_*` tools whenever they exist — drop to `cpln_api_request` only for the gaps. It is flagged **destructive** (clients confirm each call): use the typed/generic reads for plain GETs, supply the root ATIS code for any mutating method, and treat a `DELETE` (or a `PATCH`/`PUT` that removes access/data/capacity) with the full destructive-confirmation shape. It runs with your real permissions and cannot read secret values — use `reveal_secret` for that.
 
 ## Setup
 
@@ -254,7 +256,7 @@ cpln image build --name my-app:v1.0 --push   # builds and pushes → reference a
 
 Auto-detects a Dockerfile, falls back to buildpacks. All images must be `linux/amd64` (wrong platform = `exec format error`). **In CI/CD `cpln image build` may not work** — Buildx/Docker daemon aren't always present; fall back to plain `docker build` + `docker push` to the org registry.
 
-To **read** what's already in the registry, prefer MCP: `mcp__cpln__list_images` (all images in the org) and `mcp__cpln__get_image` (tags, digest, manifest). There is no create/update/delete-image MCP tool — building (`cpln image build --push`) and cross-org copying (`cpln image copy`) are CLI-exclusive.
+To **read** what's already in the registry, prefer MCP: `mcp__cpln__list_resources` (kind="image") (all images in the org) and `mcp__cpln__get_resource` (kind="image") (tags, digest, manifest). There is no create/update-image MCP tool — building (`cpln image build --push`) and cross-org copying (`cpln image copy`) are CLI-exclusive.
 
 Image reference rules in workload specs:
 
@@ -269,7 +271,7 @@ Full image workflow (buildx fallback, cross-org copy, pull-secret setup): `image
 
 ## Workflow: Deploy a workload
 
-Prefer MCP for the GVC + workload steps (`mcp__cpln__create_gvc`, `mcp__cpln__create_workload`, then poll `mcp__cpln__get_workload_deployments`); only the image build is CLI-exclusive. The CLI runbook below is the fallback (or the CI/CD path):
+Prefer MCP for the GVC + workload steps (`mcp__cpln__create_gvc`, `mcp__cpln__create_workload`, then poll `mcp__cpln__list_deployments`); only the image build is CLI-exclusive. The CLI runbook below is the fallback (or the CI/CD path):
 
 ```bash
 cpln gvc create --name my-gvc --location aws-us-west-2 --location gcp-us-east1
@@ -280,7 +282,7 @@ cpln workload get-deployments my-app --gvc my-gvc   # verify readiness
 
 ## Workflow: Grant secret access (3 steps)
 
-The 3-step rule (identity + policy + reference) is in `rules/cpln-guardrails.md`. Prefer MCP: `mcp__cpln__create_secret_<type>` (e.g. `create_secret_opaque`), then `mcp__cpln__workload_reveal_secret` (composite — ensures the workload has an identity and creates/updates the reveal policy in one call), then edit the workload spec to reference it. The CLI workflow below is the fallback:
+The 3-step rule (identity + policy + reference) is in `rules/cpln-guardrails.md`. Prefer MCP: `mcp__cpln__create_secret_<type>` (e.g. `create_secret_opaque`), then `mcp__cpln__workload_reveal_secret` (composite — ensures the workload has an identity and creates/updates the reveal policy in one call; the workload must already exist — for a new one, `create_workload` first and the paused deployment resumes once granted), then edit the workload spec to reference it. The CLI workflow below is the fallback:
 
 ```bash
 # 1. Secret
