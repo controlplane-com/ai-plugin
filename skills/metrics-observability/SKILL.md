@@ -1,6 +1,6 @@
 ---
 name: metrics-observability
-description: "Configures workload metrics, Prometheus scraping, and Grafana dashboards on Control Plane. Use when the user asks about CPU/memory/request metrics, custom metrics endpoints, Prometheus federation, centralized Grafana setup, or metric-driven autoscaling."
+description: "Configures workload metrics, Prometheus scraping, and Grafana dashboards on Control Plane. Use when the user asks about CPU/memory/request metrics, custom metrics endpoints, Prometheus federation, or centralized Grafana."
 ---
 
 # Metrics & Observability Patterns
@@ -191,6 +191,8 @@ scrape_configs:
 
 Notes: replace `SOURCE_ORG` with the actual org name; `match[]` filters which metrics are scraped; egress charges apply; repeat per org with separate service accounts/policies.
 
+**Token trap:** `metrics.cpln.io` (and `logs.cpln.io`) authenticate **user and service-account tokens** — a workload's injected `CPLN_TOKEN` does **not** work there, even with `readMetrics` granted to its identity (it only authenticates against the in-mesh API at `CPLN_ENDPOINT`; see the `workload` skill). To query metrics from inside a workload, use a service-account key.
+
 ## Centralized Metrics (Multi-Org Grafana)
 
 View metrics from multiple orgs in one Grafana by adding Prometheus data sources.
@@ -225,7 +227,7 @@ targetKind: org
 
 ## Custom Metrics
 
-Expose Prometheus-formatted metrics from workloads for monitoring and autoscaling. The container `metrics` block lives inside the workload spec — set it at creation with `mcp__cpln__create_workload` or add it later with `mcp__cpln__update_workload` (PATCH; call `mcp__cpln__get_workload` first). If the typed tool doesn't surface the nested `metrics` field, fall back to the CLI: `mcp__cpln__get_resource_schema` for the `workload` kind, then `cpln apply -f workload.yaml`.
+Expose Prometheus-formatted metrics from workloads for monitoring and autoscaling. The container `metrics` block lives inside the workload spec — set it at creation with `mcp__cpln__create_workload` or add it later with `mcp__cpln__update_workload` (PATCH; call `mcp__cpln__get_resource` (kind="workload") first). If the typed tool doesn't surface the nested `metrics` field, fall back to the CLI: `mcp__cpln__get_resource_schema` for the `workload` kind, then `cpln apply -f workload.yaml`.
 
 ```yaml
 kind: workload

@@ -61,21 +61,21 @@ Many kinds add non-obvious permissions beyond CRUD — e.g. secret `reveal`/`use
 | Service account | `//serviceaccount/NAME` |
 | Workload identity | `//gvc/GVC/identity/NAME` (**GVC-scoped** — never `//identity/NAME`) |
 
-An **identity never belongs to a group**, so authorize it only with a binding that names its exact link.
+An **identity never belongs to a group**, so authorize it only with a binding that names its exact link. At runtime the attached identity is the workload's API credential: calls from inside the workload with the injected `CPLN_TOKEN` against `CPLN_ENDPOINT` carry exactly the permissions policies grant that identity — nothing more.
 
 ### Groups
 Members are **users and service accounts only** (≤ 200). Bind policies to groups, not individuals.
-- **Create / edit:** `create_group` (`name`, `memberLinks`, `memberQuery`, `identityMatcher`); `edit_group` (`addMemberLinks` / `removeMemberLinks` — read first with `get_group`).
+- **Create / edit:** `create_group` (`name`, `memberLinks`, `memberQuery`, `identityMatcher`); `edit_group` (`addMemberLinks` / `removeMemberLinks` — read first with `get_resource` (kind="group")).
 - **Dynamic:** `memberQuery` matches users by tag query; `identityMatcher` matches identities by a `jmespath`/`javascript` expression.
 
 ### Service accounts (non-human / CI/CD)
 - **Key:** `add_key_to_service_account` (`serviceAccountName`, **`keyDescription` required**, optional `groupName`) — **auto-creates the SA if missing** and returns the key **once** (save it; lost = revoke + remint). `create_service_account` makes one with no key.
-- **Revoke:** `update_service_account` `removeKeys: [NAME]` (immediate). `delete_service_account` revokes all keys.
+- **Revoke:** `update_service_account` `removeKeys: [NAME]` (immediate). `delete_resource` (kind="service_account") revokes all keys.
 - **CI/CD auth:** store the key as the `CPLN_TOKEN` secret/env var — the CLI uses it ahead of any profile (and works without one); don't pass `--token` on the command line (it leaks into logs). Full setup: **gitops-cicd**.
 
 ### Users (IDP-backed)
 - **Invite:** `invite_user_to_org` (`email`, optional `groupName`).
-- **Read / remove:** `get_user` / `delete_user` take **`identifier`** (id or email); `list_users` has an `email` filter. No `create_user`/`update_user`.
+- **Read / remove:** `get_resource` (kind="user") / `delete_resource` (kind="user") take **`identifier`** (id or email); `list_resources` (kind="user") has an `email` filter. No `create_user`/`update_user`.
 
 ## Built-ins (seeded per org)
 
@@ -106,7 +106,7 @@ Members are **users and service accounts only** (≤ 200). Bind policies to grou
 1. `get_cpln_rules` (once per mutating session) and read this skill.
 2. Confirm the **org** (and **gvc** for identities) — never guess.
 3. `get_permissions` for the kind — confirm permission names.
-4. Read current state: `list_policies` / `get_policy` (+ `get_group` / `get_service_account`).
+4. Read current state: `list_resources` (kind="policy") / `get_resource` (kind="policy") (+ `get_resource` kind="group" / kind="service_account").
 5. Smallest change; if destructive, confirm blast radius.
 6. `create_policy` / `update_policy` (+ group / SA / user tools).
 7. **Verify:** read the policy back; confirm the bindings and target resolved.
@@ -116,22 +116,22 @@ Members are **users and service accounts only** (≤ 200). Bind policies to grou
 | Tool | Purpose | Key params |
 |---|---|---|
 | `mcp__cpln__get_permissions` | Permissions + implications for a kind | `kind` |
-| `mcp__cpln__list_policies` / `get_policy` | List / read policies | `name` |
+| `mcp__cpln__list_resources` (kind="policy") / `get_resource` (kind="policy") | List / read policies | `name` |
 | `mcp__cpln__create_policy` | Create a policy | `name`, `targetKind`, `targetAll`/`targetLinks`/`targetQuery`, `addPermissions`, `addUsers`/`addGroups`/`addServiceAccounts`/`addIdentities` |
 | `mcp__cpln__update_policy` | Update metadata, targets, bindings | `name`, `addBindings`/`removeBindings`, `targetLinks`/`removeTargetLinks`/`targetAll`, `targetQuery` |
-| `mcp__cpln__delete_policy` | Delete a policy (destructive) | `name` |
-| `mcp__cpln__list_groups` / `get_group` | List / read groups | `name` |
+| `mcp__cpln__delete_resource` (kind="policy") | Delete a policy (destructive) | `name` |
+| `mcp__cpln__list_resources` (kind="group") / `get_resource` (kind="group") | List / read groups | `name` |
 | `mcp__cpln__create_group` | Create a group | `name`, `memberLinks`, `memberQuery`, `identityMatcher` |
 | `mcp__cpln__edit_group` | Add/remove members, update meta | `name`, `addMemberLinks`, `removeMemberLinks` |
-| `mcp__cpln__delete_group` | Delete a group (destructive) | `name` |
-| `mcp__cpln__list_service_accounts` / `get_service_account` | List / read SAs (key metadata only) | `name` |
+| `mcp__cpln__delete_resource` (kind="group") | Delete a group (destructive) | `name` |
+| `mcp__cpln__list_resources` (kind="service_account") / `get_resource` (kind="service_account") | List / read SAs (key metadata only) | `name` |
 | `mcp__cpln__create_service_account` | Create an SA (no key) | `name`, `description` |
 | `mcp__cpln__add_key_to_service_account` | Mint a key (auto-creates SA) | `serviceAccountName`, `keyDescription`, `groupName` |
 | `mcp__cpln__update_service_account` | Update meta / revoke keys | `name`, `removeKeys` |
-| `mcp__cpln__delete_service_account` | Delete an SA (revokes all keys) | `name` |
-| `mcp__cpln__list_users` / `get_user` | List / read users | `email` / `identifier` |
+| `mcp__cpln__delete_resource` (kind="service_account") | Delete an SA (revokes all keys) | `name` |
+| `mcp__cpln__list_resources` (kind="user") / `get_resource` (kind="user") | List / read users | `email` / `identifier` |
 | `mcp__cpln__invite_user_to_org` | Invite a user by email | `email`, `groupName` |
-| `mcp__cpln__delete_user` | Remove a user (destructive) | `identifier` |
+| `mcp__cpln__delete_resource` (kind="user") | Remove a user (destructive) | `identifier` |
 
 **CLI fallback** (read the `cpln` skill first; verify with `cpln <resource> --help`): policy-as-code in CI/CD (`CPLN_TOKEN` + `cpln apply -f`), `cpln RESOURCE permissions` to list a kind's permissions, `cpln policy access-report NAME` to audit a policy.
 
