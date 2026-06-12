@@ -1,30 +1,81 @@
 {
   "version": 1,
   "skills": {
-    "access-control": { "companions": [] },
-    "audit-compliance": { "companions": [] },
-    "autoscaling-capacity": { "companions": [] },
-    "cdn-rate-limiting": { "companions": [] },
-    "cpln": { "companions": [] },
-    "environment-promotion": { "companions": [] },
-    "external-logging": { "companions": [] },
-    "firewall-networking": { "companions": [] },
-    "gitops-cicd": { "companions": [] },
-    "iac-terraform-pulumi": { "companions": [] },
-    "image": { "companions": [] },
-    "ipset-load-balancing": { "companions": [] },
-    "k8s-operator": { "companions": [] },
-    "logql-observability": { "companions": [] },
-    "metrics-observability": { "companions": [] },
-    "migration-patterns": { "companions": [] },
-    "mk8s-byok": { "companions": [] },
-    "native-networking": { "companions": [] },
-    "org-management": { "companions": [] },
-    "query-spec": { "companions": [] },
-    "stateful-storage": { "companions": [] },
-    "template-catalog": { "companions": [] },
-    "workload": { "companions": [] },
-    "workload-security": { "companions": [] }
+    "access-control": {
+      "companions": []
+    },
+    "audit-compliance": {
+      "companions": []
+    },
+    "autoscaling-capacity": {
+      "companions": []
+    },
+    "cdn-rate-limiting": {
+      "companions": []
+    },
+    "cpln": {
+      "companions": []
+    },
+    "domain": {
+      "companions": []
+    },
+    "environment-promotion": {
+      "companions": []
+    },
+    "external-logging": {
+      "companions": []
+    },
+    "firewall-networking": {
+      "companions": []
+    },
+    "gitops-cicd": {
+      "companions": []
+    },
+    "iac-terraform-pulumi": {
+      "companions": []
+    },
+    "image": {
+      "companions": []
+    },
+    "ipset-load-balancing": {
+      "companions": []
+    },
+    "k8s-operator": {
+      "companions": []
+    },
+    "logql-observability": {
+      "companions": []
+    },
+    "metrics-observability": {
+      "companions": []
+    },
+    "migration-patterns": {
+      "companions": []
+    },
+    "mk8s-byok": {
+      "companions": []
+    },
+    "native-networking": {
+      "companions": []
+    },
+    "org-management": {
+      "companions": []
+    },
+    "query-spec": {
+      "companions": []
+    },
+    "stateful-storage": {
+      "companions": []
+    },
+    "template-catalog": {
+      "companions": []
+    },
+    "workload": {
+      "companions": []
+    },
+    "workload-security": {
+      "companions": []
+    }
   },
   "toolSkills": {
     "create_policy": "access-control",
@@ -37,7 +88,6 @@
     "update_identity": "access-control",
     "create_cloud_account": "access-control",
     "update_cloud_account": "access-control",
-
     "mount_volumeset_to_workload": "stateful-storage",
     "expand_volumeset": "stateful-storage",
     "shrink_volumeset": "stateful-storage",
@@ -45,24 +95,26 @@
     "create_volumeset_snapshot": "stateful-storage",
     "delete_volumeset_snapshot": "stateful-storage",
     "restore_volumeset_snapshot": "stateful-storage",
-
     "add_identity_network_resource": "native-networking",
     "add_identity_native_network_resource": "native-networking",
     "remove_identity_network_resource": "native-networking",
     "create_agent": "native-networking",
     "update_agent": "native-networking",
-
     "create_ipset": "ipset-load-balancing",
     "update_ipset": "ipset-load-balancing",
     "add_ipset_location": "ipset-load-balancing",
     "remove_ipset_location": "ipset-load-balancing",
-
     "configure_external_logging": "external-logging",
     "remove_external_logging": "external-logging",
-
     "create_audit_context": "audit-compliance",
     "edit_audit_context": "audit-compliance",
-
+    "create_domain": "domain",
+    "update_domain": "domain",
+    "add_domain_route": "domain",
+    "update_domain_route": "domain",
+    "add_domain_port": "domain",
+    "set_domain_tls": "domain",
+    "set_domain_cors": "domain",
     "create_workload": "workload",
     "create_cron_workload": "workload",
     "update_workload": "workload",
@@ -74,11 +126,9 @@
     "configure_workload_rollout": "workload",
     "configure_workload_security": "workload",
     "configure_workload_retry": "workload",
-
     "install_template": "template-catalog",
     "upgrade_template": "template-catalog",
     "rollback_template": "template-catalog",
-
     "create_mk8s_aws": "mk8s-byok",
     "update_mk8s_aws": "mk8s-byok",
     "create_mk8s_azure": "mk8s-byok",
@@ -100,6 +150,7 @@
     "create_mk8s_paperspace": "mk8s-byok",
     "update_mk8s_paperspace": "mk8s-byok",
     "create_mk8s_generic": "mk8s-byok",
-    "update_mk8s_generic": "mk8s-byok"
+    "update_mk8s_generic": "mk8s-byok",
+    "workload_exec": "workload"
   }
 }
