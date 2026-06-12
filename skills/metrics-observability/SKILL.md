@@ -5,6 +5,8 @@ description: "Configures workload metrics, Prometheus scraping, and Grafana dash
 
 # Metrics & Observability Patterns
 
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+
 ## Query metrics with the MCP tools
 
 For programmatic / agent access, query metrics directly — no Grafana needed:
@@ -15,6 +17,31 @@ For programmatic / agent access, query metrics directly — no Grafana needed:
 **PromQL query forms** — gauges (`cpu_used`, `memory_used`, `replica_count`) query bare; counters need `rate()` (e.g. `rate(egress[5m])`, `sum by (workload) (rate(container_restarts[5m]))`); latency is a histogram (`histogram_quantile(0.95, sum by (le) (rate(request_duration_ms_bucket[5m])))`).
 
 Grafana (below) remains the path for dashboards, ad-hoc visual exploration, and alerting.
+
+## Distributed Tracing
+
+Tracing is **opt-in per GVC** and answers a different question than metrics: not "is latency high?" but "**where** inside the request path is it high, and which span failed?"
+
+### Enable tracing on a GVC
+
+Set `spec.tracing` via `mcp__cpln__update_gvc` (or at creation with `mcp__cpln__create_gvc`). Exactly ONE provider:
+
+- **`controlplane`** — built-in backend; traces are stored by Control Plane and queryable with the MCP tools below. Zero extra infrastructure.
+- **`otel`** — ship spans to your own OpenTelemetry collector (`endpoint`).
+- **`lightstep`** — ship to Lightstep (`endpoint` + access-token secret).
+
+`sampling` is a percentage (e.g. `10` = 10% of requests). `customTags` adds fixed key/values to every span. Only requests served **after** enablement produce traces, and only the sampled fraction.
+
+### Query traces with the MCP tools
+
+Works with the `controlplane` provider (the built-in backend):
+
+- **`mcp__cpln__query_traces`** — search traces. Structured params (`gvc`, `workload`, `location`, `errorsOnly`, `minDuration`) or a raw `traceql` query (which REPLACES the structured params). Span attributes available: `resource.gvc`, `resource.workload`, `resource.location`. The two killer filters: `minDuration: "500ms"` (slow-request finder) and `errorsOnly: true` (failed-request finder).
+- **`mcp__cpln__get_trace`** — fetch one trace by ID and read its span tree: per-span durations and services, error spans with status messages. This is the drill-down after `query_traces`.
+
+**Empty results are usually configuration, not absence of a problem**: check tracing is enabled on the GVC (`mcp__cpln__get_resource` kind="gvc" → `spec.tracing`), sampling is high enough to catch traffic, and the workload received requests inside the time window.
+
+**Triage flow**: `query_traces` (`minDuration` or `errorsOnly`) → `get_trace` on the worst trace → the slow/failed span names the culprit service → correlate with `mcp__cpln__get_workload_logs` (same time window) for the application-level error.
 
 ## Built-in Metrics
 
@@ -297,6 +324,8 @@ Query metrics with the typed MCP tools — no Grafana round-trip needed. Grafana
 |---|---|
 | `mcp__cpln__list_metrics` | Discover metric names and real label values (built-in + custom) before querying |
 | `mcp__cpln__query_metrics` | Run a PromQL query (Prometheus-compatible) against Control Plane metrics |
+| `mcp__cpln__query_traces` | Search distributed traces (TraceQL) — find slow (`minDuration`) or failed (`errorsOnly`) requests |
+| `mcp__cpln__get_trace` | Fetch one trace's span tree to see where latency/failures sit inside the request path |
 | `mcp__cpln__get_workload_logs` | Correlate a metric spike with workload logs (see **cpln-logql-observability**) |
 
 No typed MCP tool edits the org `observability` block or a workload's `metrics` block. To change either, fall back to the CLI: `mcp__cpln__get_resource_schema` for the `org` (or `workload`) kind, author the manifest, then `cpln apply -f manifest`.
