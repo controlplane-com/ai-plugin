@@ -1,357 +1,143 @@
 ---
 name: environment-promotion
-description: "Promotes workloads across dev/staging/production on Control Plane. Use when the user asks about environment promotion, deploying to production, rollback, blue-green or canary releases, image promotion, or multi-environment workflows."
+description: "Promotes workloads across dev/staging/production on Control Plane. Use when the user asks about environment promotion, org-per-environment, cross-org image pulls, image promotion, deploying to production, or rollback."
 ---
 
 # Environment Promotion
 
-Patterns for promoting workloads across development, staging, and production environments on Control Plane.
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
 
-## Promotion Patterns Overview
+Control Plane has **no built-in promote or rollback primitive** — promotion is applying the same artifacts (image + manifests) to the next environment. Two topologies exist: **org-per-environment (the documented best practice)** and GVC-per-environment. The recurring failure is image access: a staging/prod org cannot pull the dev org's images until you either copy the image or wire up a cross-org pull secret.
 
-| Pattern | Isolation | Image sharing | Best for |
-|:---|:---|:---|:---|
-| Org-based (recommended) | Strongest — separate orgs per environment | Pull secret or `cpln image copy` | Production workloads, compliance-sensitive teams |
-| GVC-based | Moderate — separate GVCs within one org | Shared registry, no pull secret needed | Small teams, rapid iteration |
-| Image-based | Varies | Copy or re-tag images across orgs | One-time promotions, hotfixes |
-| Manifest-based | Varies | Same manifests applied to different orgs/GVCs | GitOps workflows with `cpln apply` |
+## Choosing a topology
 
-### Decision guide
+| Topology | Isolation | Image sharing | Best for |
+|---|---|---|---|
+| **Org per environment** (recommended) | Strongest — policies, secrets, users, audit fully separate | `cpln image copy` or cross-org pull secret | Production, compliance-sensitive teams |
+| **GVC per environment** (one org) | Weak — shared org policies and access | Same org registry; no pull secret needed | Small teams, rapid iteration |
 
-- **Org-based** is the documented best practice. Each environment maps to a separate org, so GVCs and workloads can share names across environments without collision. Policies, secrets, and access controls are fully isolated.
-- **GVC-based** works when a single team owns all environments and stronger isolation is not required. Images in the same org's registry are accessible to all GVCs without pull secrets.
-- A common CI/CD pattern combines org-based isolation with manifest-based promotion via `cpln apply`.
+With org-per-environment, GVCs and workloads keep **identical names** in every org, so the same manifests apply unchanged — no environment suffixes in resource names. Org creation is account-level: Console, or `cpln org create --accountId ID --invitee EMAIL`.
 
-To bootstrap manifest- or IaC-based promotion from resources that already exist in one environment, export them with `mcp__cpln__export_terraform` (single resource or a path-depth scope like a whole GVC), `mcp__cpln__export_terraform_batch` (several self links in one call), or convert a hand-authored manifest with `mcp__cpln__convert_to_terraform` (dry-run validated). Check `mcp__cpln__list_terraform_kinds` first to confirm the kind is supported.
+## Promoting manifests
 
-## Org-Based Promotion
-
-Each environment is a separate Control Plane org (e.g., `my-org-dev`, `my-org-staging`, `my-org-prod`). The same YAML manifests can be applied to different orgs with environment-specific secrets.
-
-### Setup
-
-Lead with MCP tools for the steps that have one; the CLI is the fallback when the MCP server is unavailable, and the primary interface in CI/CD.
-
-1. Create an org per environment (org creation is account-level — done in the console)
-2. Create matching GVCs and workloads in each org, names can be identical — `mcp__cpln__create_gvc` then `mcp__cpln__create_workload` per org. CLI fallback for manifest-driven setup: call `mcp__cpln__get_resource_schema` to author an accurate manifest, then `cpln apply`
-3. Configure environment-specific secrets in each org — `mcp__cpln__create_secret_<type>` (e.g. `create_secret_opaque`), then reference via the workload identity/policy
-4. Set up cross-org image access (pull secret or image copy — see below)
-5. Patch a promoted workload's spec to match the target environment (e.g. `firewallConfig`, env, scaling) with `mcp__cpln__update_workload`, and GVC-level settings with `mcp__cpln__update_gvc` (CLI fallback: `get_resource_schema` then `cpln apply`)
-
-### Cross-org image access
-
-Two approaches exist for using a dev org's image in staging/production:
-
-#### Option A: Pull secret (continuous access)
-
-Create a service account in the source org with image pull permission, generate a key, create a Docker secret in the target org, and attach it to the target GVC.
-
-**MCP path (source org `my-org-dev`):**
-
-- `mcp__cpln__add_key_to_service_account` — creates the `image-puller` service account if needed and issues a key in one call. Save the returned key value immediately (it is shown only once).
-- `mcp__cpln__create_policy` — bind the service account to image `pull` permission, with `targetKind: image` scoped to all images. Pass the principal and binding directly; there is no separate `add-binding` MCP tool.
-
-CLI fallback for the same steps:
+Keep manifests in git and apply them per environment — `cpln apply` is idempotent (PUT upsert) and resolves resource ordering:
 
 ```bash
-# Source org: create service account, policy, and key
-cpln serviceaccount create --name image-puller --org my-org-dev
-cpln policy create --name image-pull-policy \
-  --target-kind image --all --org my-org-dev
-cpln policy add-binding image-pull-policy \
-  --serviceaccount image-puller --permission pull --org my-org-dev
-cpln serviceaccount add-key image-puller \
-  --description "Cross-org image pull" --org my-org-dev
-# Save the "key" value from output
+cpln apply --file ./manifests/ --org my-org-staging --gvc my-gvc --ready   # org-per-env: same files, next org
+cpln apply --file ./manifests/ --org my-org --gvc staging-gvc --ready     # gvc-per-env: same files, next GVC
 ```
 
-Create `docker-config.json` (username is the literal string `<token>`):
+- Bootstrap manifests from a live environment with `cpln <resource> get REF -o yaml-slim` (plain `yaml` output breaks apply).
+- Environment differences (env vars, scaling, firewall) belong in the manifests per environment — or patch after apply with `mcp__cpln__update_workload` / `mcp__cpln__update_gvc` (both PATCH semantics).
+- For IaC-based promotion, export live resources to Terraform: `mcp__cpln__export_terraform` (one self link, or bulk by path depth — a whole GVC or org), `mcp__cpln__export_terraform_batch` (full profile, up to 100 explicit links), `mcp__cpln__convert_to_terraform` (manifest to HCL, dry-run validated). An unsupported kind is rejected with the supported list.
+
+## Sharing images across orgs
+
+### Option A — copy the image (one-time promotions)
+
+```bash
+cpln image copy my-app:abc1234 --to-org my-org-prod              # same credentials for both orgs
+cpln image copy my-app:abc1234 --to-org my-org-prod --to-profile prod-profile --cleanup
+```
+
+CLI-only (no MCP tool); requires a running Docker daemon — it docker-logins both registries, then pulls, tags, pushes. `--to-name` renames during copy; `--cleanup` removes the local images (use in CI). Needs `pull` permission on the source image and `create` on images in the target org. After the copy the target references it as `//image/my-app:abc1234` — no pull secret.
+
+### Option B — cross-org pull secret (continuous access)
+
+The target org pulls directly from the source org's registry. Four steps:
+
+1. **Source org — puller credentials**: `mcp__cpln__add_key_to_service_account` (creates the service account if missing; the key is shown **once**).
+2. **Source org — grant pull**: `mcp__cpln__create_policy` with `targetKind: image`, `targetAll: true` (or `targetQuery` by repository), `addPermissions: ["pull"]`, `addServiceAccounts: [LINK]` — bindings go in the create call.
+3. **Target org — docker secret**: `mcp__cpln__create_secret_docker` with `dockerConfigJson` — the username is the **literal string `<token>`** (the registry rejects anything else; the password is the service-account key):
 
 ```json
-{
-  "auths": {
-    "my-org-dev.registry.cpln.io": {
-      "username": "<token>",
-      "password": "SERVICE_ACCOUNT_KEY_VALUE"
-    }
-  }
-}
+{ "auths": { "my-org-dev.registry.cpln.io": { "username": "<token>", "password": "SERVICE_ACCOUNT_KEY" } } }
 ```
 
-```bash
-# Target org: create secret and attach to GVC
-cpln secret create-docker --name dev-registry-pull \
-  --file docker-config.json --org my-org-staging
-cpln gvc update my-gvc \
-  --set spec.pullSecretLinks+=dev-registry-pull --org my-org-staging
-```
-
-Reference the source org's image in the target workload:
+4. **Target org — attach to the GVC**: `mcp__cpln__update_gvc` with `pullSecretLinks: ["//secret/dev-registry-pull"]` (merged with existing), then reference the image by its **full registry hostname** in the workload spec:
 
 ```yaml
 spec:
   containers:
     - name: main
-      image: my-org-dev.registry.cpln.io/my-app:v1.0
+      image: my-org-dev.registry.cpln.io/my-app:abc1234
 ```
 
-#### Option B: Image copy (one-time promotions)
+CLI fallback for the same four steps:
 
 ```bash
-# Simple copy (default profile has access to both orgs)
-cpln image copy my-app:v1.0 --to-org my-org-staging
-
-# Different credentials per org
-cpln image copy my-app:v1.0 \
-  --to-org my-org-staging --to-profile staging-profile
-
-# CI/CD with cleanup
-cpln image copy my-app:$COMMIT_SHA \
-  --to-org my-org-prod --to-profile prod-profile --cleanup
+cpln serviceaccount create --name image-puller --org my-org-dev                            # CLI does NOT auto-create on add-key
+cpln serviceaccount add-key image-puller --description "cross-org pull" --org my-org-dev   # save the key
+cpln policy create --name image-pull --target-kind image --all --org my-org-dev
+cpln policy add-binding image-pull --serviceaccount image-puller --permission pull --org my-org-dev
+cpln secret create-docker --name dev-registry-pull --file docker-config.json --org my-org-prod
+cpln gvc update my-gvc --set 'spec.pullSecretLinks+=//secret/dev-registry-pull' --org my-org-prod
 ```
 
-After copying, the image exists in the target org's registry and can be referenced as `//image/my-app:v1.0` (no pull secret needed).
+Same-org images never need a pull secret — the platform injects a default registry credential for the org's own registry automatically.
 
-### `cpln image copy` flags
+## Image tags across environments
 
-| Flag | Purpose |
-|:---|:---|
-| `--to-org` | Target org (required) |
-| `--to-name` | Rename image during copy (e.g., `--to-name renamed-app:v1`) |
-| `--to-profile` | Profile for the destination org's credentials |
-| `--cleanup` | Remove local images after copy (useful in CI/CD) |
+- **Promote immutable tags** (git SHA `my-app:abc1234` or semver `my-app:v1.2.3`) — promote the exact artifact you tested; mutable tags (`latest`, `staging`) make rollback unreliable. Digest pins (`my-app@sha256:...`) are maximally reproducible.
+- **`supportDynamicTags`** (workload spec, default `false`): redeploys the workload automatically when a tag's underlying digest changes (within ~5 minutes) — useful for dev environments on mutable tags, wrong for production promotion.
 
-**Prerequisite:** Docker must be installed. The CLI uses Docker to pull, tag, and push the image.
+## CI/CD promotion pipeline
 
-## GVC-Based Promotion
-
-Separate GVCs within the same org act as environments (e.g., `dev-gvc`, `staging-gvc`, `prod-gvc`). All GVCs share the org's image registry.
-
-### Promotion workflow
-
-1. Build and push image to the org's registry
-2. Deploy to dev GVC by applying manifests with `--gvc dev-gvc`
-3. Promote by applying the same manifests with `--gvc staging-gvc` (update image tag)
-
-```bash
-# Deploy to dev
-cpln apply --file ./manifests/ --gvc dev-gvc --org my-org
-
-# Promote to staging (same manifests, different GVC)
-cpln apply --file ./manifests/ --gvc staging-gvc --org my-org
-```
-
-No pull secrets or image copies needed — all GVCs access the same registry.
-
-### Limitations
-
-- Weaker isolation: all environments share the same org's policies and access controls
-- Risk of accidental cross-environment changes
-- Not recommended for production workloads that require strict separation
-
-## Image Tagging Strategies
-
-| Strategy | Format | Pros | Cons |
-|:---|:---|:---|:---|
-| Git SHA | `my-app:abc1234` | Immutable, traceable to exact commit | Not human-readable |
-| Semver | `my-app:v1.2.3` | Clear version progression | Requires version management |
-| Environment tag | `my-app:staging` | Simple promotion (re-tag) | Mutable, not reproducible |
-| Build number | `my-app:build-456` | Sequential, CI-friendly | No commit traceability |
-
-### Best practices
-
-- **Use immutable tags (git SHA or semver) for production.** Mutable tags like `latest` or `staging` make rollbacks unreliable.
-- **Pin images by digest for maximum reproducibility:** `my-app@sha256:3fe719...`
-- **`supportDynamicTags`** is a workload option that triggers automatic redeployment when a tag's underlying digest changes. Useful for dev environments with mutable tags — avoid in production.
-- **Image names in Control Plane always include the tag** (e.g., `my-app:v1.0`, not just `my-app`).
-
-## CI/CD Pipeline Integration
-
-### Typical promotion flow
-
-```
-Build image ─> Deploy to dev ─> [Approve] ─> Deploy to staging ─> [Approve] ─> Deploy to prod
-     │              │                              │                                │
-     └─ Push to     └─ cpln apply                  └─ cpln image copy              └─ cpln apply
-        dev org        --gvc dev-gvc                  + cpln apply                    --org prod-org
-```
-
-### GitHub Actions example (org-based promotion)
+The CLI is the primary interface in pipelines; `CPLN_TOKEN` alone is enough (no profile needed — see the `cpln` skill). The shape that works:
 
 ```yaml
-name: Build and Deploy
-on:
-  push:
-    branches: [main]
+# Build once in dev, then per stage: copy the image + apply the manifests
+- run: cpln image build --name my-app:${{ github.sha }} --push     # CPLN_TOKEN + CPLN_ORG=my-org-dev
+- run: cpln apply --file ./manifests/ --gvc my-gvc --ready
 
-env:
-  CPLN_TOKEN: ${{ secrets.CPLN_TOKEN }}
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: npm install -g @controlplane/cli
-      - run: cpln profile create automation --default
-
-      - name: Build and push image
-        env:
-          CPLN_ORG: my-org-dev
-        run: cpln image build --name my-app:${{ github.sha }} --push
-
-      - name: Deploy to dev
-        env:
-          CPLN_ORG: my-org-dev
-        run: cpln apply --file ./manifests/ --gvc my-gvc --ready
-
-  deploy-staging:
-    needs: build
-    runs-on: ubuntu-latest
-    environment: staging  # Requires approval in GitHub
-    steps:
-      - uses: actions/checkout@v4
-      - run: npm install -g @controlplane/cli
-      - run: cpln profile create automation --default
-
-      - name: Copy image to staging org
-        env:
-          CPLN_TOKEN: ${{ secrets.CPLN_TOKEN }}
-          CPLN_ORG: my-org-dev
-        run: |
-          cpln image copy my-app:${{ github.sha }} \
-            --to-org my-org-staging --cleanup
-
-      - name: Deploy to staging
-        env:
-          CPLN_ORG: my-org-staging
-          CPLN_TOKEN: ${{ secrets.CPLN_TOKEN_STAGING }}
-        run: cpln apply --file ./manifests/ --gvc my-gvc --ready
-
-  deploy-prod:
-    needs: deploy-staging
-    runs-on: ubuntu-latest
-    environment: production  # Requires approval in GitHub
-    steps:
-      - uses: actions/checkout@v4
-      - run: npm install -g @controlplane/cli
-      - run: cpln profile create automation --default
-
-      - name: Copy image to prod org
-        env:
-          CPLN_TOKEN: ${{ secrets.CPLN_TOKEN }}
-          CPLN_ORG: my-org-dev
-        run: |
-          cpln image copy my-app:${{ github.sha }} \
-            --to-org my-org-prod --cleanup
-
-      - name: Deploy to prod
-        env:
-          CPLN_ORG: my-org-prod
-          CPLN_TOKEN: ${{ secrets.CPLN_TOKEN_PROD }}
-        run: cpln apply --file ./manifests/ --gvc my-gvc --ready
+# staging / prod stages (gate each with environment approvals):
+- run: cpln image copy my-app:${{ github.sha }} --to-org my-org-prod --cleanup   # dev-org token
+- run: cpln apply --file ./manifests/ --gvc my-gvc --org my-org-prod --ready     # prod-org token
 ```
 
-### Key CI/CD patterns
+- **One service-account token per org** — a dev-org token must not be able to touch prod; the copy step runs with source-org credentials plus a `--to-profile` (or pre-run `cpln image docker-login`) for the target.
+- **`--ready` gates promotion** — it polls until workloads are healthy (5s interval, up to 5 min) and fails the job otherwise.
+- Approval gates (GitHub environments, GitLab manual jobs) go between stages. Full pipeline setup, npm install (`@controlplane/cli`), runners: `gitops-cicd` skill.
 
-- **One `CPLN_TOKEN` per org** — each org should have its own service account
-- **Create a default profile to anchor the session**: `cpln profile create automation --default`. `CPLN_TOKEN` alone also works (the CLI falls back to an implicit `anonymous` profile), but an explicit profile matches the pattern in the CI/CD guide
-- **`cpln apply --ready`** blocks until workloads are healthy — use in pipelines to gate promotion
-- **`--cleanup` on `cpln image copy`** saves disk in CI runners
-- **GitHub Environments** with required reviewers enforce approval gates between stages
+## Rollback
 
-## Rollback Strategies
-
-### Re-deploy a previous image tag
-
-The simplest rollback: update the workload to point at the previous known-good image. Lead with `mcp__cpln__get_resource` (kind="workload") to capture the current image for a rollback record, then `mcp__cpln__update_workload` (PATCH semantics — only the image field changes). Verify the rollback landed with `mcp__cpln__list_deployments`.
-
-CLI fallback when the MCP server is unavailable (or as the primary interface in CI/CD):
+There is no deployment-history rollback — rolling back means **re-pointing the workload at the previous known-good image** (keep the previous tag in git history or your pipeline metadata):
 
 ```bash
-# Update the container image to a previous version
-cpln workload update my-app \
-  --set spec.containers.main.image=//image/my-app:v1.1.0 \
-  --gvc my-gvc --org my-org
+cpln workload update my-app --set spec.containers.main.image=//image/my-app:v1.1.0 --gvc my-gvc --org my-org
+cpln workload get-deployments my-app --gvc my-gvc --org my-org    # verify every location reports ready
 ```
 
-Or use the get-edit-apply workflow for GitOps:
+- MCP path: `mcp__cpln__get_resource` (kind="workload") to record the current image, `mcp__cpln__update_workload` (`containers: [{name, image}]` — merged by container name), then poll `mcp__cpln__list_deployments` until ready.
+- Org-per-environment: confirm the older image still exists in **this** org's registry first (`mcp__cpln__list_resources` kind="image") — it may only have been copied forward once.
+- **Restart without changing the image**: `cpln workload force-redeployment my-app --gvc GVC` — it PATCHes a `cpln/deployTimestamp` tag with the current time, producing a rolling restart. No MCP equivalent; `mcp__cpln__update_workload` setting that same tag replicates it.
+- Helm-managed releases are the exception with real revision history: `cpln helm rollback RELEASE [REVISION]`.
 
-```bash
-# Export, edit image reference, re-apply
-cpln workload get my-app --gvc my-gvc --org my-org -o yaml-slim > workload.yaml
-# Edit image in workload.yaml to previous version
-cpln apply --file workload.yaml --gvc my-gvc --org my-org
-```
-
-### Force redeployment
-
-Restart workload replicas without changing the image (useful when the underlying image digest changed or for transient issues):
-
-```bash
-cpln workload force-redeployment my-app --gvc my-gvc --org my-org
-```
-
-This sets a `cpln/deployTimestamp` tag on the workload, triggering a rolling restart.
-
-### Check deployment history
-
-Use `mcp__cpln__list_deployments` to inspect per-location readiness across every location the workload runs in; pass the optional `location` to see one deployment's full version chain. CLI fallback:
-
-```bash
-# View recent deployments
-cpln workload get-deployments my-app --gvc my-gvc --org my-org
-```
-
-### Rollback checklist
-
-1. Identify the last known-good image tag (check git history or deployment logs)
-2. Update the workload image to that tag — `mcp__cpln__update_workload` (CLI fallback: `cpln workload update`)
-3. Verify the rollback with health checks — poll `mcp__cpln__list_deployments` until every location reports ready
-4. If using org-based promotion, ensure the image still exists in the target org's registry — `mcp__cpln__list_resources` (kind="image") / `mcp__cpln__get_resource` (kind="image")
-
-## Quick Reference
-
-### CLI commands
-
-| Command | Purpose |
-|:---|:---|
-| `cpln apply --file MANIFEST --gvc GVC --org ORG` | Apply manifests to a target environment |
-| `cpln apply --file MANIFEST --gvc GVC --org ORG --ready` | Apply and wait for healthy deployment |
-| `cpln image copy IMAGE:TAG --to-org TARGET_ORG` | Copy image between orgs |
-| `cpln image copy IMAGE:TAG --to-org ORG --to-profile PROFILE --cleanup` | Copy with auth and cleanup |
-| `cpln workload update WL --set spec.containers.NAME.image=IMAGE --gvc GVC` | Update workload image |
-| `cpln workload force-redeployment WL --gvc GVC --org ORG` | Force rolling restart |
-| `cpln workload get WL --gvc GVC --org ORG -o yaml-slim` | Export workload manifest |
-| `cpln image build --name IMAGE:TAG --push --org ORG` | Build and push image |
-
-### MCP tools
+## Quick reference — MCP tools
 
 | Tool | Purpose |
-|:---|:---|
-| `mcp__cpln__create_gvc` / `mcp__cpln__create_workload` | Stand up a GVC and workload in a target environment |
-| `mcp__cpln__update_workload` | Patch workload properties (image, `firewallConfig`, env, scaling) |
-| `mcp__cpln__update_gvc` | Patch GVC metadata, env, or pull secrets |
-| `mcp__cpln__get_resource` (kind="workload") | Get workload details and current image (capture before update) |
-| `mcp__cpln__list_deployments` | Verify a promoted/rolled-back workload is ready across locations |
-| `mcp__cpln__get_resource_schema` | Author an accurate manifest before a `cpln apply` fallback |
-| `mcp__cpln__export_terraform` / `mcp__cpln__export_terraform_batch` | Export existing resources to Terraform for IaC promotion |
-| `mcp__cpln__convert_to_terraform` / `mcp__cpln__list_terraform_kinds` | Convert a manifest to HCL; list supported kinds |
-| `mcp__cpln__list_resources` (kind="image") | List images in an org |
-| `mcp__cpln__get_resource` (kind="image") | Get image details |
+|---|---|
+| `mcp__cpln__create_gvc` / `mcp__cpln__create_workload` | Stand up the target environment |
+| `mcp__cpln__update_workload` / `mcp__cpln__update_gvc` | Patch image, env, scaling, `pullSecretLinks` (PATCH semantics) |
+| `mcp__cpln__add_key_to_service_account` | Puller credentials in the source org (auto-creates the SA; key shown once) |
+| `mcp__cpln__create_policy` | Grant `pull` on images, binding included in the create call |
+| `mcp__cpln__create_secret_docker` | Docker secret from `dockerConfigJson` (username `<token>`) |
+| `mcp__cpln__list_deployments` | Verify a promotion or rollback is ready per location |
+| `mcp__cpln__export_terraform` / `_batch` / `mcp__cpln__convert_to_terraform` | Export live environments to IaC |
 
-**Note:** No MCP tool exists for image copy/build — use the CLI directly (`cpln image copy`, `cpln image build --push`).
+**CLI fallback** (read the `cpln` skill first; CI/CD uses `CPLN_TOKEN` + `cpln apply --ready`): `cpln image copy` and `cpln image build --push` are CLI-only — no MCP equivalent.
 
-### Related skills
+## Related skills
 
-- [cpln-image](../image/SKILL.md) — Image building, pushing, pulling, tagging, and cross-org sharing
-- [cpln-gitops-cicd](../gitops-cicd/SKILL.md) — CI/CD pipeline setup, service account auth, and manifest application
+| Need | Skill |
+|---|---|
+| Image building, registries, pull-secret detail | `image` |
+| Pipeline setup, runners, service-account auth | `gitops-cicd` |
+| Terraform / Pulumi promotion | `iac-terraform-pulumi` |
+| Per-environment secrets and RBAC | `access-control` |
 
 ## Documentation
-
-For the latest reference, see:
 
 - [Environment Promotion Guide](https://docs.controlplane.com/guides/environment-promotion.md)
 - [Copy an Image Guide](https://docs.controlplane.com/guides/copy-image.md)
 - [cpln apply Guide](https://docs.controlplane.com/guides/cpln-apply.md)
-- [Image Reference](https://docs.controlplane.com/reference/image.md)

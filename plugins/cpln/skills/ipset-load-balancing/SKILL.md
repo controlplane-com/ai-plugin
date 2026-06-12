@@ -5,6 +5,8 @@ description: "Reserves static IP addresses and configures load balancers on Cont
 
 # IP Sets & Load Balancing
 
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+
 Deep detail for IP sets plus direct and dedicated load balancers. For the LB-type picker basics and routing, see the `workload` skill — this skill carries the full configuration.
 
 ## Load Balancer Types
@@ -36,7 +38,7 @@ An IP set reserves a **static public IP address in each location** of a GVC. Use
 |---|---|---|---|
 | `spec.link` | string | No | Link to workload (`//gvc/NAME/workload/NAME`) or GVC (`//gvc/NAME`) |
 | `spec.locations[].name` | string | Yes | Location reference (e.g. `//location/aws-us-west-2`) |
-| `spec.locations[].retentionPolicy` | string | Yes | `keep` (retain IP) or `free` (release IP) |
+| `spec.locations[].retentionPolicy` | string | Yes | `keep` (retain the IP — reserved IPs bill while kept) or `free` (release the IP and stop charges) |
 
 **Status fields:** `status.ipAddresses[]` contains `name` (location), `ip` (public IP), `id` (cloud allocation ID), `state` (`bound` or `unbound`), and `created` (ISO 8601).
 
@@ -202,7 +204,7 @@ Both the GVC and IP set must reference each other (bidirectional):
 
 ## Common Patterns
 
-- **Static IPs for partner allowlisting:** create an IP set linked to the workload or GVC → configure the direct or dedicated LB → share the allocated IPs from `status.ipAddresses` → keep `retentionPolicy: keep` so IPs don't change.
+- **Static IPs for partner allowlisting:** create an IP set linked to the workload or GVC → configure the direct or dedicated LB → poll `get_resource` (kind="ipset") until each `status.ipAddresses[].state` is `bound` → share those IPs → keep `retentionPolicy: keep` so IPs don't change.
 - **Non-HTTP service exposure** (databases, game servers, custom protocols): a direct LB with `protocol: TCP`/`UDP` ports (see the direct LB example above).
 - **Consistent IPs across a GVC:** a dedicated LB with an IP set at the GVC level — all workloads share the same static IPs per location.
 

@@ -6,12 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
+### Added
+
+- New `domain` skill (custom domains, TLS, DNS, routing) plus a rewritten domain-configurator workflow.
+- Distributed tracing guidance (`query_traces` / `get_trace`) in the `metrics-observability` skill.
+
 ### Changed
 
 - `workload` skill and tool-to-skill map updated for the leaner workload tools: cron now has dedicated `create_cron_workload` / `update_cron_workload` tools, and rollout, security, and request-retry settings each move to their own `configure_workload_*` tool.
 - Operating rules now create directly without a pre-existence check — current-state reads are reserved for updates and deletes.
 - Workload guidance now declares ports with the `containers[].ports` array; the scalar `containers[].port` is deprecated.
 - After a workload create/update, agents now fetch the `workload` skill up front, auto-verify readiness, and report the workload's canonical URL instead of guessing one or returning a per-location URL.
+- Revisited the skill set for accuracy and token efficiency — verified each skill against the live platform, tightened the writing, and filled in missing guidance.
+- Aligned MCP tool mentions across skills, agents, and commands with the current toolset profiles, marking full-profile-only tools and their core alternatives.
+- Reworked the operating guide around the MCP server's server-side enforcement: destructive actions now use a two-phase impact-preview/confirm (pre-approved actions confirmed in one turn), and firewall exposure plus GVC locations are decided at create time.
+- Custom domains now route through the Domain resource; the GVC `spec.domain` field is deprecated.
 
 ### Fixed
 

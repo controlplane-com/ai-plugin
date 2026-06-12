@@ -5,9 +5,11 @@ description: "Queries workload logs and builds log dashboards on Control Plane. 
 
 # LogQL & Observability Patterns
 
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+
 Control Plane uses LogQL (Grafana Loki query language) for log queries. Two ways to run queries:
 
-- **MCP tool (agents, primary):** `mcp__cpln__get_workload_logs` — structured params (`gvc`, `workload`, `container`, `location`, `filter`, `since`, `from`, `to`, `limit`, `order`) or a raw `query`. Available labels: `gvc`, `workload`, `container`, `location`, `provider`, `replica`, `stream`. Default limit 100, max 500.
+- **MCP tool (agents, primary):** `mcp__cpln__get_workload_logs` — structured params (`gvc`, `workload`, `container`, `location`, `filter`, `since`, `from`, `to`, `limit`, `order`) or a raw `query` (a raw query REPLACES the structured params, so it must embed all labels itself). Available labels: `gvc`, `workload`, `container`, `location`, `provider`, `replica`, `stream`. Default limit 30, max 999.
 - **CLI (fallback):** `cpln logs <query>` — for interactive debugging (live `--tail` follow), scripting, or when the MCP server is unavailable. See examples below.
 
 ## Log Query Syntax
@@ -124,7 +126,7 @@ cpln workload get-deployments WL --gvc GVC -o json \
 
 Pick the execution whose logs you want — usually the most recent failed one, or one identified by the user as misbehaving. Filter with `select(.status == "failed")` etc.
 
-**Step 2 — pull logs for just that execution.** Agents call `mcp__cpln__get_workload_logs` with the `replica` label set (structured params `gvc`, `workload`, `location`, plus a raw `query` carrying the `replica` selector, or `from`/`to` for the execution window). The CLI form below uses the `replica` label and time-bounds the query to the execution window. Add a small buffer on each side so log indexing slack doesn't truncate the result:
+**Step 2 — pull logs for just that execution.** Agents call `mcp__cpln__get_workload_logs` with a raw `query` that embeds ALL labels itself — `gvc`, `workload`, `location`, AND the `replica` selector (a raw query replaces the structured params, so don't pass `gvc`/`workload`/`location` alongside it) — plus `from`/`to` for the execution window. The CLI form below uses the `replica` label and time-bounds the query to the execution window. Add a small buffer on each side so log indexing slack doesn't truncate the result:
 
 ```bash
 cpln logs \

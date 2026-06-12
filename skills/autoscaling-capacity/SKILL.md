@@ -5,6 +5,8 @@ description: "Workload autoscaling and Capacity AI on Control Plane. Use when th
 
 # Autoscaling & Capacity AI
 
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+
 Deep skill for scaling and resource optimization. Everything scaling lives in **one block** — `spec.defaultOptions.autoscaling` (with `capacityAI` beside it); `spec.localOptions[]` overrides it per location. The platform keeps the chosen metric near but below `target`. For workload types, production defaults, and the spec shape, start with the **`workload`** skill.
 
 ## Picking a metric

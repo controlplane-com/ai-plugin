@@ -5,13 +5,15 @@ description: "Filters, selects, and sorts Control Plane resources with the query
 
 # Query Spec — Filtering & Sorting Resources
 
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+
 Control Plane has a universal query system for filtering and sorting resources. The same spec is used everywhere:
 
 - **Policy** `targetQuery` — dynamically target resources by tags/properties (authored via `mcp__cpln__create_policy` / `mcp__cpln__update_policy`)
 - **Group** `memberQuery` — dynamically assign users to groups (authored via `mcp__cpln__create_group` / `mcp__cpln__edit_group`)
 - **GVC** `staticPlacement.locationQuery` — select locations by query instead of explicit `locationLinks` (authored via `mcp__cpln__create_gvc` / `mcp__cpln__update_gvc`)
-- **MCP list/query tools** — `mcp__cpln__list_resources` accepts the same `*_query` spec param to filter results for any kind (e.g. kind="workload", kind="secret", kind="identity", kind="policy"), plus `mcp__cpln__query_audit_events` and `mcp__cpln__query_metrics`. **Prefer these for ad-hoc filtering.**
-- **CLI** `cpln RESOURCE query` — fallback for the command line when the MCP server is unavailable
+- **MCP tools do NOT take a query spec** — `mcp__cpln__list_resources` has no filter param; `mcp__cpln__query_audit_events` filters by kind/name/subject/context/time; `mcp__cpln__query_metrics` takes PromQL. In MCP manifests, query specs appear only inside the resource fields above.
+- **CLI** `cpln RESOURCE query` — ad-hoc query-spec filtering from the command line
 - **API** `POST /org/ORG/RESOURCE/-query` — filter via REST
 
 ## Query Structure
@@ -90,16 +92,23 @@ Resource-specific fields:
 | **policy** | `origin` |
 | **group** | `origin` |
 
-## MCP-First Filtering
+## Where Query Specs Apply (and Where They Don't)
 
-For ad-hoc filtering, pass the query spec to the list/query MCP tools rather than reaching for the CLI:
+Query specs are a **resource-field language**, not a parameter the MCP list/query tools accept:
 
-- `mcp__cpln__list_resources` (for any kind — e.g. kind="workload", kind="secret", kind="identity", kind="policy") accepts a `*_query` spec param that takes the same `match` / `terms` / `sort` shape shown above.
-- `mcp__cpln__query_audit_events` filters the audit trail; `mcp__cpln__query_metrics` filters metric series.
+- `mcp__cpln__list_resources` has NO query/filter param — it lists a kind (org/GVC scope, `limit`); filter the returned table yourself.
+- `mcp__cpln__query_audit_events` filters by `kind`, `name`/`names`, `subject`, `context`, and a time window (`since` or `from`/`to`) — not by query spec.
+- `mcp__cpln__query_metrics` takes PromQL (label matchers like `{workload="api"}`) — a different language entirely.
 
-The CLI shapes below are the fallback when the MCP server is unavailable or unauthenticated.
+Query specs DO apply inside these resource fields, authored via the typed MCP tools:
 
-## CLI Usage (Fallback)
+- Policy `targetQuery` — `mcp__cpln__create_policy` / `mcp__cpln__update_policy`
+- Group `memberQuery` — `mcp__cpln__create_group` / `mcp__cpln__edit_group`
+- GVC `staticPlacement.locationQuery` — `mcp__cpln__create_gvc` / `mcp__cpln__update_gvc`
+
+For ad-hoc query-spec filtering of resources, use the CLI (`cpln RESOURCE query`) or the `/-query` API endpoint below.
+
+## CLI Usage
 
 Every resource kind supports `cpln RESOURCE query`:
 
@@ -141,7 +150,7 @@ cpln workload query --match any --rel gvc=gvc-one --rel gvc=gvc-two
 
 ## API Usage (Fallback)
 
-When neither an MCP tool nor the CLI fits, every resource kind exposes a `/-query` POST endpoint:
+When the CLI is unavailable, every resource kind exposes a `/-query` POST endpoint:
 
 ```
 POST https://api.cpln.io/org/ORG_NAME/workload/-query

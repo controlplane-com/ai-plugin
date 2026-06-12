@@ -5,6 +5,8 @@ description: "CDN caching and request rate limiting for Control Plane workloads.
 
 # CDN & Rate Limiting
 
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+
 Two edge concerns, both built from existing primitives — there is no CDN or rate-limit resource kind. A **CDN** is bring-your-own (Cloudflare / CloudFront) pointed at the workload's canonical endpoint; **rate limiting** is an Envoy ratelimit service you deploy, enabled per workload by `cpln/rateLimit*` **tags**. Assumes the `workload` primer (firewall deny-by-default, canonical URL rules, create-then-verify).
 
 ## CDN

@@ -5,6 +5,8 @@ description: "Audit trail and compliance on Control Plane. Use when the user ask
 
 # Audit Trail & Compliance
 
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+
 Every mutation on every Control Plane resource — via Console, CLI, API, Terraform, Pulumi, or MCP — is recorded automatically in an append-only, tamper-proof audit trail; nothing to configure. Most tasks are answering **"who changed what, when"** with `mcp__cpln__query_audit_events`. Custom audit contexts exist for one purpose only: letting your own workloads write their own audit events.
 
 ## The model
@@ -50,7 +52,7 @@ Secret snapshots are scrubbed: `resource.data` for a secret never includes the p
 { "kind": "workload", "org": "my-org", "from": "3mo", "to": "1mo" }
 ```
 
-Inputs: `kind` (required) · `name` **or** `names[]` (max 25, mutually exclusive; omit both for every resource of the kind) · `gvc` (**required** when `kind` is `workload` / `identity` / `volumeset` and a name is given) · `subject` (user email, full link, or bare service-account name) · `context` (default `cpln`) · `since` (default `7d`) **or** `from` / `to` (ISO 8601, or a relative duration meaning that long ago — units `m`, `h`, `d`, `w`, `mo`, `y`; months are `mo`, not `M`) · `limit` (default 50, max 1000). Results are merged, sorted newest-first, truncated to `limit`.
+Inputs: `kind` (required) · `name` **or** `names[]` (max 25, mutually exclusive; omit both for every resource of the kind) · `gvc` (**required** when `kind` is `workload` / `identity` / `dbcluster` / `volumeset` and a name is given) · `subject` (user email, full link, or bare service-account name) · `context` (default `cpln`) · `since` (default `7d`) **or** `from` / `to` (ISO 8601, or a relative duration meaning that long ago — units `m`, `h`, `d`, `w`, `mo`, `y`; months are `mo`, not `M`) · `limit` (default 50, max 1000). Results are merged, sorted newest-first, truncated to `limit`.
 
 ### CLI
 
@@ -70,7 +72,7 @@ Flags: `--since` (default `7d`; mutually exclusive with `--from`/`--to`), `--fro
 ## Managing audit contexts
 
 - **Create:** `mcp__cpln__create_audit_context` (`name`; `description` defaults to the name; `tags`). CLI: `cpln auditctx create --name my-app-audit --org my-org`.
-- **Read:** `mcp__cpln__list_resources` (kind="audit_context") / `mcp__cpln__get_resource` (kind="audit_context").
+- **Read:** `mcp__cpln__list_resources` (kind="auditctx") / `mcp__cpln__get_resource` (kind="auditctx").
 - **Edit:** `mcp__cpln__edit_audit_context` — description and tags only; `origin` is immutable; the built-in `cpln` context rejects edits. CLI: `cpln auditctx update my-app-audit --set description="..."`.
 - **Delete:** impossible by design (see The model) — don't promise it.
 
@@ -106,7 +108,7 @@ Control Plane is **PCI DSS Level 1** and **SOC 2 Type II** certified (audited by
 |---|---|---|
 | `mcp__cpln__query_audit_events` | Query events for a kind | `kind`, `name`/`names`, `gvc`, `subject`, `context`, `since`/`from`/`to`, `limit` |
 | `mcp__cpln__create_audit_context` | Create a custom context (permanent) | `name`, `description`, `tags` |
-| `mcp__cpln__list_resources` (kind="audit_context") / `get_resource` (kind="audit_context") | List / read contexts | `name` |
+| `mcp__cpln__list_resources` (kind="auditctx") / `get_resource` (kind="auditctx") | List / read contexts | `name` |
 | `mcp__cpln__edit_audit_context` | Update description / tags | `name`, `description`, `tags`, `removeTagKeys` |
 
 **CLI fallback** (read the `cpln` skill first; verify with `cpln auditctx --help`): `cpln RESOURCE audit [ref]`, `cpln auditctx create / get / update / query / access-report / permissions`. There is no delete.

@@ -5,6 +5,8 @@ description: "Hardens workloads for production on Control Plane. Use when the us
 
 # Workload Security & Production Hardening
 
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+
 Deep hardening detail. Probe basics, the readiness-vs-liveness model, the LB picker, and post-deploy verification live in the `workload` skill — this skill carries the full probe timing/defaults, JWT/Envoy, security, direct-LB, geo, and graceful-termination detail.
 
 ## Health Probes

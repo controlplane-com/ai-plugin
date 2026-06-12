@@ -6,6 +6,8 @@ argument-hint: "[k8s|docker|aws|azure|gcp] --name [agent-name]"
 
 # Setup Agent
 
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+
 Deploy and configure a Control Plane wormhole agent to connect workloads to services in private networks (VPCs, on-prem, data centers).
 
 ## Usage

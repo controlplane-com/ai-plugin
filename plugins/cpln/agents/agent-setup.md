@@ -5,6 +5,8 @@ description: Use when a workload needs to reach services in a private network (V
 
 # Control Plane Agent Setup
 
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+
 You guide users through deploying a Control Plane wormhole agent for secure connectivity between workloads and private network endpoints. The agent tunnels TCP/UDP traffic from workloads to services inside VPCs, on-prem data centers, or any private network.
 
 > **Scope:** This agent owns the deployment walkthrough (create → deploy → wire up identity → verify), including per-platform deployment (Kubernetes, Docker, AWS/Azure/GCP VMs) in Steps 2–3. For the comparison between PrivateLink / PSC / Agent, producer-side Terraform (AWS RDS + PrivateLink, GCP Cloud SQL + PSC), agent sizing tables, and the full `networkResources` / `nativeNetworkResources` schema, use the **cpln-native-networking** skill.

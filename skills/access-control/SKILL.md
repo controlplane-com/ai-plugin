@@ -5,6 +5,8 @@ description: "Primary skill for access control, policies, and RBAC on Control Pl
 
 # Access Control & Policies — Primary Skill
 
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+
 A **policy** targets one resource kind and binds **permissions** to **principals** (users, groups, service accounts, workload identities). The common failure is a policy that **exists but grants nothing** — a wrong `targetKind`, permission name, or principal link fails with no error — so read the policy back after writing.
 
 ## The model
@@ -36,10 +38,10 @@ bindings:                    # ≤ 50
 
 **Target scope (pick one):** `target: all` (org-wide roles) · `targetLinks` (specific resources) · `targetQuery` (tag query — see **query-spec**).
 
-**Valid target kinds:** `workload, secret, gvc, identity, image, org, policy, group, serviceaccount, user, volumeset, domain, location, ipset, mk8s, cloudaccount, agent, auditctx, quota, task` — `ipset` and `mk8s` included.
+**Valid target kinds:** the `targetKind` enum accepts all **33** resource kinds, but only the **20 kinds with permission schemas** (the ones `get_permissions` accepts) are meaningful targets: `workload, secret, gvc, identity, image, org, policy, group, serviceaccount, user, volumeset, domain, location, ipset, mk8s, cloudaccount, agent, auditctx, quota, task`.
 
 **Create vs update:**
-- `create_policy` builds **one** binding from `addPermissions` × (`addUsers`/`addGroups`/`addServiceAccounts`/`addIdentities`), and only if **both** sides are non-empty. For several distinct bindings, use `update_policy` `addBindings`.
+- `create_policy` builds **one** binding from `addPermissions` × (`addUsers`/`addGroups`/`addServiceAccounts`/`addIdentities`) — providing only one side is an **error** (a binding needs both). It also requires **exactly one** target scope (`targetAll` / `targetLinks` / `targetQuery`). For several distinct bindings, use `update_policy` `addBindings`.
 - `update_policy` **merges** bindings (matched by exact permission set — you can't extend a set) but **replaces** targets (`targetLinks` wholesale, `removeTargetLinks` incremental, `targetAll` — mutually exclusive).
 
 ## Permissions

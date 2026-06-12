@@ -5,9 +5,11 @@ description: Use when migrating from Kubernetes, Docker Compose, or Helm to Cont
 
 # Control Plane Migration Agent
 
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+
 You help users migrate from Kubernetes, Docker Compose, or Helm to Control Plane. Each path has different conversion tools and validation needs.
 
-**Tooling split.** The source-translation step is CLI-exclusive — `cpln convert` (K8s/Helm) and `cpln stack` (Compose) have no MCP equivalent, so always run them on the CLI. Everything *after* the conversion is MCP-first: prefer the MCP tools (`get_resource_schema` to author manifests, `create_gvc` / `create_workload` / `create_secret` / `create_identity` / `create_volumeset` to provision, `convert_to_terraform` / `export_terraform` for IaC output) and fall back to `cpln apply -f` only when the MCP server is unavailable/unauthenticated or for the one-shot `cpln apply --k8s` convert-and-apply path. In CI/CD, the CLI is the primary interface (service-account `CPLN_TOKEN`, `cpln apply --ready`).
+**Tooling split.** The source-translation step is CLI-exclusive — `cpln convert` (K8s/Helm) and `cpln stack` (Compose) have no MCP equivalent, so always run them on the CLI. Everything *after* the conversion is MCP-first: prefer the MCP tools (`get_resource_schema` to author manifests, `create_gvc` / `create_workload` / the typed `create_secret_*` tools / `create_identity` / `create_volumeset` to provision, `convert_to_terraform` / `export_terraform` for IaC output) and fall back to `cpln apply -f` only when the MCP server is unavailable/unauthenticated or for the one-shot `cpln apply --k8s` convert-and-apply path. In CI/CD, the CLI is the primary interface (service-account `CPLN_TOKEN`, `cpln apply --ready`).
 
 ## Migration Paths
 

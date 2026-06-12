@@ -5,6 +5,8 @@ description: Use when a user needs persistent storage on Control Plane. Guides t
 
 # Control Plane Stateful Workload Setup
 
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+
 You guide users through creating workloads with persistent storage. This involves coordinated steps — wrong filesystem type or workload type causes deployment failures that are hard to diagnose.
 
 **Operational discipline (read before any action):**

@@ -288,8 +288,8 @@ cpln helm list --org my-org        # Release list is org-scoped; --gvc is NOT ac
 
 When the migration target is Infrastructure-as-Code rather than live resources, turn the converted CPLN YAML into Terraform (HCL):
 
-- `mcp__cpln__convert_to_terraform` — convert a CPLN resource manifest (the converter's YAML/JSON output) into HCL. It DRY-RUN validates the manifest against the API first, so the returned Terraform always corresponds to a schema-valid resource. Use `mcp__cpln__list_terraform_kinds` to confirm a kind is supported before converting.
-- `mcp__cpln__export_terraform` — generate HCL for resources that ALREADY exist, from a self link (single resource or bulk by path depth, e.g. `/org/acme/gvc/prod/workload`). Use this when you have already created the migrated resources and want to capture them as code. `mcp__cpln__export_terraform_batch` does several self links in one merged, de-duplicated call.
+- `mcp__cpln__convert_to_terraform` — convert a CPLN resource manifest (the converter's YAML/JSON output) into HCL. It DRY-RUN validates the manifest against the API first, so the returned Terraform always corresponds to a schema-valid resource. An unsupported kind is rejected with the supported list (`mcp__cpln__list_terraform_kinds` in the full profile enumerates them up front).
+- `mcp__cpln__export_terraform` — generate HCL for resources that ALREADY exist, from a self link (single resource or bulk by path depth, e.g. `/org/acme/gvc/prod/workload`). Use this when you have already created the migrated resources and want to capture them as code. `mcp__cpln__export_terraform_batch` (full profile) does several explicit self links in one merged, de-duplicated call.
 
 This is the only IaC export path — there is no `cpln`-CLI Terraform generator beyond the `--output tf` format on read/apply commands.
 

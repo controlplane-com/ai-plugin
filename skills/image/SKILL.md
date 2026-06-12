@@ -5,7 +5,9 @@ description: "Builds, pushes, and manages container images on Control Plane. Use
 
 # Control Plane Images
 
-Reference for working with container images on Control Plane: where they live, how to refer to them, how to build/push them, and how to share them across orgs. MCP image reads use the generic resource tools — `mcp__cpln__list_resources` (kind="image") and `mcp__cpln__get_resource` (kind="image") — and removal uses `mcp__cpln__delete_resource` (kind="image"); build, push, and copy are CLI-exclusive.
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+
+Reference for working with container images on Control Plane: where they live, how to refer to them, how to build/push them, and how to share them across orgs. MCP image reads use `mcp__cpln__list_resources` / `mcp__cpln__get_resource` (kind="image"); removal uses `mcp__cpln__delete_resource` (kind="image"); build, push, and copy are CLI-exclusive.
 
 ## Image Reference Formats
 
@@ -26,14 +28,17 @@ Reference for working with container images on Control Plane: where they live, h
 
 ## Building & Pushing
 
-Building and pushing are **CLI-exclusive** — there is no create- or update-image MCP tool (`delete_resource` with kind="image" exists for removal). Verify a build afterward with `mcp__cpln__get_resource` (kind="image") (inspect tags, digest, manifest); CLI fallback when MCP is unavailable: `cpln image get my-app:v1.0 --org my-org -o json`.
+Building and pushing are **CLI-exclusive** — there is no create- or update-image MCP tool (`mcp__cpln__delete_resource` kind="image" handles removal). Verify a build afterward with `mcp__cpln__get_resource` (kind="image" — inspect tags, digest, manifest); CLI fallback when MCP is unavailable: `cpln image get my-app:v1.0 --org my-org -o json`.
 
 **Before authoring any `cpln image build` command, run `cpln image build --help` to verify flags and defaults.**
 
 | Path | When to use |
 |---|---|
-| `cpln image build` | Default. Handles Dockerfile + buildpack workflows, authenticates to the org's private registry automatically, pushes in one step. |
+| `cpln image build` | Default for local/dev machines. Handles Dockerfile + buildpack workflows, authenticates to the org's private registry automatically, pushes in one step. |
 | Direct `docker buildx build` | Buildx-only features (multi-platform manifests, advanced cache backends) or a Docker-native pipeline. |
+| Daemonless CI builders (kaniko, buildah, rootless BuildKit) | CI runners without a Docker daemon — build and push directly to `ORG.registry.cpln.io` (`gitops-cicd` skill). |
+
+**Building in CI/CD is a different flow.** `cpln image build` runs the build locally through Docker — Dockerfile mode shells out to `docker buildx build` (legacy `docker build` fallback), buildpack mode runs the `pack` CLI — so the runner needs a working Docker daemon, and `--push` errors unless `docker-credential-cpln` is on PATH (installed alongside the CLI). GitHub-hosted runners and GitLab with the privileged `docker:dind` service qualify; self-managed GitLab runners without privileged mode and locked-down Kubernetes executors do not. There, do not reach for `cpln image build`: the org registry is a standard Docker registry (username = the literal `<token>`, password = the service-account key), so build with the platform's daemonless tooling and push straight to `ORG.registry.cpln.io/NAME:TAG`. Pipeline configs and a kaniko example live in the `gitops-cicd` skill.
 
 ### Option A: `cpln image build` (recommended)
 
@@ -89,8 +94,8 @@ web: <start-command>
 
 Per-language notes (all build with `cpln image build --name my-app:v1.0 --push --org my-org` unless a builder/buildpack override is shown):
 
-- **Node.js** — Detect: `package.json` + a lockfile (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`). Start command auto-detected from `index.js`, `server.js`, `scripts.start`, or `Procfile`. Pin via `engines.node`. Pitfall: missing lockfile → not detected.
-- **Python** — Detect: `requirements.txt` (pip), `uv.lock` (uv, also needs `.python-version`), or `poetry.lock` (Poetry). **Procfile REQUIRED** (no web-server auto-detection). Server must bind `0.0.0.0` and listen on `$PORT`. Poetry non-packaged apps need `package-mode = false` in `pyproject.toml`. Pitfall: no Procfile → builds but exits immediately.
+- **Node.js** — Detect: `package.json` + a lockfile (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`). Start command auto-detected from `index.js`, `server.js`, `scripts.start`, or `Procfile`. Pin via `engines.node`. Pitfall: a missing lockfile means the app is not detected.
+- **Python** — Detect: `requirements.txt` (pip), `uv.lock` (uv, also needs `.python-version`), or `poetry.lock` (Poetry). **Procfile REQUIRED** (no web-server auto-detection). Server must bind `0.0.0.0` and listen on `$PORT`. Poetry non-packaged apps need `package-mode = false` in `pyproject.toml`. Pitfall: with no Procfile the image builds but exits immediately.
 - **Go** — Detect: `go.mod` in root; `main` package must be in root. Compiled binary used automatically.
 - **Java (Maven)** — Detect: `pom.xml`; runs `mvn package`. Spring Boot auto-detected; other frameworks need a `Procfile`. Bind `0.0.0.0`, listen on `$PORT`.
 - **Java (Gradle)** — Detect: `build.gradle` / `build.gradle.kts` + `gradlew` wrapper; runs `./gradlew build`. Spring Boot auto-detected; other frameworks need a `Procfile`. Bind `0.0.0.0`, listen on `$PORT`.
@@ -119,7 +124,7 @@ Each org gets its own isolated private registry at `ORG.registry.cpln.io`: no pu
 cpln image docker-login --org my-org
 ```
 
-Authenticates your local Docker client using your current `cpln` profile. Required before `docker push`/`docker pull` directly against the registry.
+Run once before `docker push`/`docker pull` directly against the registry. It stores no secret — it registers the `docker-credential-cpln` helper for the org registry in `~/.docker/config.json`, and Docker resolves the token live from `CPLN_TOKEN` or the current profile on every call (survives token refresh; works in CI). The helper binary must stay on PATH.
 
 **Service account login (CI/CD):** when using a service account key as credentials, the username is the **literal string** `<token>` and the password is the key. Rotate keys with `cpln serviceaccount add-key`; delete compromised keys immediately.
 
@@ -137,7 +142,7 @@ Private registries (Docker Hub private, ECR, GCR, ACR, GAR, GHCR, other Control 
 | `ecr` | Amazon ECR (dedicated type — handles IAM role assumption) |
 | `gcp` | Google Container Registry (via GCP service account JSON) |
 
-Pull secrets live at the **GVC level** — once attached they apply to all workloads in that GVC; you cannot attach them per-workload. Attach via `mcp__cpln__update_gvc` (merges into `spec.pullSecretLinks`, preserving existing links; read first with `mcp__cpln__get_resource` (kind="gvc") for rollback). CLI fallback (MCP unavailable, or CI/CD):
+Pull secrets live at the **GVC level** — once attached they apply to all workloads in that GVC; you cannot attach them per-workload. Attach via `mcp__cpln__update_gvc` (merges into `spec.pullSecretLinks`, preserving existing links; read first with `mcp__cpln__get_resource` kind="gvc" for rollback). CLI fallback (MCP unavailable, or CI/CD):
 
 ```bash
 cpln gvc update my-gvc --set spec.pullSecretLinks+=my-pull-secret --org my-org
@@ -173,7 +178,7 @@ Images are org-scoped. To use another org's image (e.g., dev's image in staging)
 
 4. **Add the pull secret to the target GVC** — `mcp__cpln__update_gvc` (see "Pull secrets" above), or `cpln gvc update staging-gvc --set spec.pullSecretLinks+=dev-registry-pull --org staging-org`.
 
-5. **Point the target workload at the source image** (`<source-org>.registry.cpln.io/<image-name>:<image-tag>`). Either PATCH in place with `mcp__cpln__update_workload` (read first with `mcp__cpln__get_resource` (kind="workload") to find `spec.containers[].name`), or export → edit → `cpln apply` (GitOps-friendly, version-controlled). CLI in-place fallback (look up the container name first via `cpln workload get ... -o yaml-slim`):
+5. **Point the target workload at the source image** (`<source-org>.registry.cpln.io/<image-name>:<image-tag>`). Either PATCH in place with `mcp__cpln__update_workload` (read first with `mcp__cpln__get_resource` kind="workload" to find `spec.containers[].name`), or export, edit, and `cpln apply` (GitOps-friendly, version-controlled). CLI in-place fallback (look up the container name first via `cpln workload get ... -o yaml-slim`):
 
    ```bash
    cpln workload update my-app \
@@ -291,7 +296,7 @@ Use `mcp__cpln__update_workload` (PATCH — change only the container image); re
 
 - `mcp__cpln__list_resources` (kind="image") — List images in an org (read).
 - `mcp__cpln__get_resource` (kind="image") — Inspect a specific image including tags, digest, and manifest details (read).
-- `mcp__cpln__delete_resource` (kind="image") — Delete one or more images (destructive).
+- `mcp__cpln__delete_resource` (kind="image") — Delete an image (destructive; one image per call).
 
 Over MCP, images are list/get/delete only — there is no create- or update-image tool: build and push via `cpln image build --push` (CLI, exclusive), copy across orgs via `cpln image copy` (CLI). For workload image updates, use `mcp__cpln__update_workload`.
 
@@ -304,10 +309,11 @@ Over MCP, images are list/get/delete only — there is no create- or update-imag
 
 ### Related Skills
 
-- **cpln-workload** — Start here: the primary workload skill (types, defaults, spec shape) that routes here for image detail.
+- **workload** — Start here: the primary workload skill (types, defaults, spec shape) that routes here for image detail.
+- **gitops-cicd** — Building and pushing from CI pipelines: runner capability, daemonless builders, service-account auth.
 - **cpln** — General CLI conventions and shared flags.
-- **cpln-access-control** — Image policies (`pull`, `create`, `manage`).
-- **cpln-environment-promotion** — Patterns for moving images between dev/staging/prod orgs.
+- **access-control** — Image policies (`pull`, `create`, `manage`).
+- **environment-promotion** — Patterns for moving images between dev/staging/prod orgs.
 
 ## Documentation
 

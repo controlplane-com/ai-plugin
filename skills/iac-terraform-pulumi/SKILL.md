@@ -1,446 +1,140 @@
 ---
 name: iac-terraform-pulumi
-description: "Manages Control Plane resources with Terraform or Pulumi. Use when the user asks about the Terraform provider, Pulumi provider, infrastructure as code, IaC, state management, or declarative resource management."
+description: "Manages Control Plane resources with Terraform or Pulumi. Use when the user asks about the Terraform or Pulumi provider, infrastructure as code, IaC, exporting resources to HCL, terraform import, state, or drift."
 ---
 
 # Infrastructure as Code — Terraform & Pulumi
 
-## IaC Approaches
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
 
-Control Plane supports three approaches for managing resources as code:
+Control Plane has one Terraform provider, `controlplane-com/cpln`. The Pulumi provider (`@pulumiverse/cpln`, published by pulumiverse) is bridged from it, so coverage, semantics, and auth are identical — only the casing changes. The platform also runs a hosted terraform-exporter that converts live resources or schema-validated manifests into provider-correct HCL, reachable through MCP tools and `cpln KIND get -o tf`. The common failure is hand-writing HCL from memory: the nested block shapes are deep and version-specific, and resources that already exist get re-created instead of imported. Generate the HCL, then edit it.
 
-| Approach | Syntax | State Management | Best For |
-|----------|--------|------------------|----------|
-| **Terraform** | HCL | Terraform state file | Teams already using Terraform, HCL-native workflows |
-| **Pulumi** | TypeScript, Python, Go, C# | Pulumi Service or self-managed backends | Teams preferring general-purpose languages |
-| **`cpln apply`** | YAML/JSON manifests | No state file (API is source of truth) | GitOps pipelines, simple deployments, CI/CD automation |
+## Choosing an approach
 
-### When to Use Each
+| Approach | Syntax | State | Best for |
+|----------|--------|-------|----------|
+| Terraform | HCL | Terraform state (use a remote backend) | plan/apply lifecycle, drift detection |
+| Pulumi | TypeScript, Python, Go, C# | Pulumi Cloud or self-managed backend | the same lifecycle in a general-purpose language |
+| `cpln apply` | YAML/JSON manifests | none — the API is the source of truth | GitOps and CI/CD pipelines (gitops-cicd skill) |
+| K8s operator | CRDs | cluster reconcile loop | ArgoCD/Flux shops (k8s-operator skill) |
 
-- **Terraform/Pulumi**: Full lifecycle management with plan/preview, drift detection, dependency graphs, and state tracking. Use for production infrastructure managed by platform teams.
-- **`cpln apply`**: Idempotent manifest application without state files. Use for GitOps workflows, CI/CD pipelines, and environments where simplicity is preferred. See the **cpln-gitops-cicd** skill for CI/CD patterns.
+Pick one owner per resource. A resource managed by Terraform and also edited via console or `cpln apply` shows permanent drift — every `terraform apply` reverts the out-of-band change.
 
-## Terraform Provider
-
-### Registry
-
-- **Source**: `controlplane-com/cpln`
-- **Registry**: https://registry.terraform.io/providers/controlplane-com/cpln/latest
-- **Requires**: Terraform 0.13+
-
-### Provider Configuration
+## Provider setup and authentication
 
 ```hcl
 terraform {
   required_providers {
-    cpln = {
-      source = "controlplane-com/cpln"
-    }
+    cpln = { source = "controlplane-com/cpln" }
   }
 }
 
-provider "cpln" {
-  org = var.org  # Required. Env: CPLN_ORG
-}
+provider "cpln" {}  # configurable entirely via env vars
 ```
 
-### Authentication
+| Provider arg / Pulumi config key | Env var | Notes |
+|----------------------------------|---------|-------|
+| `org` / `cpln:org` | `CPLN_ORG` | required |
+| `token` / `cpln:token` | `CPLN_TOKEN` | service account token for CI/CD |
+| `profile` / `cpln:profile` | `CPLN_PROFILE` | local dev: reuse a `cpln login` profile |
+| `endpoint` / `cpln:endpoint` | `CPLN_ENDPOINT` | default `https://api.cpln.io` |
+| `refresh_token` / `cpln:refreshToken` | `CPLN_REFRESH_TOKEN` | needed only to create an org or update org `auth_config` |
 
-Configure via provider arguments or environment variables:
+The same env vars drive the `cpln` CLI, Terraform, and Pulumi, so one CI/CD secret serves all three. Create the service account and scope it with a policy (access-control skill); pipeline wiring lives in gitops-cicd.
 
-| Provider Arg | Env Var | Default | Required |
-|--------------|---------|---------|----------|
-| `org` | `CPLN_ORG` | None | Yes |
-| `endpoint` | `CPLN_ENDPOINT` | `https://api.cpln.io` | No |
-| `profile` | `CPLN_PROFILE` | Default CLI profile | No |
-| `token` | `CPLN_TOKEN` | None | No |
-| `refresh_token` | `CPLN_REFRESH_TOKEN` | None | No |
+Pulumi packages: npm `@pulumiverse/cpln`, PyPI `pulumiverse_cpln`, Go `github.com/pulumiverse/pulumi-cpln/sdk/go/cpln`, NuGet `Pulumiverse.Cpln`.
 
-For CI/CD, use a service account token in `CPLN_TOKEN`. See the **cpln-gitops-cicd** skill for service account creation.
+## Coverage
 
-### Supported Terraform Resources
+24 resources, all `cpln_` prefixed: agent, audit_context, catalog_template, cloud_account, custom_location, domain, domain_route, group, gvc, helm_release, identity, ipset, location, mk8s, mk8s_kubeconfig, org, org_logging, org_tracing, policy, secret, service_account, service_account_key, volume_set, workload. Data sources: cloud_account, gvc, helm_template, image, images, location, locations, org, secret, workload. Pulumi exposes the same 24 resources in PascalCase (e.g. `CatalogTemplate`).
 
-All resources registered by the `controlplane-com/cpln` provider. Data sources exist for `cloud_account`, `gvc`, `helm_template`, `image`, `images`, `location`, `locations`, `org`, `secret`, `workload`.
+Per-attribute truth is the registry page for that resource — [Terraform Registry](https://registry.terraform.io/providers/controlplane-com/cpln/latest/docs) or [Pulumi Registry](https://www.pulumi.com/registry/packages/cpln) — not memory. One shape worth knowing up front: `cpln_secret` has no `type` argument; set exactly one per-type attribute (`opaque`, `dictionary`, `aws`, `tls`, ...).
 
-| Resource | Terraform Type |
-|----------|----------------|
-| Agent | `cpln_agent` |
-| Audit Context | `cpln_audit_context` |
-| Catalog Template | `cpln_catalog_template` |
-| Cloud Account | `cpln_cloud_account` |
-| Custom Location | `cpln_custom_location` |
-| Domain | `cpln_domain` |
-| Domain Route | `cpln_domain_route` |
-| Group | `cpln_group` |
-| GVC | `cpln_gvc` |
-| Helm Release | `cpln_helm_release` |
-| Identity | `cpln_identity` |
-| IP Set | `cpln_ipset` |
-| Location | `cpln_location` |
-| Mk8s | `cpln_mk8s` |
-| Mk8s Kubeconfig | `cpln_mk8s_kubeconfig` |
-| Org | `cpln_org` |
-| Org Logging | `cpln_org_logging` |
-| Org Tracing | `cpln_org_tracing` |
-| Policy | `cpln_policy` |
-| Secret | `cpln_secret` (types: `aws`, `azure_connector`, `azure_sdk`, `dictionary`, `docker`, `ecr`, `gcp`, `keypair`, `nats_account`, `opaque`, `tls`, `userpass`) |
-| Service Account | `cpln_service_account` |
-| Service Account Key | `cpln_service_account_key` |
-| Volume Set | `cpln_volume_set` |
-| Workload | `cpln_workload` |
+## Generate HCL — don't hand-write it
 
-See the [Terraform Registry](https://registry.terraform.io/providers/controlplane-com/cpln/latest) for per-resource field reference and examples.
+The hosted terraform-exporter produces provider-correct HCL. Route by what you have:
 
-### Example: GVC + Workload
-
-```hcl
-resource "cpln_gvc" "main" {
-  name        = "my-app-gvc"
-  description = "Production GVC"
-
-  locations = [
-    "aws-us-west-2",
-    "gcp-us-east1"
-  ]
-}
-
-resource "cpln_workload" "app" {
-  gvc  = cpln_gvc.main.name
-  name = "my-app"
-  type = "standard"
-
-  container {
-    name   = "main"
-    image  = "my-org/my-app:latest"
-    cpu    = "50m"
-    memory = "128Mi"
-
-    ports {
-      number   = 8080
-      protocol = "http"
-    }
-  }
-
-  options {
-    capacity_ai     = true
-    timeout_seconds = 5
-
-    autoscaling {
-      metric    = "disabled"
-      target    = 95
-      min_scale = 1
-      max_scale = 5
-    }
-  }
-
-  firewall_spec {
-    external {
-      inbound_allow_cidr = ["0.0.0.0/0"]
-    }
-  }
-}
-
-output "canonical_endpoint" {
-  value = cpln_workload.app.status[0].canonical_endpoint
-}
-```
-
-### Example: Secret + Identity + Policy
-
-`cpln_secret` has no `type` argument — set exactly one of the per-type blocks/attributes (`dictionary`, `opaque`, `tls`, `aws`, `gcp`, `docker`, `keypair`, etc.). `cpln_policy` uses a `binding` block (singular, up to 50 per policy).
-
-```hcl
-resource "cpln_secret" "db_credentials" {
-  name = "db-credentials"
-
-  dictionary = {
-    DB_HOST     = "db.example.com"
-    DB_USER     = "app"
-    DB_PASSWORD = "secret-value"
-  }
-}
-
-resource "cpln_identity" "app_identity" {
-  gvc  = cpln_gvc.main.name
-  name = "app-identity"
-}
-
-resource "cpln_policy" "secret_access" {
-  name        = "app-secret-access"
-  target_kind = "secret"
-  target_links = [cpln_secret.db_credentials.name]
-
-  binding {
-    permissions     = ["reveal", "use"]
-    principal_links = [cpln_identity.app_identity.self_link]
-  }
-}
-```
-
-### Example: Custom Domain + Route
-
-```hcl
-resource "cpln_domain" "apex" {
-  name = "example.com"
-
-  spec {
-    dns_mode = "cname"
-
-    ports {
-      number   = 443
-      protocol = "http2"
-      tls {}
-    }
-  }
-}
-
-resource "cpln_domain" "app" {
-  depends_on = [cpln_domain.apex]
-  name       = "app.example.com"
-
-  spec {
-    dns_mode = "cname"
-
-    ports {
-      number   = 443
-      protocol = "http2"
-      tls {}
-    }
-  }
-}
-
-resource "cpln_domain_route" "route" {
-  depends_on    = [cpln_domain.app]
-  domain_link   = cpln_domain.app.self_link
-  domain_port   = 443
-  prefix        = "/"
-  workload_link = cpln_workload.app.self_link
-}
-```
-
-### Upgrading Provider Version
-
-1. Update the version in your `required_providers` block.
-2. Run `terraform init -upgrade`.
-
-### Importing Existing Resources
-
-Use `terraform import` to bring existing Control Plane resources under Terraform management. See the Terraform Registry for import syntax per resource type.
-
-To generate both the HCL and the matching `import {}` blocks in one step, call `mcp__cpln__export_terraform` (or `mcp__cpln__export_terraform_batch` for several resources) with `generateImports` set — see [Scaffold from Existing Resources](#scaffold-from-existing-resources).
-
-## Pulumi Provider
-
-### Registry
-
-- **Registry**: https://www.pulumi.com/registry/packages/cpln
-- **Supported languages**: TypeScript/JavaScript, Python, Go, .NET (C#)
-
-### Installation
-
-| Language | Package | Install Command |
-|----------|---------|-----------------|
-| JS/TS | `@pulumiverse/cpln` | `npm install @pulumiverse/cpln` |
-| Python | `pulumiverse-cpln` | `pip install pulumiverse-cpln` |
-| Go | `github.com/pulumiverse/pulumi-cpln/sdk/go/cpln` | `go get github.com/pulumiverse/pulumi-cpln/sdk/go/cpln` |
-| .NET | `Pulumiverse.Cpln` | `dotnet add package Pulumiverse.Cpln` |
-
-### Provider Configuration
-
-```bash
-# Required
-pulumi config set cpln:org <your-org>
-
-# Optional
-pulumi config set --secret cpln:token <your-token>
-pulumi config set cpln:endpoint <api-endpoint-url>
-pulumi config set cpln:profile <profile-name>
-pulumi config set --secret cpln:refreshToken <your-refresh-token>
-```
-
-Uses the same environment variables as Terraform (`CPLN_ORG`, `CPLN_TOKEN`, etc.).
-
-### Example: GVC (TypeScript)
-
-```typescript
-import * as cpln from '@pulumiverse/cpln';
-
-const gvc = new cpln.Gvc('my-app', {
-  name: 'my-app-gvc',
-  locations: ['aws-us-west-2', 'gcp-us-east1'],
-});
-```
-
-### Example: GVC (Python)
-
-```python
-import pulumiverse_cpln as cpln
-
-gvc = cpln.Gvc("my-app",
-    name="my-app-gvc",
-    locations=["aws-us-west-2", "gcp-us-east1"],
-)
-```
-
-### Example: GVC (Go)
-
-```go
-gvc, err := cpln.NewGvc(ctx, "my-app", &cpln.GvcArgs{
-    Name:      pulumi.String("my-app-gvc"),
-    Locations: pulumi.StringArray{
-        pulumi.String("aws-us-west-2"),
-        pulumi.String("gcp-us-east1"),
-    },
-})
-```
-
-### Migrating from Terraform to Pulumi
-
-1. **Convert HCL**: `pulumi convert --from terraform --language typescript --out pulumi-cpln-infra`
-2. **Create stack**: `pulumi stack init migrate`
-3. **Import state**: `pulumi import --from terraform /path/to/terraform.tfstate`
-4. **Review and deploy**: `pulumi up`
-
-See the [Pulumi migration guide](https://www.pulumi.com/docs/iac/adopting-pulumi/migrating-to-pulumi/from-terraform) for details.
-
-## Template Catalog with IaC
-
-Install templates from the Control Plane catalog using Terraform or Pulumi. Templates bundle pre-configured resources (workloads, secrets, etc.) into deployable packages.
-
-### Terraform
-
-```hcl
-resource "cpln_catalog_template" "postgres" {
-  name     = "my-postgres"
-  template = "postgres"
-  version  = "1.0.0"
-  gvc      = "my-gvc"
-  values   = file("${path.module}/values.yaml")
-}
-```
-
-### Pulumi (TypeScript)
-
-```typescript
-import * as cpln from '@pulumiverse/cpln';
-import * as fs from 'fs';
-
-const values = fs.readFileSync('values.yaml', 'utf8');
-
-const release = new cpln.CatalogTemplate('postgres', {
-  name: 'my-postgres',
-  template: 'postgres',
-  version: '1.0.0',
-  gvc: 'my-gvc',
-  values: values,
-});
-```
-
-### Catalog Template Arguments
-
-| Argument | Description |
-|----------|-------------|
-| `name` | Unique release name for this installation |
-| `template` | Catalog template name (e.g., `postgres`, `cockroachdb`) |
-| `version` | Template version to install |
-| `gvc` | Target GVC (leave empty if the template creates its own) |
-| `values` | YAML-formatted string with template configuration |
-
-### Outputs
-
-After applying, the resource exposes a `resources` attribute with all created Control Plane resources, each containing `kind`, `name`, and `link`.
-
-### Upgrade
-
-Update the `version` and/or `values.yaml`, then re-apply. Only affected workloads are redeployed.
-
-## Best Practices
-
-### State Management
-
-- **Terraform**: Use remote backends (S3, GCS, Terraform Cloud) for team collaboration. Enable state locking.
-- **Pulumi**: Use Pulumi Service (default) or self-managed backends. State is stored per stack.
-- **Never commit state files** to version control — they may contain sensitive values.
-
-### Secret Handling
-
-- Use `CPLN_TOKEN` environment variable for authentication — never hardcode tokens in HCL/Pulumi code.
-- For CI/CD, create a dedicated service account with minimal permissions — `mcp__cpln__add_key_to_service_account` creates the service account if needed and issues a key in one call; scope it with `mcp__cpln__create_policy`.
-- Mark sensitive Pulumi config with `--secret`: `pulumi config set --secret cpln:token <token>`.
-- Terraform marks secret values as sensitive automatically when using the `cpln_secret` resource.
-
-### CI/CD Integration
-
-Terraform and Pulumi integrate with CI/CD platforms. Example repos:
-
-- **GitHub Actions (Terraform)**: https://github.com/controlplane-com/github-actions-example-terraform
-- **GitLab CI (Terraform)**: https://gitlab.com/controlplane-com/gitlab-pipeline-example-terraform
-- **Bitbucket Pipelines (Terraform)**: https://bitbucket.org/controlplane-com/bitbucket-pipeline-example-terraform
-
-### Drift Detection
-
-- **Terraform**: Run `terraform plan` periodically to detect drift between state and actual resources.
-- **Pulumi**: Run `pulumi preview` to detect drift.
-- Both tools show a diff of what would change, allowing you to reconcile manually or re-apply.
-
-## Quick Reference
-
-### Provider URLs
-
-| Provider | URL |
+| You have | Use |
 |----------|-----|
-| Terraform Registry | https://registry.terraform.io/providers/controlplane-com/cpln/latest |
-| Pulumi Registry | https://www.pulumi.com/registry/packages/cpln |
-| Terraform Examples | https://github.com/controlplane-com/examples/tree/main/terraform |
+| Existing resource(s) | `mcp__cpln__export_terraform` — a single self link, or bulk by path depth: `/org/ORG` (whole org), `/org/ORG/KIND` (all of a kind), `/org/ORG/gvc/GVC/workload` (all workloads in the GVC) |
+| A known set of links | `mcp__cpln__export_terraform_batch` (full profile) — up to 100 links, merged and de-duplicated; on core, `export_terraform` with path-depth refs covers it |
+| A YAML/JSON manifest | `mcp__cpln__convert_to_terraform` — dry-run validated against the API first, so the returned HCL always matches a schema-valid resource; pass `gvc` for GVC-scoped kinds (workload, identity, volumeset) |
+| Nothing yet | author the manifest against `mcp__cpln__get_resource_schema`, then convert it |
 
-### Authentication Setup (Any Tool)
+Set `generateImports` on any of these to also get ready-to-run `terraform import` commands, one per resource with the IDs prefilled — run them after `terraform init` and before the first `terraform apply`, so apply updates the live resources instead of re-creating them. `includeDependencies` (export tools) pulls in referenced resources so the HCL is self-contained.
 
-```bash
-# Environment variables (shared across Terraform, Pulumi, and CLI)
-export CPLN_ORG=my-org
-export CPLN_TOKEN=<service-account-token>
-```
+The exporter emits HCL only. For a Pulumi program, convert the exported HCL with the Pulumi CLI: `pulumi convert --from terraform --language typescript --out DIR` (also python, go, csharp, java, yaml). Conversion translates config, not state — adopt the live resources afterwards per Importing below.
 
-### Scaffold from Existing Resources
+The exporter covers 16 kinds: agent, auditctx, cloudaccount, domain (routes emitted as `cpln_domain_route`), group, gvc, identity, ipset, location, mk8s, org, policy, secret, serviceaccount, volumeset, workload. `mcp__cpln__list_terraform_kinds` (full profile) enumerates them; on core, just attempt the export — an unsupported kind is rejected with the supported list.
 
-To generate Terraform (HCL) for resources that already exist in Control Plane, prefer the MCP exporter — it produces merged, de-duplicated HCL and can emit `import {}` blocks:
+**Secrets export as plaintext.** The exporter follows each secret's reveal link and embeds the revealed values in the HCL. The MCP tools refuse a ref that targets secrets — and refuse wholesale any bulk export that pulled secrets in — unless `includeSecretValues: true` is passed, which requires the user's explicit approval first. The values then live in both the `.tf` file and the state file; protect both.
 
-- `mcp__cpln__export_terraform` — HCL for a single resource (`/org/acme/gvc/prod/workload/api`) or in bulk by path depth (`/org/acme` exports the whole org). Set `generateImports` to emit `import {}` blocks.
-- `mcp__cpln__export_terraform_batch` — HCL for several self links in one call; prefer this over many `export_terraform` calls.
-- `mcp__cpln__convert_to_terraform` — convert a manifest (YAML/JSON) you already have into HCL. The manifest is dry-run validated against the API first, so the returned HCL always corresponds to a schema-valid resource.
-- `mcp__cpln__list_terraform_kinds` — list the resource kinds the exporter supports; call before `export_terraform` / `convert_to_terraform`.
+## CLI fallback: -o tf
 
-When authoring a manifest by hand for `cpln apply`, call `mcp__cpln__get_resource_schema` first to get the exact object schema and REST endpoints for the kind.
-
-**CLI fallback** (when the MCP server is unavailable, or as the primary interface in CI/CD): the `cpln` CLI can emit existing resources in multiple formats, useful for bootstrapping IaC or `cpln apply` workflows:
+Without MCP, the same exporter is reachable through the CLI:
 
 ```bash
-# YAML manifest (for cpln apply / K8s operator)
-cpln gvc get my-gvc -o yaml-slim > gvc.yaml
-cpln workload get my-app --gvc my-gvc -o yaml-slim > workload.yaml
-
-# Terraform HCL scaffold for an existing resource
-cpln workload get my-app --gvc my-gvc -o tf > workload.tf
-
-# Apply manifests (idempotent). --file accepts a file or a directory (recurses YAML/JSON).
-cpln apply --file ./manifests/
-cpln apply --file ./manifests/ --ready   # block until workloads are ready
+cpln workload get my-app --gvc GVC -o tf > workload.tf   # one resource
+cpln workload get --gvc GVC -o tf > workloads.tf         # no ref: every workload in the GVC
+cpln gvc get -o tf > gvcs.tf                             # every GVC in the org
 ```
 
-Supported `-o` formats: `text`, `json`, `yaml`, `json-slim`, `yaml-slim`, `tf`, `crd`, `names`.
+Differences from the MCP tools: the output is bare `resource` blocks only (write the `terraform {}` and `provider "cpln" {}` blocks yourself), no `terraform import` commands, no dependency closure, and no secret guard — `cpln secret get NAME -o tf` prints revealed plaintext when you hold the reveal permission and silently omits the values when you don't. Multiple explicit refs in one call are not supported with `-o tf`; export per resource or use the no-ref bulk form. The sibling `-o crd` emits Kubernetes CRD YAML for the operator path (k8s-operator skill). For stateless manifests instead of HCL, use `-o yaml-slim` with `cpln apply`.
 
-### Related Skills
+## Importing existing resources
 
-- **cpln-gitops-cicd** — CI/CD pipelines, service account auth, `cpln apply` in pipelines
-- **cpln-k8s-operator** — Managing resources as Kubernetes CRDs with ArgoCD
-- **cpln-template-catalog** — Template catalog overview, available templates, and values configuration
+Resources must land in state before the first apply, or apply tries to re-create them and fails on name conflicts. `generateImports` returns the exact `terraform import` commands to run — after `terraform init`, before the first apply. Hand-written, the ID is the bare name for org-scoped kinds and `GVC:NAME` for GVC-scoped ones:
+
+```bash
+terraform import cpln_gvc.prod prod-gvc
+terraform import cpln_workload.api prod-gvc:api
+```
+
+Each registry page has an Import section with the exact form (composite kinds differ — a domain route imports as `DOMAIN_LINK:PORT:PREFIX`). On Terraform 1.5+ you may hand-write declarative `import {}` blocks instead; the exporter emits commands, not blocks. Pulumi uses the same IDs (`pulumi import cpln:index/workload:Workload api prod-gvc:api` — the provider is bridged), and `pulumi import --from terraform ./terraform.tfstate` adopts a whole existing Terraform state file into a Pulumi stack.
+
+## Catalog templates
+
+`cpln_catalog_template` (Pulumi `CatalogTemplate`) installs marketplace templates with arguments `name`, `template`, `version`, `gvc`, and `values` (a YAML string). Changing `version` or `values` upgrades the release in place. Template selection and values shapes live in the template-catalog skill.
+
+## Verify
+
+- After an export-and-import, `terraform plan` (or `pulumi preview`) must show zero changes — any diff means the HCL drifted from live state; reconcile before committing.
+- Drift detection is the same command on a schedule: a non-empty plan means an out-of-band edit.
+- After `terraform apply` on a workload, confirm health with `mcp__cpln__list_deployments` or `cpln workload get-deployments WORKLOAD --gvc GVC`.
+
+## Troubleshooting
+
+| Symptom | Cause and fix |
+|---------|---------------|
+| First apply wants to create resources that already exist | The import step was skipped — run the `terraform import` commands from `generateImports` (after `terraform init`), then re-plan |
+| `Kind "X" is not Terraform-convertible` | The exporter covers the 16 kinds above (image and user are not among them); manage others via `cpln apply` |
+| Export refused mentioning plaintext secrets | Re-run with `includeSecretValues: true` only after the user explicitly approves, or narrow the ref to exclude secrets |
+| Org create or `auth_config` update fails despite a valid token | Those two operations require `CPLN_REFRESH_TOKEN` |
+| Pulumi lacks a feature the Terraform provider just shipped | The bridge tracks Terraform provider releases — upgrade the `@pulumiverse/cpln` package version |
+
+## Quick reference
+
+### MCP tools
+
+- `mcp__cpln__export_terraform` — HCL for existing resources by self link; bulk via path-depth refs; `generateImports`, `includeDependencies`, `includeSecretValues`
+- `mcp__cpln__export_terraform_batch` (full profile) — several explicit links merged into one HCL set
+- `mcp__cpln__convert_to_terraform` — manifest to HCL, dry-run validated first
+- `mcp__cpln__list_terraform_kinds` (full profile) — exporter-supported kinds
+- `mcp__cpln__get_resource_schema` — exact API schema when authoring a manifest to convert
+
+CLI fallback: in CI/CD, `CPLN_TOKEN` + `CPLN_ORG` drive `terraform`/`pulumi` directly; `cpln KIND get -o tf` scaffolds HCL from live resources.
+
+### Related skills
+
+| Skill | Use for |
+|-------|---------|
+| gitops-cicd | pipelines, service account tokens, `cpln apply` workflows |
+| k8s-operator | managing resources as Kubernetes CRDs with ArgoCD |
+| template-catalog | which template and what values before `cpln_catalog_template` |
+| access-control | the service account and policy behind the CI/CD token |
 
 ## Documentation
 
-For the latest reference, see:
-
-- [IaC Overview](https://docs.controlplane.com/iac/overview.md)
-- [Terraform Provider](https://docs.controlplane.com/iac/terraform.md)
-- [Pulumi Provider](https://docs.controlplane.com/iac/pulumi.md)
+- [IaC Overview](https://docs.controlplane.com/iac/overview.md), [Terraform Provider](https://docs.controlplane.com/iac/terraform.md), [Pulumi Provider](https://docs.controlplane.com/iac/pulumi.md)
 - [cpln apply Guide](https://docs.controlplane.com/guides/cpln-apply.md)
-- [cpln convert Guide](https://docs.controlplane.com/guides/cli/cpln-convert.md)
+- [Terraform examples](https://github.com/controlplane-com/examples/tree/main/terraform); pipeline examples for [GitHub Actions](https://github.com/controlplane-com/github-actions-example-terraform), [GitLab CI](https://gitlab.com/controlplane-com/gitlab-pipeline-example-terraform), and [Bitbucket](https://bitbucket.org/controlplane-com/bitbucket-pipeline-example-terraform)

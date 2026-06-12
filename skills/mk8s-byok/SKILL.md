@@ -5,6 +5,8 @@ description: "Provisions managed Kubernetes (mk8s) clusters and registers existi
 
 # Managed Kubernetes & BYOK Patterns
 
+> **Tool availability:** the `create_mk8s_*` / `update_mk8s_*` tools and the provider-credential secret tools (`create_secret_azure_sdk`, `create_secret_gcp`, `create_secret_keypair`) live in the `mk8s` toolset profile (`?toolsets=mk8s`; `full` includes them too) — if they are not advertised, tell the user to reconnect with that profile, or create the resource via the `cpln` CLI. Reads and deletes work on every profile via `list_resources` / `get_resource` / `delete_resource`.
+
 ## Managed Kubernetes (mk8s)
 
 Control Plane provisions and manages Kubernetes clusters across cloud providers.
@@ -57,7 +59,7 @@ Documented sizing guidance is provider-specific. The Generic provider documents 
 
 ### Supported Kubernetes Versions
 
-Valid `spec.version` values (must be an exact match): `1.26.0`, `1.26.4`, `1.27.3`, `1.28.2`, `1.28.4`, `1.29.7`, `1.30.3`, `1.31.5`, `1.31.13`, `1.32.1`, `1.32.9`, `1.33.5`, `1.34.2`.
+Valid `spec.version` values (must be an exact match): `1.26.0`, `1.26.4`, `1.27.3`, `1.28.2`, `1.28.4`, `1.29.7`, `1.30.3`, `1.31.5`, `1.31.13`, `1.32.1`, `1.32.9`, `1.33.5`, `1.34.2`, `1.35.3`.
 
 ### Firewall Rules
 

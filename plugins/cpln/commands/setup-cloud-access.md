@@ -6,6 +6,8 @@ argument-hint: "[aws|gcp|azure|ngs] --workload [workload-name] [--gvc gvc-name]"
 
 # Setup Cloud Access
 
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+
 Configure credential-free access to cloud resources for a workload using Control Plane's Universal Cloud Identity.
 
 ## Usage

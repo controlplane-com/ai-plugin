@@ -1,382 +1,130 @@
 ---
 name: external-logging
-description: "Ships logs from Control Plane workloads to external providers. Use when the user asks about log export to S3, CloudWatch, Coralogix, Datadog, Logz.io, Stackdriver, log forwarding, or centralized logging."
+description: "Ships Control Plane org logs to external providers. Use when the user asks about log export to S3, CloudWatch, Coralogix, Datadog, Logz.io, Stackdriver, Elastic, syslog, OpenTelemetry, or centralized log forwarding."
 ---
 
-# External Logging Configuration
+# External Logging
 
-## Overview
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
 
-External logging ships all org logs to third-party providers for off-site storage, compliance, and analysis. Logs remain accessible through Control Plane's built-in LogQL regardless of external logging configuration.
-
-**Key facts:**
-
-- Configured at the **Org level** (not GVC).
-- Primary provider in `spec.logging`, additional providers in `spec.extraLogging` (max 3).
-- **Only one provider per logging block** — the schema enforces `.xor()` across providers.
-- Maximum **4 total providers**: 1 primary + 3 extra.
-- `extraLogging` requires `logging` to be set first; `.unique()` enforces distinct entries within the array.
-- Credentials are stored as Control Plane **Secrets** (AWS, Opaque, or GCP type).
-- Log entries appear at the external provider within a few minutes.
-
-For each provider's config fields, allowed values, and one example, see [Providers](#providers) below.
-
-## Provider Comparison
-
-| Provider | Key | Secret Type | Required Fields | Best For |
-|:---|:---|:---|:---|:---|
-| Amazon S3 | `s3` | AWS | `bucket`, `region`, `credentials` | Archival, compliance |
-| CloudWatch | `cloudWatch` | AWS | `region`, `credentials`, `groupName`, `streamName` | AWS-native monitoring |
-| Coralogix | `coralogix` | Opaque | `cluster`, `credentials` | Log analytics |
-| Datadog | `datadog` | Opaque | `host`, `credentials` | Full-stack observability |
-| Logz.io | `logzio` | Opaque | `listenerHost`, `credentials` | ELK-based log analysis |
-| Stackdriver | `stackdriver` | GCP | `location`, `credentials` | GCP-native monitoring |
-| Elastic | `elastic` | AWS or Username/Password | `elasticVariant` + variant fields | Self-managed Elasticsearch |
-| Fluentd | `fluentd` | None | `host` | Log forwarder/aggregator |
-| Syslog | `syslog` | None | `host` | Standards-based syslog |
-| OpenTelemetry | `opentelemetry` | Opaque (optional) | `endpoint` | OTLP-based pipelines |
-
-## Configuration
-
-**Preferred path — MCP tools.** External logging has dedicated MCP tools that handle primary vs extra placement for you:
-
-- `mcp__cpln__get_external_logging` — inspect the current configuration first.
-- `mcp__cpln__configure_external_logging` — add or update a provider (auto-places it as primary or extra).
-- `mcp__cpln__remove_external_logging` — remove a provider (promotes the first extra to primary if you remove the primary).
-
-**Fallback — CLI.** Use this only when the MCP server is unavailable or unauthenticated. **There is no dedicated CLI subcommand for external logging**, so use the get-edit-apply workflow against the org's `spec.logging` block:
-
-```bash
-# 1. Get current org config as YAML (slim output is designed for cpln apply)
-cpln org get ORG_NAME -o yaml-slim > org.yaml
-
-# 2. Edit org.yaml — add or modify the spec.logging section
-
-# 3. Apply changes
-cpln apply -f org.yaml --org ORG_NAME
-```
-
-## Credential Setup
-
-Each provider requires a secret created **before** configuring logging. Create it with the typed `mcp__cpln__create_secret_<type>` tool (e.g. `create_secret_aws`) — CLI fallback: `cpln secret create-*` or the Console, when MCP is unavailable.
-
-| Provider | Secret Type | MCP create tool + payload | CLI fallback |
-|:---|:---|:---|:---|
-| S3, CloudWatch | AWS | `create_secret_aws` — `{"accessKey": "...", "secretKey": "..."}` | `cpln secret create-aws` |
-| Coralogix, Datadog, Logz.io | Opaque | `create_secret_opaque` — `{"encoding": "plain", "payload": "API_KEY"}` | `cpln secret create-opaque` |
-| Stackdriver | GCP | `create_secret_gcp` — GCP service-account JSON key | `cpln secret create-gcp` |
-
-Credentials are referenced in the `configure_external_logging` `credentials` field (or in YAML) as `//secret/SECRET_NAME`.
-
-## Multiple Providers
-
-Each `logging` block supports **exactly one provider** (`.xor()` constraint). To ship to multiple providers, add each one with a separate `mcp__cpln__configure_external_logging` call — it places the first as primary (`spec.logging`) and the rest as extras (`spec.extraLogging`) automatically. The equivalent manifest for the CLI fallback looks like:
-
-```yaml
-kind: org
-name: ORG_NAME
-spec:
-  logging:
-    s3:
-      bucket: my-log-archive
-      credentials: //secret/aws-logging
-      prefix: /logs
-      region: us-east-1
-  extraLogging:
-    - datadog:
-        host: http-intake.logs.us3.datadoghq.com
-        credentials: //secret/datadog-api-key
-    - coralogix:
-        cluster: coralogix.com
-        credentials: //secret/coralogix-key
-```
-
-**Rules:**
-- `logging` (primary) must be set before `extraLogging` can be used.
-- `extraLogging` accepts up to **3** additional provider blocks.
-- Each entry in the array has exactly one provider key (`.xor()` across all provider keys).
-- `.unique()` is enforced within `extraLogging`, so identical blocks cannot repeat in the array.
+External logging lives on the **org** (`spec.logging` plus `spec.extraLogging`) and ships **every workload log in the org** — there is no per-GVC or per-workload filtering. One primary provider plus up to 3 extras (4 total); each logging block holds exactly one provider key. Logs stay queryable in built-in LogQL regardless (separate org retention, `spec.observability.logsRetentionDays`, default 30 days). The recurring failure is credentials: each provider needs a pre-created secret of the exact type below — a wrong-type secret passes configuration and the log router then **silently skips that provider**, so logs simply never arrive.
 
 ## Providers
 
-Per-provider config fields, allowed values, and one example each. Required fields are summarized in the [Provider Comparison](#provider-comparison) table; create the credential secret first (see [Credential Setup](#credential-setup)) and reference it as `//secret/NAME`. Prefer the MCP payload (`mcp__cpln__configure_external_logging`); the YAML blocks are the CLI fallback (apply with `cpln apply -f`).
+| Key | Secret | Required fields | Worth knowing |
+|---|---|---|---|
+| `s3` | aws | `bucket`, `region`, `credentials` | `prefix` default `/`; region free-form; the IAM user needs `s3:PutObject` on the bucket |
+| `cloudWatch` | aws | `region`, `credentials`, `groupName`, `streamName` | `region` is an 18-region allowlist (below); optional `retentionDays` enum and `extractFields` map |
+| `coralogix` | opaque | `cluster`, `credentials` | `cluster`: `coralogix.com`, `coralogix.us`, `app.coralogix.in`, `app.eu2.coralogix.com`, or `app.coralogixsg.com`; optional `app`/`subsystem` |
+| `datadog` | opaque | `host`, `credentials` | `host` enum: `http-intake.logs.datadoghq.com`, `http-intake.logs.us3.datadoghq.com`, `http-intake.logs.us5.datadoghq.com`, `http-intake.logs.datadoghq.eu` (dashboard `us3.datadoghq.com` pairs with the `us3` intake host) |
+| `logzio` | opaque | `listenerHost`, `credentials` | `listenerHost`: `listener.logz.io` or `listener-nl.logz.io` |
+| `stackdriver` | gcp | `location`, `credentials` | `location` is a 40-region GCP allowlist (a rejection lists it); the service account needs Logging write |
+| `elastic` | aws or userpass | one variant block — see below | |
+| `fluentd` | none | `host` | `port` default 24224; Fluent Bit forward protocol |
+| `syslog` | none | `host`, `port`, `mode`, `format`, `severity` | `mode` tcp/udp/tls (tls enables TLS); `format` rfc3164/rfc5424; `severity` 0-7; the receiver sees gvc as hostname, workload as appname, replica as procid |
+| `opentelemetry` | opaque (optional) | `endpoint` | OTLP over HTTP, not gRPC; an https endpoint turns TLS on; optional `headers` map; optional `credentials` becomes the Authorization header |
 
-### Amazon S3
+- CloudWatch `region` allowlist: us-east-1, us-east-2, us-west-1, us-west-2, ap-south-1, ap-northeast-1, ap-northeast-2, ap-southeast-1, ap-southeast-2, eu-central-1, eu-west-1, eu-west-2, eu-west-3, eu-south-1, eu-north-1, me-south-1, sa-east-1, af-south-1.
+- CloudWatch `retentionDays`: 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653.
 
-Logs land at `PREFIX/ORG_NAME/YEAR/MONTH/DAY/HOUR/MINUTE/$UUID.jsonl.gz` (gzip-compressed JSONL). The AWS secret's IAM user needs `s3:PutObject` on the bucket:
+### Elastic variants
 
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    { "Sid": "VisualEditor0", "Effect": "Allow", "Action": "s3:PutObject", "Resource": "arn:aws:s3:::S3_BUCKET_NAME/*" }
-  ]
-}
+In YAML the variant is a nested object under `elastic`; the MCP tool flattens it into `elasticVariant` + `indexType` (`indexType` maps to the schema field `type`):
+
+| Variant | Required | Secret |
+|---|---|---|
+| `aws` | `host` (must end with `es.amazonaws.com`), `port`, `region`, `index`, `type`, `credentials` | aws |
+| `elasticCloud` | `cloudId`, `index`, `type`, `credentials` | userpass |
+| `generic` | `host`, `index`, `type`, `credentials`; optional `port` (default 443), `path` (must start with `/`) | userpass |
+
+## Configure (MCP first)
+
+1. Create the credential secret: `mcp__cpln__create_secret_aws` / `create_secret_opaque` (payload = the raw API key, `encoding: plain`) / `create_secret_gcp` / `create_secret_userpass`. No workload identity or policy is needed — the secret 3-step flow applies to workloads consuming secrets, not to org logging.
+2. `mcp__cpln__get_external_logging` — see what is already configured and where.
+3. `mcp__cpln__configure_external_logging`, once per provider. Placement is automatic: with no primary it becomes `spec.logging`; additional providers append to `spec.extraLogging`; re-configuring a provider that is already present updates it in place; a 4th extra errors with "maximum 3 extra logging providers reached". `credentials` takes a bare secret name or `//secret/NAME`. Syslog `mode`/`format`/`severity` are optional here — the tool fills tcp / rfc5424 / 6.
+4. `mcp__cpln__remove_external_logging` is **destructive — confirm first**: shipping to that destination stops immediately, a compliance/retention gap until reconfigured. Removing the primary promotes the first extra to primary.
+
+## CLI fallback (manifest shape)
+
+There is no `cpln` logging subcommand (`cpln org update --set` covers only description and tags). Get, edit, apply — or `cpln org edit ORG`:
+
+```bash
+cpln org get ORG -o yaml-slim > org.yaml    # edit spec.logging / spec.extraLogging
+cpln apply -f org.yaml --org ORG
 ```
 
 ```yaml
+kind: org
+name: ORG
 spec:
   logging:
     s3:
-      bucket: S3_BUCKET_NAME
-      credentials: //secret/AWS_SECRET
-      prefix: /
-      region: AWS_REGION
-```
-
-| Field | Required | Default | Description |
-|---|---|---|---|
-| `bucket` | Yes | — | S3 bucket name |
-| `region` | Yes | — | AWS region |
-| `credentials` | Yes | — | Link to AWS secret |
-| `prefix` | No | `/` | Folder prefix for log files |
-
-### AWS CloudWatch
-
-```yaml
-spec:
-  logging:
-    cloudWatch:
+      bucket: MY_LOG_BUCKET
       region: us-east-1
+      prefix: /
       credentials: //secret/AWS_SECRET
-      retentionDays: 7
-      groupName: $gvc
-      streamName: $workload
+  extraLogging:              # forbidden unless logging is set; max 3
+    - datadog:
+        host: http-intake.logs.us3.datadoghq.com
+        credentials: //secret/DATADOG_KEY
+    - elastic:
+        elasticCloud:        # variant nests in YAML
+          cloudId: DEPLOYMENT:BASE64_ID
+          index: cpln-logs
+          type: logs         # the MCP tool calls this indexType
+          credentials: //secret/ELASTIC_USERPASS
 ```
 
-| Field | Required | Description |
-|---|---|---|
-| `region` | Yes | A valid AWS region (e.g., `us-east-1`, `eu-west-1`) |
-| `credentials` | Yes | Link to AWS secret |
-| `groupName` | Yes | Log group name (Fluent Bit templating) |
-| `streamName` | Yes | Log stream name (Fluent Bit templating) |
-| `retentionDays` | No | **Restricted values only:** 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653 |
-| `extractFields` | No | Key-value pairs for field extraction |
+In raw YAML, `syslog` requires all five fields — the documented defaults do not satisfy the required check, and the API rejects an omitted `mode`/`format`/`severity` (the MCP tool fills them for you).
 
-Fluent Bit template variables: `$stream`, `$location`, `$provider`, `$replica`, `$workload`, `$gvc`, `$org`, `$container`, `$version`.
+## Template variables
 
-### Coralogix
+- **CloudWatch** `groupName`/`streamName` accept Fluent Bit record accessors over the shipped fields: `$org`, `$gvc`, `$workload`, `$container`, `$replica`, `$location`, `$provider`, `$version`, `$stream` (e.g. `groupName: $gvc`, `streamName: $workload`). Adjacent variables must be separated by `.` or `,`.
+- **Coralogix** `app`/`subsystem` accept only `{org}`, `{gvc}`, `{workload}`, `{location}` — any other `{var}` is rejected at validation.
 
-```yaml
-spec:
-  logging:
-    coralogix:
-      cluster: coralogix.com
-      credentials: //secret/OPAQUE_SECRET
-```
+## What ships
 
-| Field | Required | Allowed Values |
-|---|---|---|
-| `cluster` | Yes | `coralogix.com`, `coralogix.us`, `app.coralogix.in`, `app.eu2.coralogix.com`, `app.coralogixsg.com` |
-| `credentials` | Yes | Link to Opaque secret |
-| `app` | No | Application name — template variables: `{org}`, `{gvc}`, `{workload}`, `{location}` |
-| `subsystem` | No | Subsystem name — same template variables as `app` |
+Every entry carries `time` and `log` plus the labels `org`, `gvc`, `workload`, `container`, `replica`, `location`, `provider`, `version`, `stream`. S3 receives gzip-compressed JSONL objects at `PREFIX/ORG/YYYY/MM/DD/HH/MM/UUID.jsonl.gz` (~1 MB chunks). The shipper flushes every 5 seconds; entries appear at the provider within a few minutes.
 
-### Datadog
+## Verify
 
-Dashboard host maps to an intake host (e.g. `us3.datadoghq.com` → `http-intake.logs.us3.datadoghq.com`).
+1. `mcp__cpln__get_external_logging` — primary and extras placed as intended.
+2. Generate some traffic, wait 2-5 minutes, check the provider dashboard or bucket.
+3. Built-in access is unaffected: `cpln logs '{gvc="GVC", workload="WORKLOAD"}' --org ORG`.
 
-```json
-{
-  "org": "ORG_NAME",
-  "provider": "datadog",
-  "host": "http-intake.logs.us3.datadoghq.com",
-  "credentials": "datadog-api-key"
-}
-```
+## Troubleshooting
 
-| Field | Required | Allowed Values |
-|---|---|---|
-| `host` | Yes | `http-intake.logs.datadoghq.com`, `http-intake.logs.us3.datadoghq.com`, `http-intake.logs.us5.datadoghq.com`, `http-intake.logs.datadoghq.eu` |
-| `credentials` | Yes | Link to Opaque secret |
+| Symptom | Cause / fix |
+|---|---|
+| Logs never arrive, no error anywhere | Credential secret has the wrong type — the log router silently skips the provider. Recreate it with the type from the table. |
+| S3 stays empty with valid keys | The IAM user lacks `s3:PutObject` on the bucket |
+| region/location "must be one of" rejection | CloudWatch and Stackdriver take fixed allowlists, not arbitrary regions |
+| `extraLogging` rejected | A primary `spec.logging` must exist first |
+| "maximum 3 extra logging providers reached" | 4 providers total is the cap — remove one first |
+| xor validation error on a logging block | Exactly one provider key per block — extra providers are separate `extraLogging` entries |
+| Datadog/Coralogix/Logz.io value rejected | `host`/`cluster`/`listenerHost` are fixed enums — see the table |
 
-### Logz.io
-
-```yaml
-spec:
-  logging:
-    logzio:
-      credentials: //secret/OPAQUE_SECRET
-      listenerHost: listener.logz.io
-```
-
-| Field | Required | Allowed Values |
-|---|---|---|
-| `listenerHost` | Yes | `listener.logz.io`, `listener-nl.logz.io` |
-| `credentials` | Yes | Link to Opaque secret |
-
-### Google Stackdriver
-
-Needs a GCP service account with Cloud Logging write permission, stored as a GCP secret.
-
-```yaml
-spec:
-  logging:
-    stackdriver:
-      location: us-east1
-      credentials: //secret/GCP_SECRET
-```
-
-| Field | Required | Description |
-|---|---|---|
-| `location` | Yes | A valid GCP region (e.g., `us-east1`, `europe-west1`) |
-| `credentials` | Yes | Link to GCP secret |
-
-### Elastic
-
-Requires an `elasticVariant` discriminator plus variant-specific fields.
-
-| Variant | Required Fields | Secret Type |
-|---|---|---|
-| `aws` | `host` (ends with `es.amazonaws.com`), `port`, `region`, `index`, `indexType`, `credentials` | AWS |
-| `elasticCloud` | `cloudId`, `index`, `indexType`, `credentials` | Username/Password |
-| `generic` | `host`, `index`, `indexType`, `credentials`; optional `port` (default 443), `path` (must start with `/`) | Username/Password |
-
-```json
-{
-  "org": "ORG_NAME",
-  "provider": "elastic",
-  "elasticVariant": "elasticCloud",
-  "cloudId": "my-deployment:BASE64_ENCODED",
-  "index": "cpln-logs",
-  "indexType": "logs",
-  "credentials": "elastic-userpass"
-}
-```
-
-### Fluentd
-
-Forwarder, no credentials. `host` required; `port` defaults to 24224.
-
-```yaml
-spec:
-  logging:
-    fluentd:
-      host: fluentd.example.com
-      port: 24224
-```
-
-### Syslog
-
-No credentials. `host` required.
-
-| Field | Allowed Values | Default |
-|---|---|---|
-| `mode` | `tcp`, `udp`, `tls` | `tcp` |
-| `format` | `rfc3164`, `rfc5424` | `rfc5424` |
-| `severity` | 0–7 | 6 (Informational) |
-
-Severity levels: `0` Emergency · `1` Alert · `2` Critical · `3` Error · `4` Warning · `5` Notice · `6` Informational · `7` Debug.
-
-```json
-{
-  "org": "ORG_NAME",
-  "provider": "syslog",
-  "host": "syslog.example.com",
-  "port": 6514,
-  "mode": "tls",
-  "format": "rfc5424",
-  "severity": 6
-}
-```
-
-### OpenTelemetry
-
-OTLP `endpoint` required; optional `headers` and optional Opaque `credentials`.
-
-```json
-{
-  "org": "ORG_NAME",
-  "provider": "opentelemetry",
-  "endpoint": "https://otel.example.com:4318",
-  "headers": { "Authorization": "Bearer TOKEN" }
-}
-```
-
-## UI Console Configuration
-
-1. Click **Org** in the left menu.
-2. Click **External Logs** in the middle context menu.
-3. Select the provider and fill out required fields.
-4. Select the appropriate secret for authentication.
-5. Click **Save**.
-
-## Verification
-
-After configuring any provider:
-
-1. **Generate logs** — deploy or interact with a workload to produce log output.
-2. **Wait 2–5 minutes** — log shipping is not instant.
-3. **Check the provider dashboard** — verify log entries are arriving.
-4. **Verify via LogQL** — logs should still be queryable locally:
-
-   ```bash
-   cpln logs '{gvc="GVC_NAME", workload="WORKLOAD_NAME"}' --org ORG_NAME
-   ```
-
-**If logs are not appearing:**
-
-- Verify the secret credentials are correct and have necessary permissions.
-- For S3: confirm the IAM user has `s3:PutObject` on the bucket.
-- For CloudWatch: confirm the IAM user has CloudWatch Logs write permissions.
-- For Coralogix/Datadog/Logz.io: confirm the API key/token is valid and not expired.
-- For Stackdriver: confirm the service account has Logging write permissions.
-- Check that the secret is in the same org as the logging configuration.
-
-## Log Entry Schema
-
-All shipped log entries contain these fields:
-
-| Field | Description |
-|:---|:---|
-| `time` | Timestamp of the log entry |
-| `log` | The log message content |
-| `org` | Organization name |
-| `gvc` | Global Virtual Cloud name |
-| `workload` | Workload name |
-| `container` | Container name |
-| `replica` | Replica identifier |
-| `location` | Deployment location (e.g., `aws-us-east-1`) |
-| `provider` | Cloud provider |
-| `version` | Version identifier |
-| `stream` | `stdout` or `stderr` |
-
-## Gotchas
-
-- **Structured JSON logging** — emit logs as JSON from workloads for better parsing at the destination.
-- **Use template variables** — CloudWatch supports `$gvc`/`$workload` in group/stream names; Coralogix supports `{org}`/`{gvc}`/`{workload}`/`{location}` in app/subsystem.
-- **Multiple providers** — ship to S3 for archival + a real-time provider for monitoring.
-- **Cost awareness** — high-volume logging incurs costs at the destination; control volume with log levels.
-- **Retention alignment** — set external retention to match compliance; Control Plane's built-in retention is separate.
-- **Secret rotation** — rotate API keys/tokens periodically; update the Control Plane secret when credentials change.
-- **`.xor()` constraint spans all 10 providers**: `s3`, `coralogix`, `datadog`, `logzio`, `elastic`, `cloudWatch`, `fluentd`, `stackdriver`, `syslog`, `opentelemetry`. Only one provider is allowed per logging block.
-
-## Quick Reference
-
-### MCP Tools
+## Quick reference — MCP tools
 
 | Tool | Action |
-|:---|:---|
-| `mcp__cpln__get_external_logging` | View current external logging configuration (primary + extra providers) |
-| `mcp__cpln__configure_external_logging` | Add or update a logging provider (auto-handles primary vs extra placement) |
-| `mcp__cpln__remove_external_logging` | Remove a logging provider (promotes first extra to primary if removing primary) |
+|---|---|
+| `mcp__cpln__get_external_logging` | Show primary + extra providers |
+| `mcp__cpln__configure_external_logging` | Add or update one provider (automatic primary/extra placement) |
+| `mcp__cpln__remove_external_logging` | Remove a provider (destructive; removing the primary promotes the first extra) |
 
-Supported `provider` values: `s3`, `cloudWatch`, `coralogix`, `datadog`, `logzio`, `stackdriver`, `elastic`, `fluentd`, `syslog`, `opentelemetry`.
+CLI fallback (CI/CD: `CPLN_TOKEN` + `cpln apply` — read the `cpln` skill first): edit the org manifest as shown above.
 
-The `credentials` field accepts a bare secret name (`my-secret`) or a full link (`//secret/my-secret`). It is required for `s3`, `cloudWatch`, `coralogix`, `datadog`, `logzio`, `stackdriver`, and `elastic`; optional for `opentelemetry`; not used by `fluentd` or `syslog`.
+## Related skills
 
-### Related Skills
-
-- **cpln-logql-observability** — LogQL queries against shipped logs and Grafana dashboards.
-- **cpln-metrics-observability** — Built-in metrics, Prometheus federation, custom metrics.
-- **cpln-access-control** — Secrets used as logging credentials (AWS, opaque, GCP, userpass).
+| Need | Skill |
+|---|---|
+| Query logs inside Control Plane (LogQL, Grafana) | `logql-observability` |
+| Metrics and tracing export | `metrics-observability` |
+| Creating credential secrets, RBAC | `access-control` |
+| Org settings: retention, tracing, auth | `org-management` |
 
 ## Documentation
 
-For the latest reference, see:
-
 - [External Logging Overview](https://docs.controlplane.com/external-logging/overview.md)
-- [S3 Logging](https://docs.controlplane.com/external-logging/s3.md)
-- [CloudWatch Logging](https://docs.controlplane.com/external-logging/cloudwatch.md)
-- [Datadog Logging](https://docs.controlplane.com/external-logging/datadog.md)
-- [Coralogix Logging](https://docs.controlplane.com/external-logging/coralogix.md)
+- Per provider: [S3](https://docs.controlplane.com/external-logging/s3.md), [CloudWatch](https://docs.controlplane.com/external-logging/cloudwatch.md), [Coralogix](https://docs.controlplane.com/external-logging/coralogix.md), [Datadog](https://docs.controlplane.com/external-logging/datadog.md), [Logz.io](https://docs.controlplane.com/external-logging/logz-io.md), [Stackdriver](https://docs.controlplane.com/external-logging/stackdriver.md), [Syslog](https://docs.controlplane.com/external-logging/syslog.md)
+- Elastic, Fluentd, and OpenTelemetry have no docs pages — the MCP tool description is the reference.

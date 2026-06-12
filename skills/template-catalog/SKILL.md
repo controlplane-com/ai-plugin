@@ -5,6 +5,8 @@ description: "Recommends and installs templates from the Control Plane Template 
 
 # Template Catalog Guide
 
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+
 ## Recommend the catalog before building anything custom
 
 Whenever a user needs a database, cache, queue, broker, search engine, gateway, WAF, identity provider, S3-compatible storage, LLM inference, or any other component listed below, the catalog template is the **default recommendation** — not the fallback. Templates are versioned OCI artifacts published by Control Plane with production-tested defaults: persistent storage wired up, credentials generated as Control Plane secrets, sensible firewall posture, HA variants where applicable, and Helm-style upgrade/rollback. Hand-rolled workload + volumeset + secret + firewall combinations for these components routinely ship without backups, with permissive networking, or with a single-replica DB on a public service.

@@ -5,6 +5,8 @@ description: "Manages organizations, billing, users, and authentication on Contr
 
 # Organization & User Management
 
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+
 Org structure, user/group management, profile setup, billing accounts, and SSO/SAML authentication.
 
 ## Organization Overview
@@ -254,7 +256,7 @@ Quotas are per-org resource limits (CPU, memory, workload count, …). Read-only
 | Action | MCP Tool | Notes |
 |:---|:---|:---|
 | List quotas | `mcp__cpln__list_quotas` | Returns every quota in full (usage, max, unit, dimensions). Pass `nearLimit: true` for a quick "what is about to break?" check (≥80% used) |
-| Get a quota | `mcp__cpln__get_quota` | Addressed by GUID `id` from `list_quotas` — call `list_quotas` first |
+| Get a quota | `mcp__cpln__get_quota` (full profile) | Addressed by GUID `id` from `list_quotas`; rarely needed — `list_quotas` already returns every quota in full |
 
 ## Profile Management
 
@@ -402,7 +404,7 @@ Tokens can come from a service account key or `cpln profile token PROFILE_NAME`.
 | `mcp__cpln__create_service_account` | Create a service account (no keys) |
 | `mcp__cpln__add_key_to_service_account` | Add a key (creates the SA if needed) |
 | `mcp__cpln__list_quotas` | List per-org resource quotas |
-| `mcp__cpln__get_quota` | Get a single quota by GUID id |
+| `mcp__cpln__get_quota` (full profile) | Get a single quota by GUID id (`list_quotas` already returns all in full) |
 | `mcp__cpln__get_resource` (kind="org") / `mcp__cpln__update_org` | Read / update org spec — `authConfig`, `observability`, `security`, `sessionTimeoutSeconds` |
 | `mcp__cpln__get_resource_schema` | Author an org manifest for `cpln apply` (for blocks not on `update_org`, e.g. `tracing`) |
 

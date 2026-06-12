@@ -5,6 +5,8 @@ description: "Connects Control Plane workloads to private VPCs, on-prem networks
 
 # Native Networking & Agent Connectivity
 
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+
 > **Scope:** This skill is the reference for connectivity options (PrivateLink / PSC / Agent), producer-side Terraform setup, agent sizing, permissions, and the `networkResources` / `nativeNetworkResources` schema. For the step-by-step agent deployment walkthrough (create → deploy → wire up identity → verify), delegate to the **cpln-agent-setup** agent.
 
 ## Connectivity Options Overview

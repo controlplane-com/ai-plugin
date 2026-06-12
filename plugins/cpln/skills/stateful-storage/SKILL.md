@@ -5,6 +5,8 @@ description: "Creates persistent storage for stateful workloads on Control Plane
 
 # Stateful Storage & VolumeSets
 
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+
 The `workload` skill covers persistent-storage basics (stateful type, filesystem/perf-class immutability, reserved mount paths, the 15-volume limit, snapshot-before-destructive, the create→verify flow). This skill is the full volume-set detail. MCP-first throughout; CLI is the fallback when the MCP server is unavailable or in CI/CD driven by a service-account `CPLN_TOKEN`.
 
 ## VolumeSet Overview
@@ -87,14 +89,14 @@ The system uses whichever target is larger (reactive vs. predictive).
 
 | Filesystem | Required Workload Type | Volumes per container |
 |---|---|---|
-| ext4 / xfs | **Stateful** | Up to 15 |
+| ext4 / xfs | **Stateful or VM** | Up to 15 |
 | shared | Any type | Up to 15 |
 
 Volume URI: `cpln://volumeset/VOLUMESET_NAME`. **Reserved mount paths** (rejected): `/dev`, `/dev/log`, `/tmp`, `/var`, `/var/log`.
 
 **Recovery policy** on mount: `retain` (default) keeps existing volume data when a new replica is created; `recycle` starts fresh.
 
-Use `mcp__cpln__mount_volumeset_to_workload` to attach — it creates the volumeset if missing (defaults: mount path `/mnt/{volumesetName}`, filesystem `xfs`, class `general-purpose-ssd`). Workload type is immutable — switching to stateful requires delete + recreate (see migration sequence below).
+Use `mcp__cpln__mount_volumeset_to_workload` to attach — it mounts into the **first container** and creates the volumeset if missing (defaults: mount path `/mnt/{volumesetName}`, filesystem `xfs`, class `general-purpose-ssd`; size/filesystem/class are create-only and ignored when the volumeset already exists). ext4/xfs (read-write-once) require a **stateful or vm** workload; shared mounts on any type. Workload type is immutable — switching requires delete + recreate (see migration sequence below).
 
 ### Stateful Workload Features
 
@@ -105,7 +107,7 @@ Use `mcp__cpln__mount_volumeset_to_workload` to attach — it creates the volume
 
 ### Migrating an existing workload to stateful (destructive — confirm first)
 
-Workload type is immutable, so adding a volume to a serverless/standard workload requires **delete + recreate as stateful**. This is destructive — the workload is removed, traffic 5xx's during the recreate window, and any in-memory/non-persistent state is lost. Governed by the destructive-ops guardrail in `rules/cpln-guardrails.md`: **stop and get explicit confirmation before any delete, regardless of permission mode.**
+Workload type is immutable, so adding an ext4/xfs volume to a serverless/standard workload requires **delete + recreate as stateful** (vm workloads can also mount ext4/xfs volumesets, but a service migrates to stateful). This is destructive — the workload is removed, traffic 5xx's during the recreate window, and any in-memory/non-persistent state is lost. Governed by the destructive-ops guardrail in `rules/cpln-guardrails.md`: **stop and get explicit confirmation before any delete, regardless of permission mode.**
 
 Confirm with the user before step 4:
 - The exact public URL that will return errors during the cutover window
@@ -200,9 +202,9 @@ CLI fallback (`cpln volumeset snapshot create|get|restore|delete my-data --gvc m
 
 ## Volume Expansion & Shrink
 
-**Expand** — live, no downtime, **once every 6 hours**; all filesystem types. Prefer `mcp__cpln__expand_volumeset`; CLI `cpln volumeset expand my-data --gvc my-gvc --new-size 50 --location aws-us-east-2 --volume-index 0` (`--timeout-seconds` overrides the default 600s wait).
+**Expand** — live, no downtime; all filesystem types. Throttled to **4 expansions per volume per rolling 24 hours** — an HTTP 429 means the window is exhausted, and waiting briefly will NOT help (the oldest expansion must age out). Prefer `mcp__cpln__expand_volumeset`; CLI `cpln volumeset expand my-data --gvc my-gvc --new-size 50 --location aws-us-east-2 --volume-index 0` (`--timeout-seconds` overrides the default 600s wait).
 
-**Shrink** — **permanent data loss; ext4/xfs only.** Snapshot first with `mcp__cpln__create_volumeset_snapshot`, then `mcp__cpln__shrink_volumeset`; present the blast radius and get explicit confirmation first (`rules/cpln-guardrails.md`). CLI `cpln volumeset shrink my-data --gvc my-gvc --new-size 10 --location aws-us-east-2 --volume-index 0`.
+**Shrink** — **ext4/xfs only**; data is preserved via an online presync + final delta sync onto the new smaller volume, but if **used bytes exceed the new capacity the data cannot fit and is lost**. Floor is class-dependent: 10 GB `general-purpose-ssd` / 200 GB `high-throughput-ssd`. Snapshot first with `mcp__cpln__create_volumeset_snapshot`, then `mcp__cpln__shrink_volumeset`; present the blast radius and get explicit confirmation first (`rules/cpln-guardrails.md`). CLI `cpln volumeset shrink my-data --gvc my-gvc --new-size 10 --location aws-us-east-2 --volume-index 0`.
 
 ## Volume Management
 
@@ -305,10 +307,10 @@ For Bring Your Own Kubernetes clusters:
 - **ext4/xfs lock to one workload** — plan the volumeset-to-workload mapping
 - **Data is per-location** — no automatic cross-location replication
 - **Shared has no snapshots** — implement application-level backups
-- **Shrink and volume-delete destroy data** — always snapshot first
-- **Expand throttled** — once every 6 hours per volume
+- **Volume-delete destroys data; shrink loses data when used bytes exceed the new size** — always snapshot first
+- **Expand throttled** — 4 expansions per volume per rolling 24 hours (HTTP 429 = window exhausted; brief waits do not help)
 - **Snapshot restore creates a new volume** — unsaved data since the snapshot is lost
-- **Workload type is immutable** — switching type (e.g. serverless → stateful to add a volume) requires destructive delete + recreate; confirm the blast radius first (see the migration sequence above)
+- **Workload type is immutable** — ext4/xfs volumes need a stateful or vm workload, so switching type (e.g. serverless → stateful to add a volume) requires destructive delete + recreate; confirm the blast radius first (see the migration sequence above)
 
 ## Quick Reference — MCP Tools
 

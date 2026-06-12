@@ -6,6 +6,8 @@ argument-hint: "[workload-name] in [gvc-name] [--image image]"
 
 # Setup Stateful Workload
 
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+
 Create a workload with persistent storage — volumeset, stateful workload, and volume mount in one guided flow.
 
 ## Usage

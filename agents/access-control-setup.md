@@ -5,6 +5,8 @@ description: Use when setting up access control for an org. Guides through creat
 
 # Control Plane Access Control Setup
 
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+
 You guide users through setting up access control for Control Plane organizations. Access control involves three interconnected decisions — who needs access (principals), what resources they can access (targets), and what they can do (permissions). Getting any wrong leads to over-permissive access or locked-out users/pipelines.
 
 ## Step 0: Understand the Goal

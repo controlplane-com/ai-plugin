@@ -5,6 +5,8 @@ description: "Primary skill for creating, updating, running, and debugging workl
 
 # Workloads — Primary Skill & Router
 
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+
 A **workload** is Control Plane's unit of deployment: one or more containers plus how they scale, get exposed, store data, and stay healthy. This skill carries the must-know primary rules for safely creating, updating, and running a workload.
 
 **Need more detail on one subject?** This skill covers the common case; for depth on a single topic, load the matching skill from the **Deep-dive router** at the end — you may load one or several, as the task spans. If this plugin is installed in your agent, the skill files are already available — open the relevant skill(s) directly. If you are using the Control Plane MCP server without the plugin, call `get_cpln_skill` with the skill name instead.
@@ -58,7 +60,7 @@ Platform defaults are not a production design. For any real workload:
 - **Define both `readinessProbe` and `livenessProbe`** — none are configured by default.
 - **Size `cpu`/`memory` to the runtime**, not the platform defaults (`50m` / `128Mi`). Floors: CPU ≥ `25m`, memory ≥ `32Mi`. Keep `memory(MiB) / cpu(millicore) ≤ 8` (raise to 32 with the tag `cpln/relaxMemoryToCpuRatio`).
 - **Pick an autoscaling metric that fits the traffic shape** (see Autoscaling).
-- **Set the firewall to match intended exposure** — it is deny-by-default (see Networking).
+- **Set the firewall to match intended exposure IN THE CREATE CALL** — it is deny-by-default (see Networking). Decide reachability before creating (`public: true` or `firewallConfig`); creating closed and patching the firewall open afterward is a spec error, not a workflow.
 - **Never silently downgrade** an incompatible request to `disabled` / `none` / `1` / public — surface the conflict with realistic alternatives and a recommendation.
 
 ## Images
@@ -101,8 +103,8 @@ The metric must be valid for the workload type (the matrix above) or the spec is
 ## Networking, firewall & exposure
 
 - **Deny-by-default:** external inbound, external outbound, and internal (`inboundAllowType: none`) are all blocked until configured. Blocked CIDRs beat allowed; CIDR rules beat hostname rules.
-- **Public exposure needs BOTH** an external inbound and an external outbound CIDR — one without the other ships a half-broken workload. Infer intent: a user-facing app/site/game → public; an internal API/DB/worker → restricted. Confirm when ambiguous or sensitive.
-- Hostname outbound rules allow only ports **80/443/445** by default — widen with `outboundAllowPort`.
+- **Public exposure needs BOTH** an external inbound and an external outbound CIDR — one without the other ships a half-broken workload. Infer intent: a user-facing app/site/game → public; an internal API/DB/worker → restricted. Confirm when ambiguous or sensitive — and decide BEFORE creating: exposure belongs in the create call itself, never a follow-up firewall patch.
+- Hostname outbound rules allow only ports **80/443/445** by default; `outboundAllowPort` **replaces** that set (re-list 80/443 if still needed). Private RFC1918/CGNAT ranges in `outboundAllowCIDR` are silently ignored on managed locations — reaching private networks takes a wormhole agent (`native-networking`).
 - **Internal service-to-service** uses plain HTTP over the internal hostname: `http://WORKLOAD.GVC.cpln.local:PORT` (the sidecar adds mTLS — never `https://`). Same-GVC is free; cross-GVC needs `inboundAllowType: same-org` (or an explicit `workload-list`) and incurs egress.
 - **One public canonical port.** `WORKLOAD.GVC.cpln.app` serves a **single** port — the first container port. `standard`/`stateful` may expose **more** ports across containers (unique numbers), reachable at `WORKLOAD.GVC.cpln.local:PORT` or via a **direct/dedicated load balancer**; `serverless` is limited to one container / one port. `WORKLOAD.GVC.cpln.app` is the URL *shape* only — always report the **actual** canonical URL from `list_deployments` / the workload's `status.canonicalEndpoint`; never construct or guess it (custom domains, BYOK, and alias suffixes make the literal form wrong).
 - **Always declare ports with the `containers[].ports` array** — e.g. `ports: [{ number: 80, protocol: "http" }]`; for a single port use a one-element array. The legacy scalar `containers[].port` field is **deprecated — never use it**, even if `get_resource_schema` still lists it (the platform keeps it for backward compatibility, but new specs must use `ports[]`).
@@ -152,7 +154,7 @@ The metric must be valid for the workload type (the matrix above) or the spec is
 
 ## Standard create / update flow
 
-1. Get your codes up front: `mcp__cpln__get_cpln_rules` for the `rulesAccessCode`, and `mcp__cpln__get_cpln_skill('workload')` for the `skillAccessCode` — `create_workload`/`update_workload` require **both** as inputs, so fetch them once per session and reuse them (they rotate ~daily). Read this skill before you author.
+1. Read this skill once per session before authoring (you are doing that now); `mcp__cpln__get_cpln_rules` has the cross-cutting operating guide if you have not read it this session.
 2. Confirm the target **org / GVC** — never guess; on not-found, stop and ask.
 3. `mcp__cpln__get_resource_schema` for the workload kind before authoring.
 4. Discover current state: `mcp__cpln__list_resources` (kind="workload") / `mcp__cpln__get_resource` (kind="workload").
@@ -188,7 +190,7 @@ The metric must be valid for the workload type (the matrix above) or the spec is
 
 **CLI fallback** (read the `cpln` skill first): use when MCP is unavailable/unauthenticated, for interactive work (`cpln workload exec`, `cpln workload connect`, `port-forward`), image build/copy, or as the primary interface in CI/CD (`CPLN_TOKEN` + `cpln apply --ready`).
 
-**Raw API escape hatch:** for a spec field no typed `create_workload` / `update_workload` / `configure_workload_*` tool exposes, use `mcp__cpln__cpln_api_request` (raw GET/POST/PATCH/DELETE) — call `mcp__cpln__get_resource_schema` first for the exact path and body, and prefer the typed tools whenever they cover the field.
+**Raw API escape hatch:** for a spec field no typed `create_workload` / `update_workload` / `configure_workload_*` tool exposes, use `mcp__cpln__cpln_api_request` (raw GET/POST/PATCH/DELETE; disabled by default — only when advertised) — call `mcp__cpln__get_resource_schema` first for the exact path and body, and prefer the typed tools whenever they cover the field. If it is not advertised, apply the full manifest with the `cpln` CLI instead.
 
 ## Deep-dive router
 

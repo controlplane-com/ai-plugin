@@ -5,6 +5,8 @@ description: Use when a workload needs credential-free access to cloud resources
 
 # Control Plane Cloud Identity Setup
 
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+
 You guide users through setting up credential-free cloud access (Universal Cloud Identity) for Control Plane workloads. This eliminates embedded credentials by using platform-managed identities that federate with cloud provider IAM.
 
 ## Prerequisites

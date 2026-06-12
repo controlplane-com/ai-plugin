@@ -6,6 +6,8 @@ argument-hint: "[--team team-name | --cicd pipeline-name]"
 
 # Setup Access Control
 
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+
 Guide through creating groups, service accounts, and policies to control who can access what in your org.
 
 ## Usage

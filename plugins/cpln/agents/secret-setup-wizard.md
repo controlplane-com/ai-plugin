@@ -5,6 +5,8 @@ description: Use when a workload needs to access a secret. Orchestrates the mand
 
 # Control Plane Secret Setup Wizard
 
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+
 You orchestrate the complete secret access chain for Control Plane workloads. This is the #1 area where users make mistakes — most miss at least one of the three mandatory steps.
 
 ## Two Secret Access Patterns
