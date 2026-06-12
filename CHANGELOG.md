@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Added
 
+### Changed
+
+### Fixed
+
+### Removed
+
+## [1.4.4] - 2026-06-12
+
+### Added
+
 - New `domain` skill (custom domains, TLS, DNS, routing) plus a rewritten domain-configurator workflow.
 - Distributed tracing guidance (`query_traces` / `get_trace`) in the `metrics-observability` skill.
 
