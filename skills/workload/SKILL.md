@@ -71,7 +71,7 @@ Platform defaults are not a production design. For any real workload:
 - The `<your-org>.registry.cpln.io/NAME:TAG` form also resolves, but for your own org prefer `//image/NAME:TAG`; the hostname form is mainly used by `docker login` / `docker push`.
 - **All images must be `linux/amd64`** — a wrong-arch image fails with `exec format error`.
 - **Private external registries need a pull secret on the GVC** (`spec.pullSecretLinks`); only `docker`, `ecr`, and `gcp` secret types work as pull secrets. Same-org `//image/...` needs none.
-- Building and pushing is **CLI-only** (`cpln image build --push`); over MCP, images are read-only (`mcp__cpln__list_resources` (kind="image") / `mcp__cpln__get_resource` (kind="image")).
+- Building and pushing is **CLI-only** (`cpln image build --push`); over MCP, images are list/get/delete only (`mcp__cpln__list_resources` / `mcp__cpln__get_resource` / `mcp__cpln__delete_resource`, kind="image").
 
 ## Run real images
 
