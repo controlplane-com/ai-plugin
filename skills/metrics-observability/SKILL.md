@@ -1,380 +1,193 @@
 ---
 name: metrics-observability
-description: "Configures workload metrics, Prometheus scraping, and Grafana dashboards on Control Plane. Use when the user asks about CPU/memory/request metrics, custom metrics endpoints, Prometheus federation, or centralized Grafana."
+description: "Workload metrics, PromQL, Grafana, and tracing on Control Plane. Use to observe or troubleshoot a workload via CPU/memory/request or custom metrics, traces, Prometheus federation, alerts, or metrics retention."
 ---
 
-# Metrics & Observability Patterns
+# Metrics, Tracing & Observability
 
 > **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
 
-## Query metrics with the MCP tools
+Control Plane stores every workload's metrics as Prometheus-compatible time series in a managed backend (Mimir), queryable in PromQL through the per-org managed Grafana or the MCP tools. The org is the tenant — it comes from the endpoint path, so there is no `org=` label and no cross-org queries. Two traps dominate. **Series names are short:** memory is `mem_used` / `mem_reserved` / `mem_billable`, not `memory_*` — a `memory_used` query returns nothing, so ground names with `list_metrics` first. **Rate-shaped metrics are pre-rated:** `egress`, `requests_per_second`, and the latency buckets are already rated by the platform's recording rules, so you query them bare — wrapping them in `rate()` again returns garbage. Finally, a workload's in-pod `CPLN_TOKEN` cannot authenticate to the metrics endpoint; querying from outside the mesh needs a user or service-account token.
 
-For programmatic / agent access, query metrics directly — no Grafana needed:
+## Two ways to query
 
-- **`mcp__cpln__query_metrics`** — run a PromQL query (Prometheus-compatible). Defaults to a range query over the last hour at 60s step; pass `resolution: "instant"` for a point value, or `since` / `from` / `to` / `step` to adjust. Use it to verify autoscaling signals **before** changing scaling settings — measure first, then change.
-- **`mcp__cpln__list_metrics`** — discover the metric names and real label values present in the org right now (including CUSTOM metrics and `kube_`/`node_` families) before querying, so PromQL filters are grounded. Reach for it whenever a query returns no series or you're unsure of a name/label.
+- **MCP (primary for agents):** `mcp__cpln__query_metrics` runs a PromQL query — a range query over the last `1h` at `60s` step by default; pass `resolution: "instant"` for a single point, or `since` / `from` / `to` / `step` to adjust. `mcp__cpln__list_metrics` discovers the metric names and real label values present in the org right now (built-in, `kube_`/`node_`, and custom); pass `metric:` to ground one metric's live labels before filtering. Reach for it whenever a query returns no series. Measure first, then change scaling settings.
+- **Grafana:** the managed per-org instance — open **Metrics** in the Console sidebar (or the **Metrics** link on any workload), use **Explore** for ad-hoc PromQL, and dashboards/alerting for the rest. The `grafanaAdmin` org permission grants the Grafana Admin role; everyone else is Viewer.
 
-**PromQL query forms** — gauges (`cpu_used`, `memory_used`, `replica_count`) query bare; counters need `rate()` (e.g. `rate(egress[5m])`, `sum by (workload) (rate(container_restarts[5m]))`); latency is a histogram (`histogram_quantile(0.95, sum by (le) (rate(request_duration_ms_bucket[5m])))`).
+`list_metrics`' built-in catalog still spells memory `memory_*`; trust the live names it returns (and this skill) — the queryable series is `mem_*`.
 
-Grafana (below) remains the path for dashboards, ad-hoc visual exploration, and alerting.
+## PromQL: query the right shape
 
-## Distributed Tracing
+The platform pre-computes rates, so the shape decides the query form:
 
-Tracing is **opt-in per GVC** and answers a different question than metrics: not "is latency high?" but "**where** inside the request path is it high, and which span failed?"
+- **Gauges — query bare:** `cpu_used`, `mem_used`, `replica_count`, `workload_ready_replicas`.
+- **Pre-rated gauges — query bare, never `rate()`:** `egress` and `cross_zone_traffic` (bytes per minute), `requests_per_second`, `requests_initiated_per_second`, `cron_execution_rate`.
+- **Histogram — `histogram_quantile`, no extra `rate()`:** `request_duration_ms_bucket` keeps its `le` label and is already rated.
+- **Cumulative counters — wrap in `increase()` / `rate()` for velocity:** `container_restarts`, `cron_executions`, `workload_progress_failure`, `workload_rescheduled_replicas`, `domain_warnings`.
 
-### Enable tracing on a GVC
+```promql
+cpu_used                                              # cores in use, per replica (bare gauge)
+sum by (workload) (mem_used)                          # memory bytes per workload — mem_, not memory_
+egress                                                # outbound bytes/minute (already rated — no rate())
+sum by (workload) (requests_per_second{response_class="500"})   # 5xx rate; response_class is "200".."500"
+histogram_quantile(0.95, sum by (le) (request_duration_ms_bucket))   # p95 latency (ms); no rate() wrapper
+sum by (gvc, workload) (increase(container_restarts[5m]))           # restarts in the last 5m
+```
 
-Set `spec.tracing` via `mcp__cpln__update_gvc` (or at creation with `mcp__cpln__create_gvc`). Exactly ONE provider:
+## Built-in metrics
 
-- **`controlplane`** — built-in backend; traces are stored by Control Plane and queryable with the MCP tools below. Zero extra infrastructure.
+Collected for every workload, no configuration. Names and types below are the recording-rule outputs (the queryable series). Call `list_metrics` for the complete live set, including your custom metrics.
+
+**Resource & network** (per replica): `cpu_used` / `cpu_reserved` / `cpu_billable` (cores, gauge); `mem_used` / `mem_reserved` / `mem_billable` (bytes, gauge); `egress` / `cross_zone_traffic` (bytes/minute, pre-rated gauge); `replica_count` / `workload_ready_replicas` / `workload_desired_replicas` (gauge).
+
+**Traffic** (per pod): `requests_per_second` and `requests_initiated_per_second` (pre-rated gauge, label `response_class`); `request_duration_ms_bucket` (latency histogram, keeps `le`).
+
+**Stability**: `container_restarts`, `workload_progress_failure`, `workload_rescheduled_replicas`, `cron_executions`, `domain_warnings` (cumulative counters); `cron_execution_rate` (pre-rated); `capacity_ai_updates`, `load_balancer` (gauge).
+
+**Volume** (per volume set): `volume_set_capacity_bytes`, `volume_set_used_bytes`, `volume_set_free_bytes`, `volume_set_billable_bytes`, `volume_set_capacity_billable`, `volume_set_snapshots_billable`.
+
+**Org-wide** (no workload label): `logs_storage_mb` / `metrics_storage_mb` / `tracing_storage_mb`; `agent_peers_count` / `agent_services_count` (gauge) and `agent_{tx,rx}_{bytes,packets}_total` (counter) from wormhole agents; `threat_detection_alerts` / `threat_detection_forward_total` / `threat_detection_forward_enabled`.
+
+mk8s clusters with metrics enabled also expose `kube_*` (kube-state-metrics) and `node_*` (node-exporter).
+
+## Custom metrics
+
+A container exposes Prometheus-format metrics by declaring a `metrics` block; the platform scrapes every replica every **30 seconds** (5s timeout). Set it at creation with `mcp__cpln__create_workload` or add it later with `mcp__cpln__update_workload`; if the typed tool doesn't surface the nested field, fall back to `mcp__cpln__get_resource_schema` for `workload` then `cpln apply -f workload.yaml`.
+
+```yaml
+spec:
+  containers:
+    - name: app
+      metrics:
+        port: 9100          # required; ≥80 and NOT a reserved port (see trap below)
+        path: /metrics      # required; string, max 128, default /metrics
+        dropMetrics:        # optional; RE2 regexes, dropped before scrape
+          - '^go_.*'
+          - '^process_.*'
+```
+
+- **Reserved-port trap:** `port` rejects the platform's sidecar ports — `9090`, `9091`, `8012`, `8022`, `15000`/`15001`/`15006`/`15020`/`15021`/`15090`, `41000`. The obvious Prometheus default `9090` fails; use `9100`, `2112`, etc.
+- Metric names starting with `cpln_` are dropped (you cannot overwrite platform series).
+- Scraped samples gain labels `org`, `gvc`, `workload`, `container`, `location`, `provider`, `region`, `cluster_id`, `replica`.
+
+## Distributed tracing
+
+Tracing answers a different question than metrics: not "is latency high?" but **where** in the request path. It is opt-in via `spec.tracing` on a **GVC** (or org-wide on the org spec) — set it with `mcp__cpln__update_gvc` / `mcp__cpln__create_gvc` or `cpln apply`. Exactly one provider (`.xor`), and `sampling` (a required `0`–`100` percentage):
+
+- **`controlplane`** — built-in backend, queryable with the tools below; zero extra infrastructure.
 - **`otel`** — ship spans to your own OpenTelemetry collector (`endpoint`).
-- **`lightstep`** — ship to Lightstep (`endpoint` + access-token secret).
+- **`lightstep`** — ship to Lightstep (`endpoint` + an opaque `credentials` secret).
 
-`sampling` is a percentage (e.g. `10` = 10% of requests). `customTags` adds fixed key/values to every span. Only requests served **after** enablement produce traces, and only the sampled fraction.
+`customTags` adds fixed key/values to every span (each value max 50 chars). Only requests served after enablement, in the sampled fraction, produce traces. Apps wanting to emit their own spans to the `controlplane` provider send OTLP to `tracing.controlplane:80` (gRPC) or `tracing.controlplane:4318` (HTTP).
 
-### Query traces with the MCP tools
+Query the built-in backend with `mcp__cpln__query_traces` — structured params (`gvc`, `workload`, `location`, `errorsOnly`, `minDuration: "500ms"`) or a raw `traceql` query that replaces them; span attributes are `resource.gvc` / `resource.workload` / `resource.location`. Then `mcp__cpln__get_trace` reads one trace's span tree to name the slow/failed span. **Empty results are usually configuration:** confirm tracing is enabled, sampling catches traffic, and the window saw requests. Triage flow: `query_traces` (`minDuration` or `errorsOnly`) to the worst trace, `get_trace` to the culprit span, then `mcp__cpln__get_workload_logs` over the same window for the application error.
 
-Works with the `controlplane` provider (the built-in backend):
+## Built-in Grafana alert rules
 
-- **`mcp__cpln__query_traces`** — search traces. Structured params (`gvc`, `workload`, `location`, `errorsOnly`, `minDuration`) or a raw `traceql` query (which REPLACES the structured params). Span attributes available: `resource.gvc`, `resource.workload`, `resource.location`. The two killer filters: `minDuration: "500ms"` (slow-request finder) and `errorsOnly: true` (failed-request finder).
-- **`mcp__cpln__get_trace`** — fetch one trace by ID and read its span tree: per-span durations and services, error spans with status messages. This is the drill-down after `query_traces`.
+The managed Grafana provisions five rules, all annotated to the `cpln-metrics-overview` dashboard. They evaluate on import but deliver nothing until a Grafana contact point exists — set `defaultAlertEmails` (below) or add a contact point. Deletions are recreated on next login.
 
-**Empty results are usually configuration, not absence of a problem**: check tracing is enabled on the GVC (`mcp__cpln__get_resource` kind="gvc" → `spec.tracing`), sampling is high enough to catch traffic, and the workload received requests inside the time window.
+| Rule | Fires when | Default |
+|:---|:---|:---|
+| `container-restarts` | `increase(container_restarts[5m]) > 0` per gvc/location/workload (any restart) | active |
+| `stuck-deployments` | more than one deploy `version` of a workload is restarting (15m) | active |
+| `workload-progress-failure` | `increase(workload_progress_failure[10m]) > 0` (15m) | active |
+| `threat-detection-alerts` | `increase(threat_detection_alerts[15m]) > 0` per gvc/workload/priority/rule | active |
+| `domain-warnings` | `increase(domain_warnings[60m]) > 5` per domain/type | **paused** |
 
-**Triage flow**: `query_traces` (`minDuration` or `errorsOnly`) → `get_trace` on the worst trace → the slow/failed span names the culprit service → correlate with `mcp__cpln__get_workload_logs` (same time window) for the application-level error.
+## Retention & billing
 
-## Built-in Metrics
-
-Collected automatically for all workloads, no configuration.
-
-### Org Metrics
-
-| Metric | Description |
-|---|---|
-| `logs_storage_mb` | Log storage used in megabytes |
-| `tracing_storage_mb` | Tracing storage used in megabytes |
-| `metrics_storage_mb` | Metrics storage used in megabytes |
-| `agent_peers_count` | Number of agent peers |
-| `agent_services_count` | Number of agent services |
-| `agent_tx_bytes_total` | Total transmitted bytes by agents |
-| `agent_rx_bytes_total` | Total received bytes by agents |
-| `agent_tx_packets_total` | Total transmitted packets by agents |
-| `agent_rx_packets_total` | Total received packets by agents |
-| `threat_detection_forward_enabled` | 0 or 1: threat detection forwarding enabled (syslog) |
-| `threat_detection_forward_total` | Total threat events forwarded to syslog target |
-| `threat_detection_alerts` | Increments when a threat detection alert is generated |
-
-### HTTP/gRPC Metrics
-
-| Metric | Description |
-|---|---|
-| `requests_per_second` | HTTP/gRPC requests received per second |
-| `requests_initiated_per_second` | HTTP/gRPC requests initiated per second |
-| `request_duration_ms_bucket` | Latency histogram for HTTP/gRPC requests received |
-
-### Volume Metrics
-
-| Metric | Description |
-|---|---|
-| `volume_set_capacity_billable` | Billable capacity of volume sets |
-| `volume_set_snapshots_billable` | Billable snapshot capacity of volume sets |
-| `volume_set_free_bytes` | Free bytes available in volume sets |
-| `volume_set_capacity_bytes` | Total capacity of volume sets in bytes |
-
-### Resource Metrics
-
-| Metric | Description |
-|---|---|
-| `cpu_reserved` | CPU resources reserved |
-| `cpu_used` | CPU resources utilized |
-| `cpu_billable` | Billable CPU resources |
-| `memory_reserved` | Memory resources reserved (bytes) |
-| `memory_used` | Memory resources utilized (bytes) |
-| `memory_billable` | Billable memory resources (bytes) |
-
-### Network Metrics
-
-| Metric | Description |
-|---|---|
-| `egress` | Egress network traffic (bytes) |
-| `cross_zone_traffic` | Cross-zone network traffic (bytes) |
-
-### Workload Metrics
-
-| Metric | Description |
-|---|---|
-| `replica_count` | Number of replicas |
-| `container_restarts` | Number of container restarts |
-| `load_balancer` | Number of load balancers |
-| `cron_executions` | Number of cron job executions |
-| `cron_execution_rate` | Rate of cron job executions |
-| `workload_progress_failure` | Number of workload progress failures |
-| `workload_ready_replicas` | Number of ready replicas |
-| `workload_rescheduled_replicas` | Number of replicas rescheduled to other nodes |
-| `capacity_ai_updates` | Number of times Capacity AI updated workload resources |
-
-### Domain Metrics
-
-| Metric | Description |
-|---|---|
-| `domain_warnings` | Number of domain warnings |
-
-### MK8s Metrics
-
-When MK8s has metrics enabled:
-- **kube metrics**: `kube_` prefix — from kube-state-metrics
-- **node metrics**: `node_` prefix — from node-exporter
-
-## Grafana Access
-
-Control Plane provides a managed Grafana instance per org, accessible via **Metrics** in the Console sidebar (and the `Metrics` link on any workload). Use **Explore** for ad-hoc PromQL queries. For LogQL queries against workload logs, see the **cpln-logql-observability** skill.
-
-### Observability Settings
-
-Configure retention and default alert recipients at the org level. No typed MCP tool edits the org `observability` block, so apply it via the CLI: call `mcp__cpln__get_resource_schema` for the `org` kind to confirm the shape, then `cpln apply -f org.yaml`.
+Retention and default alert recipients live in the org `observability` block. No typed MCP tool edits it (the `org-management` skill owns org-spec edits) — apply via CLI: `mcp__cpln__get_resource_schema` for `org`, then `cpln apply -f org.yaml`.
 
 ```yaml
 kind: org
 spec:
   observability:
-    logsRetentionDays: 30       # int, 0-3650, default 30 (0 disables collection)
-    metricsRetentionDays: 30    # int, 0-3650, default 30
-    tracesRetentionDays: 30     # int, 0-3650, default 30
-    defaultAlertEmails:         # email[]; used by the grafana-default-email contact point
+    logsRetentionDays: 30       # int 0-3650, default 30 (0 disables log collection)
+    metricsRetentionDays: 30    # int 0-3650, default 30
+    tracesRetentionDays: 30     # int 0-3650, default 30
+    defaultAlertEmails:         # email[]; recipients for the grafana-default-email contact point
       - ops@example.com
 ```
 
 Combined storage of logs, metrics, and traces is charged per GB-month over 100 GB.
 
-### Built-in Alert Rules
+## Export & centralize metrics
 
-The managed Grafana ships two provisioned alert rules. Notifications are **disabled by default** — add a Grafana contact point (or populate `defaultAlertEmails`) to receive them.
+`readMetrics` (org permission, "access usage and performance metrics") gates both the federation endpoint and Grafana data sources. Create a service account and grant it `readMetrics` via policy — the `access-control` skill owns that; here is the metrics-specific wiring.
 
-| Rule | Fires when |
-|---|---|
-| `container-restarts` | `container_restarts > 1` within the last 5 minutes |
-| `stuck-deployments` | A gvc/workload group exceeds one restart within the last 15 minutes |
-
-Edits to built-in rules persist; deletions are recreated on next Grafana login.
-
-### PromQL Examples
-
-Query in Grafana Explore using built-in metric names:
-
-```promql
-requests_per_second
-cpu_used
-memory_used
-request_duration_ms_bucket
-container_restarts
-replica_count
-```
-
-## Exporting Metrics (Prometheus Federation)
-
-Export metrics to external Prometheus via the `/federate` endpoint at `metrics.cpln.io`.
-
-**Prerequisites:** superuser access to the source org; an external Prometheus with scrape job support.
-
-**1. Create Service Account in source org** — `mcp__cpln__add_key_to_service_account` (creates the SA if needed, adds a key, returns the token):
-- Name: `prometheus-federate`
-- Save the returned key — it is shown only once
-
-**2. Create Policy granting `readMetrics`** — `mcp__cpln__create_policy`:
-
-```yaml
-kind: policy
-name: prometheus-federate
-description: prometheus-federate
-tags: {}
-bindings:
-  - permissions:
-      - readMetrics
-    principalLinks:
-      - /org/SOURCE_ORG/serviceaccount/prometheus-federate
-target: all
-targetKind: org
-```
-
-**3. Configure Prometheus scrape job:**
+**Federate into your own Prometheus** — scrape the source org with the service-account token:
 
 ```yaml
 scrape_configs:
-  - job_name: 'federate'
-    scrape_interval: 1m
-    honor_labels: true
+  - job_name: cpln-federate
     scheme: https
+    honor_labels: true
     metrics_path: '/metrics/org/SOURCE_ORG/api/v1/federate'
     params:
-      'match[]':
-        - '{__name__=~".+"}'    # Adjust matcher as needed
-    authorization:
-      type: Bearer
-      credentials: "${CPLN_SERVICE_ACCOUNT_TOKEN}"
+      'match[]': ['{__name__=~".+"}']     # narrow the matcher to limit egress
+    authorization: { type: Bearer, credentials: "${CPLN_SERVICE_ACCOUNT_TOKEN}" }
     static_configs:
-      - targets:
-          - 'metrics.cpln.io'
+      - targets: ['metrics.cpln.io']
 ```
 
-Notes: replace `SOURCE_ORG` with the actual org name; `match[]` filters which metrics are scraped; egress charges apply; repeat per org with separate service accounts/policies.
+**Cross-org Grafana** — in a viewer org's Grafana, add a Prometheus data source with URL `https://metrics.cpln.io/metrics/org/SOURCE_ORG` and a custom HTTP header `authorization` = `Bearer <SOURCE_ORG_SA_TOKEN>`, then **Save & Test**. The community dashboard `grafana.com/dashboards/20378` (Multi-Source Metrics Overview) visualizes several at once.
 
-**Token trap:** `metrics.cpln.io` (and `logs.cpln.io`) authenticate **user and service-account tokens** — a workload's injected `CPLN_TOKEN` does **not** work there, even with `readMetrics` granted to its identity (it only authenticates against the in-mesh API at `CPLN_ENDPOINT`; see the `workload` skill). To query metrics from inside a workload, use a service-account key.
+**Token trap:** `metrics.cpln.io` authenticates user and service-account tokens only. A workload's injected `CPLN_TOKEN` does **not** work there even with `readMetrics` on its identity — the metrics proxy forwards only the link headers, never the signed header the in-mesh API path injects (see the `workload` skill). Query from inside a workload with a service-account key.
 
-## Centralized Metrics (Multi-Org Grafana)
+## Autoscaling metric availability
 
-View metrics from multiple orgs in one Grafana by adding Prometheus data sources.
-
-**In org-2 (source):**
-1. Create Service Account `grafana-data-source` with a key — `mcp__cpln__add_key_to_service_account` (save the returned token; shown only once)
-2. Create policy — `mcp__cpln__create_policy`:
-
-```yaml
-kind: policy
-name: grafana-data-source
-description: grafana-data-source
-tags: {}
-bindings:
-  - permissions:
-      - readMetrics
-    principalLinks:
-      - /org/org-2/serviceaccount/grafana-data-source
-target: all
-targetKind: org
-```
-
-**In org-1 (viewer) Grafana:**
-1. **Metrics** > open Grafana > **Connections** > **Data Sources**
-2. Add a **Prometheus** data source:
-   - **Name**: `org-2` (descriptive)
-   - **URL**: `https://metrics.cpln.io/metrics/org/org-2`
-   - **Custom HTTP Header**: `authorization` = `Bearer <TOKEN>`
-3. **Save & Test**
-
-**Multi-source dashboard:** download Grafana dashboard ID `20378` (revision 1), import into org-1, select data sources per panel.
-
-## Custom Metrics
-
-Expose Prometheus-formatted metrics from workloads for monitoring and autoscaling. The container `metrics` block lives inside the workload spec — set it at creation with `mcp__cpln__create_workload` or add it later with `mcp__cpln__update_workload` (PATCH; call `mcp__cpln__get_resource` (kind="workload") first). If the typed tool doesn't surface the nested `metrics` field, fall back to the CLI: `mcp__cpln__get_resource_schema` for the `workload` kind, then `cpln apply -f workload.yaml`.
-
-```yaml
-kind: workload
-spec:
-  containers:
-    - name: my-container
-      metrics:
-        path: /metrics         # Required, string, max 128 chars, default /metrics
-        port: 9090             # Required, valid port; can differ from traffic port
-        dropMetrics:           # Optional: regex patterns to filter out metrics
-          - '^go_.*'           # Drop Go runtime metrics
-          - '^process_.*'      # Drop process metrics
-          - 'MY_UNWANTED_METRIC'
-```
-
-### Scraping Behavior
-
-- Scrapes all replicas every **30 seconds**
-- Metric names with prefix `cpln_` are ignored
-- Expects Prometheus text format output
-
-### Labels Added to Custom Metrics
-
-| Label | Description |
-|---|---|
-| `org` | Organization name |
-| `gvc` | GVC name |
-| `location` | Deployment location |
-| `provider` | Cloud provider |
-| `region` | Cloud region |
-| `cluster_id` | Cluster identifier |
-| `replica` | Replica identifier |
-
-## Autoscaling Metrics
-
-Custom and built-in metrics can drive autoscaling decisions. This skill covers only **which metrics are available per workload type**; for scaling strategy, YAML config, percentiles, multi-metric, KEDA, and Capacity AI interactions, see the **cpln-autoscaling-capacity** skill.
-
-### Available Autoscaling Metrics (by workload type)
+This skill covers only which scaling metrics each workload type allows; for strategy, YAML, percentiles, multi-metric, KEDA, and Capacity AI, see the `autoscaling-capacity` skill.
 
 | Metric | Serverless | Standard | Stateful |
-|---|:---:|:---:|:---:|
-| `concurrency` | Yes | No | No |
-| `cpu` | Yes | Yes | Yes |
-| `memory` | Yes | Yes | Yes |
-| `rps` | Yes | Yes | Yes |
-| `latency` | No | Yes | Yes |
-| `keda` | No | Yes | Yes |
-| `disabled` | Yes | Yes | Yes |
+|:---|:---:|:---:|:---:|
+| `concurrency` | yes | no | no |
+| `cpu` / `memory` / `rps` | yes | yes | yes |
+| `latency` / `keda` | no | yes | yes |
+| `disabled` | yes | yes | yes |
 
-## Common Monitoring Patterns
+`vm` workloads allow only `disabled`; `cron` has no autoscaling. (`memory` here is the scaling keyword — distinct from the `mem_used` series.)
 
-Query built-in metrics in Grafana Explore. Key metrics to monitor:
-
-- **CPU/Memory**: `cpu_used`, `memory_used`, `cpu_reserved`, `memory_reserved`
-- **Traffic**: `requests_per_second`, `request_duration_ms_bucket`
-- **Stability**: `container_restarts`, `workload_progress_failure`, `workload_ready_replicas`
-- **Replicas**: `replica_count`, `workload_rescheduled_replicas`
-- **Network**: `egress`, `cross_zone_traffic`
-
-## Quick Reference
-
-### MCP Tools
-
-Query metrics with the typed MCP tools — no Grafana round-trip needed. Grafana stays the path for dashboards, visual exploration, and alerting.
+## Quick reference
 
 | Tool | Use |
-|---|---|
-| `mcp__cpln__list_metrics` | Discover metric names and real label values (built-in + custom) before querying |
-| `mcp__cpln__query_metrics` | Run a PromQL query (Prometheus-compatible) against Control Plane metrics |
-| `mcp__cpln__query_traces` | Search distributed traces (TraceQL) — find slow (`minDuration`) or failed (`errorsOnly`) requests |
-| `mcp__cpln__get_trace` | Fetch one trace's span tree to see where latency/failures sit inside the request path |
-| `mcp__cpln__get_workload_logs` | Correlate a metric spike with workload logs (see **cpln-logql-observability**) |
+|:---|:---|
+| `mcp__cpln__list_metrics` | Discover real metric names and label values (built-in + custom) before querying |
+| `mcp__cpln__query_metrics` | Run a PromQL query against the org's metrics |
+| `mcp__cpln__query_traces` | Search traces (TraceQL) — slow (`minDuration`) or failed (`errorsOnly`) requests |
+| `mcp__cpln__get_trace` | Read one trace's span tree to locate the slow/failed span |
+| `mcp__cpln__get_workload_logs` | Correlate a metric spike with logs (see `logql-observability`) |
 
-No typed MCP tool edits the org `observability` block or a workload's `metrics` block. To change either, fall back to the CLI: `mcp__cpln__get_resource_schema` for the `org` (or `workload`) kind, author the manifest, then `cpln apply -f manifest`.
+- **Metrics endpoint:** `https://metrics.cpln.io/metrics/org/{ORG}` (federation adds `/api/v1/federate`).
+- **Permission:** `readMetrics` (federation endpoint + Grafana data source).
+- No typed tool edits the org `observability` block, the GVC `tracing` block, or a container `metrics` block — fall back to `get_resource_schema` + `cpln apply`.
 
-### Metrics Endpoint
+## Troubleshooting
 
-```
-https://metrics.cpln.io/metrics/org/{ORG}/api/v1/federate
-```
+| Symptom | Cause and fix |
+|:---|:---|
+| Query returns no series | Wrong name — memory is `mem_used`, not `memory_used`; run `list_metrics` to confirm live names |
+| `egress`/latency values look tiny or wrong | Pre-rated series wrapped in `rate()` — query `egress` bare, latency via `histogram_quantile(..., request_duration_ms_bucket)` |
+| Custom `metrics` block rejected | `port` is reserved (`9090`/`9091`/`15000`+) or below 80 — use `9100`/`2112` |
+| Custom metrics never appear | Names prefixed `cpln_` are dropped; scrape runs every 30s — allow a cycle |
+| 403 at `metrics.cpln.io` | Principal lacks `readMetrics`, or an in-pod `CPLN_TOKEN` was used — use a user/SA token |
+| `query_traces` empty | Tracing not enabled on the GVC, sampling too low, or no traffic in the window |
+| Alert never notifies | Rules evaluate but need a contact point — set `defaultAlertEmails` or add one in Grafana (`domain-warnings` also ships paused) |
 
-### Grafana Access
+## Related skills
 
-Console sidebar > **Metrics** — authenticates automatically.
-
-### Observability Defaults
-
-| Setting | Default | Range |
-|---|---|---|
-| `metricsRetentionDays` | 30 | 0-3650 |
-| `logsRetentionDays` | 30 | 0-3650 |
-| `tracesRetentionDays` | 30 | 0-3650 |
-
-### Required Permission
-
-`readMetrics` — grants access to the federation endpoint and Grafana data source.
-
-### Custom Metrics Config
-
-```yaml
-containers:
-  - name: app
-    metrics:
-      port: 9090          # Required
-      path: /metrics      # Required, max 128 chars
-      dropMetrics:        # Optional regex filters
-        - '^go_.*'
-```
-
-### Related Skills
-
-- **cpln-workload** — Start here: the primary workload skill (types, defaults, spec shape) that routes here for metrics detail.
-- **cpln-autoscaling-capacity** — Scaling strategy, per-metric YAML, multi-metric, latency percentiles, KEDA, Capacity AI, and scale-to-zero.
-- **cpln-logql-observability** — LogQL query syntax, `cpln logs` CLI, and `mcp__cpln__get_workload_logs` for correlating metric spikes with log events.
-- **cpln-external-logging** — Shipping logs to external destinations (retention beyond the `logsRetentionDays` cap).
+| Skill | Owns |
+|:---|:---|
+| `workload` | Deploy/diagnose flow, injected `CPLN_*` env vars, the spec that holds `metrics` |
+| `autoscaling-capacity` | Scaling strategy, per-metric YAML, percentiles, KEDA, Capacity AI |
+| `logql-observability` | Log queries (LogQL), `cpln logs`, correlating spikes with log events |
+| `org-management` | Org-spec edits — the `observability` retention block |
+| `external-logging` | Shipping logs to S3, Datadog, Coralogix, and other providers |
 
 ## Documentation
 
-- [Default Metrics Guide](https://docs.controlplane.com/guides/default-metrics.md)
-- [Centralized Metrics Management](https://docs.controlplane.com/guides/centralized-metrics-management.md)
-- [Export Metrics Guide](https://docs.controlplane.com/guides/export-metrics.md)
-- [Custom Metrics Reference](https://docs.controlplane.com/reference/workload/custom-metrics.md)
-- [Autoscaling Reference](https://docs.controlplane.com/reference/workload/autoscaling.md)
+- [Default Metrics](https://docs.controlplane.com/guides/default-metrics.md)
+- [Custom Metrics](https://docs.controlplane.com/reference/workload/custom-metrics.md)
+- [Export Metrics (federation)](https://docs.controlplane.com/guides/export-metrics.md)
+- [Centralized Metrics](https://docs.controlplane.com/guides/centralized-metrics-management.md)
+- [Autoscaling](https://docs.controlplane.com/reference/workload/autoscaling.md)
+- [PromQL (upstream Prometheus reference)](https://prometheus.io/docs/prometheus/latest/querying/basics/)
