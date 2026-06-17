@@ -1,370 +1,193 @@
 ---
 name: native-networking
-description: "Connects Control Plane workloads to private VPCs, on-prem networks, and cross-cloud resources. Use when the user asks about AWS PrivateLink, GCP Private Service Connect, VPN alternatives, wormhole agents, or reaching private networks."
+description: "Connects Control Plane workloads to private VPCs, on-prem networks, and cross-cloud resources. Use when the user asks about AWS PrivateLink, GCP Private Service Connect, wormhole agents, or reaching a private network."
 ---
 
 # Native Networking & Agent Connectivity
 
-> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+> **Tool availability:** the `create_agent` / `update_agent`, `get_agent_info` / `get_agent_eventlog`, and `add_identity_network_resource` / `add_identity_native_network_resource` / `remove_identity_network_resource` / `list_identity_network_resources` tools live in the **`full`** toolset profile. If one is not advertised, tell the user to reconnect the MCP server with `?toolsets=full`, or use the `cpln` CLI. Reads and deletes work on every profile via `list_resources` / `get_resource` / `delete_resource` (kind `agent` or `identity`).
 
-> **Scope:** This skill is the reference for connectivity options (PrivateLink / PSC / Agent), producer-side Terraform setup, agent sizing, permissions, and the `networkResources` / `nativeNetworkResources` schema. For the step-by-step agent deployment walkthrough (create → deploy → wire up identity → verify), delegate to the **cpln-agent-setup** agent.
+A Control Plane workload reaches a private or cross-cloud endpoint through an **identity** (gvc-scoped) carrying one of two resource arrays. Attach that identity to the workload (`spec.identityLink`) — without the attachment, nothing routes. Both paths are wired **independently of the workload's external egress firewall**: you do *not* open an `outboundAllow*` rule to reach them. The two options:
 
-## Connectivity Options Overview
+- **Native networking** (`nativeNetworkResources`) — cloud-native private connectivity over **AWS PrivateLink** or **GCP Private Service Connect**. No agent, lowest latency, no public-internet traversal. The catch: the consumer-side endpoint is created by **Control Plane support**, not self-service.
+- **Agent / wormhole** (`networkResources`) — a lightweight VM or container you run inside the target network that tunnels TCP traffic. Self-service, works for **any** network (VPC, on-prem, cross-cloud, Azure, a laptop), but throughput depends on the agent instance size.
 
-| Option | Cloud | Use Case | Complexity | Performance |
-|:-------|:------|:---------|:-----------|:------------|
-| AWS PrivateLink | AWS | Private access to AWS services (RDS, etc.) | Medium | Native cloud speed, lowest latency |
-| GCP Private Service Connect | GCP | Private access to GCP services (Cloud SQL, etc.) | Medium | Native cloud speed, lowest latency |
-| Control Plane Agent (Wormhole) | Any / On-prem | VPC, data center, cross-cloud, developer laptop | Low-Medium | Tunneled, depends on agent instance size |
+> **Scope:** this skill is the reference for the comparison, producer-side setup, the identity schema, agent sizing, and permissions. For the agent **deployment walkthrough** (create, generate K8s/Docker/VM artifacts, wire up the identity, verify the tunnel), delegate to the **cpln-agent-setup** agent.
 
-- **PrivateLink / PSC** = cloud-native private networking, no public internet traversal
-- **Agent** = tunneled connectivity via a lightweight VM or container running inside the target network
+## Choosing an option
 
-Both are configured through an [identity](https://docs.controlplane.com/reference/identity.md) attached to a workload.
+| Target | Option | Agent? | Consumer side set up by |
+|:---|:---|:---|:---|
+| AWS service (RDS, etc.) | AWS PrivateLink (native) | No | Support, then **you accept** the endpoint in the AWS console |
+| GCP service (Cloud SQL, etc.) | GCP Private Service Connect (native) | No | Support (Cloud SQL needs **no** manual acceptance) |
+| On-prem / data center | Agent | Yes | Self-service |
+| Cross-cloud / multi-VPC | Agent | Yes | Self-service |
+| Azure VNet, or a developer laptop | Agent | Yes | Self-service |
 
-## AWS PrivateLink
+## Calling a resource from a workload
 
-### How It Works
+Once the identity is attached (`spec.identityLink`), the workload reaches either kind of resource like an ordinary host — no SDK, env var, or code change:
 
-Traffic flows from workload -> Control Plane infrastructure -> AWS VPC endpoint -> your private AWS service. No public internet traversal. Uses the AWS PrivateLink endpoint service backed by a Network Load Balancer.
+- **Connect to the resource's `name`** (or its `FQDN`) on one of the configured **`ports`** — e.g. a Postgres client points at `aws-rds:5432` (native) or `on-prem-db:5432` (agent).
+- Control Plane injects a hosts entry so that name resolves and routes to the real endpoint: for **native**, straight to the PrivateLink/PSC private IP; for an **agent**, through the tunnel to the upstream `IPs`/`FQDN` on the private side.
+- **Use the `FQDN`, not the `name`, when the target serves TLS** — the certificate is issued for the FQDN, so the short `name` fails certificate validation.
+- Only the ports you list are wired to the resource — a port you did not configure is not opened.
 
-### Prerequisites
+## Native networking (PrivateLink / PSC)
 
-- AWS account with IAM permissions for VPC, RDS, Lambda, NLB, Secrets Manager, IAM, CloudWatch
-- AWS CLI and Terraform CLI installed
-- Deploy resources in the same AWS region as the Control Plane workload
+Traffic flows from the workload, through Control Plane infrastructure, to your cloud's private endpoint — never the public internet. Setup:
 
-### Setup Steps
+1. **Provision the producer side.** Use the reference Terraform, or wire up an existing resource:
+   - AWS RDS + PrivateLink: `github.com/controlplane-com/cpln-rds-producer` (new-infra mode also builds the VPC/RDS/Secrets Manager; existing-infra mode adds only RDS Proxy + NLB + Lambda + the endpoint service). Output: the **endpoint service name**.
+   - GCP Cloud SQL + PSC: `github.com/controlplane-com/gcp-psc-producer-automation`. Output: the **service attachment**. For an *existing* Cloud SQL instance, enable PSC via gcloud — it is **not available in the GCP console**:
+     ```bash
+     gcloud sql instances patch INSTANCE --enable-private-service-connect --allowed-psc-projects=cpln-prod01
+     ```
+     The allowed consumer project must be **`cpln-prod01`**. Cloud SQL must use a private IP only.
+2. **Hand the service name (AWS) / service attachment (GCP) plus the region to `support@controlplane.com`.** They create the consumer-side endpoint and associate it with your org.
+3. **AWS only:** accept the connection in the AWS console (VPC, Endpoint Services, Pending endpoint connections, Accept). Cloud SQL connections are accepted automatically.
+4. **Add a `nativeNetworkResources` entry** to the identity (tools and schema below), then attach the identity to the workload.
 
-**Step 1 - Provision infrastructure (Terraform):**
-
-```bash
-git clone https://github.com/controlplane-com/cpln-rds-producer
-cd cpln-rds-producer
-```
-
-**Step 2 - Configure `terraform.tfvars`:**
-
-For new infrastructure:
-```hcl
-aws_region  = "us-west-2"
-db_username = "postgres"
-db_password = "SecurePassword123!"
-```
-
-For existing RDS + Secrets Manager:
-```hcl
-db_instance_arn = "arn:aws:rds:us-west-2:123456789012:db:my-db"
-secret_arn      = "arn:aws:secretsmanager:us-west-2:123456789012:secret:my-secret"
-```
-
-**Step 3 - Deploy:**
-
-```bash
-terraform init && terraform plan && terraform apply
-```
-
-Outputs the PrivateLink endpoint service name.
-
-**What gets created (new infra mode):** VPC & subnets, RDS PostgreSQL (multi-AZ), Secrets Manager, RDS Proxy, NLB, Lambda (dynamic IP updates), PrivateLink Endpoint Service.
-
-**What gets created (existing infra mode):** RDS Proxy, NLB, Lambda, PrivateLink Endpoint Service.
-
-**Step 4 - Contact Control Plane support:**
-
-Email `support@controlplane.com` with your **service name** and **region**. Control Plane creates the consumer-side endpoint.
-
-**Step 5 - Accept the endpoint connection:**
-
-In the AWS Console: VPC -> Endpoint Services -> select your service -> Pending endpoint connections -> Actions -> Accept.
-
-**Step 6 - Configure identity:**
-
-Add a `nativeNetworkResources` entry to the identity attached to your workload. MCP-first: call `mcp__cpln__add_identity_native_network_resource` (seed it at creation with `mcp__cpln__create_identity`). CLI fallback when the MCP server is unavailable: `cpln identity create`/`cpln identity edit`.
+> **The identity entry is inert until support has wired the consumer side** (and, for AWS, you have accepted the endpoint connection). Until then — or if the `endpointServiceName` is mistyped — the platform **silently skips** it (no error, no connection). So add the entry *last*, not first.
 
 ```yaml
 nativeNetworkResources:
-  - name: "aws-rds"
+  - name: "aws-rds"                 # a label; must be unique and must NOT equal the FQDN
     FQDN: "rds-proxy.us-west-2.amazonaws.com"
     ports: [5432]
     awsPrivateLink:
-      endpointServiceName: "com.amazonaws.vpce.us-west-2.vpce-svc-12345678abcdef"
-```
-
-### Verification
-
-- Workload environment variable resolves the FQDN or name
-- If TLS is configured on the internal resource, the `FQDN` field must be used (not `name`)
-- Multiple connections supported on different ports; each new database requires a new PrivateLink endpoint
-
-## GCP Private Service Connect
-
-### How It Works
-
-Traffic flows from workload -> Control Plane infrastructure -> GCP PSC endpoint -> your private GCP service. Uses GCP Private Service Connect with a service attachment. Cloud SQL must have PSC enabled with `cpln-prod01` as an allowed consumer project.
-
-### Prerequisites
-
-- GCP account with billing enabled
-- Google Cloud CLI and Terraform CLI installed
-- Deploy resources in the same GCP region as the Control Plane workload
-- APIs enabled: SQL Admin, Compute Engine, Service Networking
-
-### Setup Steps (Terraform)
-
-**Step 1 - Clone and configure:**
-
-```bash
-git clone https://github.com/controlplane-com/gcp-psc-producer-automation
-cd gcp-psc-producer-automation
-```
-
-**Step 2 - Create `terraform.tfvars`:**
-
-```hcl
-project_id  = "your-gcp-project-id"
-region      = "us-central1"
-db_username = "postgres"
-db_password = "SecurePassword123!"
-```
-
-**Step 3 - Deploy:**
-
-```bash
-terraform init && terraform plan && terraform apply
-```
-
-Outputs the service attachment.
-
-**What gets created:** Necessary APIs enabled, VPC with firewall rule, Private Service Access (PSA) with reserved IP, Cloud SQL PostgreSQL with PSC enabled.
-
-### Setup Steps (Existing Cloud SQL)
-
-For an existing Cloud SQL instance, enable PSC via the `gcloud` CLI:
-
-```bash
-gcloud config set project YOUR_PROJECT_ID
-
-gcloud sql instances patch INSTANCE_NAME \
-  --enable-private-service-connect \
-  --allowed-psc-projects=cpln-prod01
-```
-
-The allowed consumer project must be `cpln-prod01`. The service attachment is found in the Cloud SQL console under Connections.
-
-**To update allowed projects later**, rerun the command without the `--enable-private-service-connect` flag.
-
-### Next Steps
-
-1. Contact `support@controlplane.com` with your **service attachment** and **region**
-2. Control Plane creates the consumer-side endpoint (no manual acceptance needed for Cloud SQL)
-3. Configure identity — MCP-first via `mcp__cpln__add_identity_native_network_resource` (or seed at creation with `mcp__cpln__create_identity`); CLI fallback `cpln identity edit`:
-
-```yaml
-nativeNetworkResources:
-  - name: "gcp-cloud-sql"
-    FQDN: "my-cloudsql.us-central1.gcp.internal"
+      endpointServiceName: "com.amazonaws.vpce.us-west-2.vpce-svc-12345abcdef"
+  - name: "gcp-sql"
+    FQDN: "my-sql.us-central1.gcp.internal"
     ports: [5432]
     gcpServiceConnect:
-      targetService: "projects/my-project/regions/us-central1/serviceAttachments/my-service"
+      targetService: "projects/PROJECT/regions/us-central1/serviceAttachments/NAME"
 ```
 
-### GCP PSC Constraints
+## Agents (wormholes)
 
-- Cloud SQL must have private IP only (no public IP)
-- PSA must be enabled with a reserved IP range before enabling PSC
-- PSC enablement is **not** supported via the GCP console UI; use `gcloud` CLI
-- The `targetService` must match pattern: `projects/PROJECT/regions/REGION/serviceAttachments/NAME`
+An agent runs inside the target network and opens a persistent **outbound** connection to Control Plane; workload requests are tunneled through it (workload, Control Plane, agent, private endpoint). Use it for on-prem, cross-cloud, Azure, or local development — anywhere PrivateLink/PSC does not reach.
 
-## Control Plane Agents (Wormholes)
+The deployment flow (create the agent, deploy it, attach `networkResources`, verify) is owned by the **cpln-agent-setup** agent. The pieces that belong here regardless of how it is deployed:
 
-### What They Are
+```yaml
+networkResources:
+  - name: "on-prem-db"
+    agentLink: "//agent/dc-agent"   # or /org/ORG/agent/dc-agent
+    IPs: ["10.0.1.50"]              # OR FQDN — exactly one
+    ports: [5432, 3306]
+```
 
-Agents provide tunneled TCP/UDP connectivity from Control Plane workloads to endpoints inside private networks. An agent VM or container runs inside the target network and establishes a persistent, secure outbound connection to Control Plane servers. Workload requests are tunneled through the agent transparently.
+**High availability** (`reference/agent.mdx`): run agents in a fixed-size instance group (autoscaling group on AWS, VMSS on Azure) sized **min 2, max = number of availability zones**. The agent is **not CPU-intensive — do not autoscale on CPU.** Agents run **active-active**: every instance registers and serves traffic at once (load-balanced); if one misses heartbeats it is dropped and the rest keep serving while the group replaces it.
 
-### Use Cases
+**Bi-directional:** the agent also exposes a proxy on port **3128** so systems inside the private network can call Control Plane workloads without opening external firewall access — enable with `cpln agent up --exposeProxy` and grant it on the workload's **Internal** firewall (Add Agent — see `firewall-networking`).
 
-- Access databases, APIs, or services inside a cloud VPC (AWS, Azure, GCP)
-- Connect to on-premises data centers
-- Bridge multiple private networks (cross-cloud)
-- Development/testing against local services (developer laptop via Docker)
+### Agent sizing
 
-### How It Works
+Benchmarked with qperf (30s) from a workload in the server VM's region. Plan against **baseline** bandwidth, not burst.
 
-1. Create an agent resource in Control Plane (generates a bootstrap config) — MCP: `mcp__cpln__create_agent`
-2. Deploy the agent inside the target network (VM, container, or K8s) — uses the bootstrap config; deployment artifacts come from the `cpln agent` CLI (see the agent CLI table below)
-3. Agent establishes outbound connection to Control Plane hub — verify with `mcp__cpln__get_agent_info`
-4. Configure identity `networkResources` linking the agent to specific endpoints — MCP: `mcp__cpln__add_identity_network_resource` (or seed at creation with `mcp__cpln__create_identity`)
-5. Workload traffic is tunneled: workload -> Control Plane -> agent -> private endpoint
+**AWS** — server `c5.2xlarge` in `aws-us-west-2`:
 
-Agents run in **active-passive** mode. If an active agent misses heartbeats, it is replaced by a redundant agent.
-
-### Agent Deployment
-
-For the full walkthrough — creating the agent, generating deployment artifacts (K8s manifest, Docker, AWS/Azure/GCP VMs), configuring identity `networkResources`, and verifying the tunnel — delegate to the **cpln-agent-setup** agent.
-
-This reference keeps the schema, sizing, and permissions that apply regardless of deployment method.
-
-### Network Resource Fields
-
-| Field | Type | Required | Description |
-|:------|:-----|:---------|:------------|
-| `name` | string | Yes | Resource name or domain |
-| `agentLink` | string | No | Link to agent: `/org/ORG/agent/AGENT_NAME` |
-| `IPs` | array | No* | IPv4 addresses (1-5) |
-| `FQDN` | string | No* | Fully qualified domain name |
-| `resolverIP` | string | No | Custom DNS resolver IPv4 |
-| `ports` | array | Yes | Ports to expose (1-10 ports, range 0-65535) |
-
-*Either `IPs` OR `FQDN` is required (not both). Max 50 entries per array (`networkResources` and `nativeNetworkResources` are capped independently).
-
-### High Availability
-
-For production, use an instance group / autoscaling group / VMSS:
-- Fixed size: min 2, max = number of availability zones
-- Agent is not CPU intensive; do not use CPU-based autoscaling
-- Agents use leader election (active-passive)
-
-### Agent Sizing Guidance
-
-Tests performed using qperf (30-second runtime) with client as a Control Plane workload in the same region as the server VM.
-
-**AWS** (server: c5.2xlarge in `aws-us-west-2`):
-
-| Agent Instance | Avg Bandwidth (MB/s) | Avg Latency (us) | Baseline Bandwidth (Gbps) |
-|:---------------|:---------------------|:------------------|:--------------------------|
-| No Agent | 307.6 | 585.6 | n/a |
+| Agent instance | Bandwidth (MB/s) | Latency (us) | Baseline (Gbps) |
+|:---|:---|:---|:---|
+| No agent | 307.6 | 585.6 | n/a |
 | t2.micro | 21.23 | 1301 | 0.064 |
 | t3.small | 143.9 | 1107 | 0.128 |
 | c5.large | 341.1 | 629.6 | 0.75 |
 | c4.xlarge | 70.25 | 680.8 | 5.0 |
 
-Use Baseline Bandwidth (not burst) for capacity planning. Discover baseline per instance type:
-```bash
-aws ec2 describe-instance-types \
-  --filters "Name=instance-type,Values=t3.*" \
-  --query "InstanceTypes[].[InstanceType, NetworkInfo.NetworkCards[0].BaselineBandwidthInGbps] | sort_by(@,&[1])" \
-  --output table
-```
+Find any instance's baseline with `aws ec2 describe-instance-types --query "InstanceTypes[].[InstanceType,NetworkInfo.NetworkCards[0].BaselineBandwidthInGbps]"`.
 
-**GCP** (server: e2-standard-8 in `gcp-us-east1`):
+**GCP** — server `e2-standard-8` in `gcp-us-east1`:
 
-| Agent Machine Type | Avg Bandwidth (MB/s) | Avg Latency (us) |
-|:-------------------|:---------------------|:------------------|
-| No Agent | 313.4 | 251.2 |
+| Agent machine | Bandwidth (MB/s) | Latency (us) |
+|:---|:---|:---|
+| No agent | 313.4 | 251.2 |
 | n2-standard-2 | 250.3 | 407.7 |
 | n2-standard-8 | 223.3 | 350.7 |
 | n2-standard-4 | 217.5 | 354.1 |
 | n1-standard-1 | 199.9 | 409.3 |
 
-## Agent CLI Commands
+## Identity network-resource schema
 
-MCP-first: manage the agent resource itself with the agent MCP tools in the Quick Reference below (`create_agent`, `get_resource` (kind="agent"), `get_agent_info`, `get_agent_eventlog`, `update_agent`, `delete_resource` (kind="agent")). Reach for the CLI for the deployment-artifact steps the MCP server does not cover — `cpln agent manifest`, `cpln agent up`, `cpln agent edit` — and when the MCP server is unavailable or unauthenticated.
+Both arrays live on the identity object. Constraints are enforced by the platform (Joi) — the typed tools mirror them.
 
-| Command | Description |
-|:--------|:------------|
-| `cpln agent create --name NAME --org ORG` | Create agent, outputs bootstrap config JSON |
-| `cpln agent manifest --bootstrap-file FILE --namespace NS [--replicas N] [--cluster ID]` | Generate K8s manifest |
-| `cpln agent up --bootstrap-file FILE [--background] [--net NET]` | Run agent locally via Docker |
-| `cpln agent info REF` | Show agent info (lastActive, peerCount, serviceCount) |
-| `cpln agent eventlog REF` | Show agent event log (alias: `cpln agent log`) |
-| `cpln agent get [REF]` | Get agent resource(s) |
-| `cpln agent delete REF` | Delete agent |
-| `cpln agent update REF` | Update agent properties |
-| `cpln agent edit REF` | Edit agent YAML in editor |
+**`networkResources`** (agent-based):
 
-## Choosing the Right Option
+| Field | Required | Notes |
+|:---|:---|:---|
+| `name` | Yes | label or domain; the dialable hostname |
+| `agentLink` | No | `//agent/NAME` or `/org/ORG/agent/NAME` |
+| `IPs` | one of | 1-5 IPv4 — **xor with `FQDN`** |
+| `FQDN` | one of | one domain — **xor with `IPs`** |
+| `resolverIP` | No | IPv4 of the DNS resolver the agent uses to resolve the `FQDN` inside the private network |
+| `ports` | Yes | 1-10 ports, each 0-65535 |
 
-```
-Need private connectivity to a cloud service?
-  |
-  +-- AWS service (RDS, etc.)? --> AWS PrivateLink
-  |     Cloud-native, lowest latency, no agent needed
-  |
-  +-- GCP service (Cloud SQL, etc.)? --> GCP Private Service Connect
-  |     Cloud-native, lowest latency, no agent needed
-  |
-  +-- On-premises / data center? --> Control Plane Agent
-  |
-  +-- Cross-cloud or multi-VPC? --> Control Plane Agent
-  |
-  +-- Developer laptop / local? --> Control Plane Agent (Docker)
-  |
-  +-- Azure VPC resources? --> Control Plane Agent
-```
+**`nativeNetworkResources`** (PrivateLink / PSC):
 
-**PrivateLink / PSC** require contacting `support@controlplane.com` to set up the consumer-side endpoint. **Agents** are self-service.
+| Field | Required | Notes |
+|:---|:---|:---|
+| `name` | Yes | label; must not equal the FQDN |
+| `FQDN` | No | use it for TLS targets |
+| `ports` | Yes | 1-10 ports, each 0-65535 |
+| `awsPrivateLink.endpointServiceName` | one of | **xor with `gcpServiceConnect`** |
+| `gcpServiceConnect.targetService` | one of | `projects/…/regions/…/serviceAttachments/…` — **xor with `awsPrivateLink`** |
 
-## Native Network Resource Schema
+Global rules (Joi-enforced): each array holds **max 50** entries, and **`name` and `FQDN` must be unique across both arrays combined**. Operationally (not a schema rule), two native resources that share a port need separate PrivateLink/PSC endpoints.
 
-Both `nativeNetworkResources` and `networkResources` are arrays on the identity object. Names must be unique across both arrays combined.
+## Configuring & verifying
 
-```yaml
-# Native networking (PrivateLink / PSC) - no agent needed
-nativeNetworkResources:
-  - name: "aws-rds"
-    FQDN: "rds.example.com"
-    ports: [5432]
-    awsPrivateLink:
-      endpointServiceName: "com.amazonaws.vpce.us-west-2.vpce-svc-abc123"
+- Attach resources with `mcp__cpln__add_identity_native_network_resource` (PrivateLink/PSC) or `mcp__cpln__add_identity_network_resource` (agent-based) — each takes `org`, `gvc`, `identity`, and one `resource`. Create the identity first (`create_identity`, see `access-control`) if it does not exist.
+- `mcp__cpln__remove_identity_network_resource` removes from **either** array by name (destructive, two-phase: preview then `confirm`). There is no separate native-remove tool.
+- **Verify:** `mcp__cpln__list_identity_network_resources` lists both arrays; `mcp__cpln__get_agent_info` shows whether an agent is active plus its `peerCount` / `serviceCount`; then confirm the workload actually connects to the endpoint.
 
-  - name: "gcp-sql"
-    FQDN: "sql.example.com"
-    ports: [5432]
-    gcpServiceConnect:
-      targetService: "projects/my-proj/regions/us-central1/serviceAttachments/my-sa"
+## Agent permissions
 
-# Agent-based networking (wormhole) - requires running agent
-networkResources:
-  - name: "on-prem-db"
-    agentLink: "/org/my-org/agent/dc-agent"
-    IPs: ["10.0.1.50"]
-    ports: [5432, 3306]
-```
+| Permission | Grants | Implies |
+|:---|:---|:---|
+| `view` | read-only | |
+| `use` | reference the agent in an identity | view |
+| `edit` | modify the agent | view |
+| `create` | create agents | |
+| `delete` | delete agents | |
+| `manage` | full access | create, delete, edit, use, view |
 
-Each `nativeNetworkResource` must have exactly one of `awsPrivateLink` or `gcpServiceConnect`.
-Each `networkResource` must have exactly one of `IPs` or `FQDN`.
+## Troubleshooting
 
-## Quick Reference
+| Symptom | Cause and fix |
+|:---|:---|
+| Native resource never connects (no error) | Support hasn't created the endpoint / allow-listed the service, (AWS) the connection wasn't accepted, or `endpointServiceName` is mistyped — the platform silently skips an unmatched native resource. |
+| TLS / certificate error to a native resource | Connect via the `FQDN`, not the `name` — the cert is issued for the FQDN. |
+| "Provide exactly one of…" on the entry | `IPs` xor `FQDN` (agent), or `awsPrivateLink` xor `gcpServiceConnect` (native) — supply exactly one. |
+| Duplicate name/FQDN rejected | Names and FQDNs must be unique across **both** arrays; the `name` must not equal any FQDN. |
+| Agent shows inactive (`get_agent_info`) | No recent heartbeat — the deployed agent is down or cannot reach Control Plane; check `get_agent_eventlog`. |
+| Workload cannot reach the agent's network | The identity is not attached to the workload (`spec.identityLink`), or the resource ports are wrong. |
+| Agent will not delete | It is still referenced by an identity — remove the `networkResource` (or detach the identity) first. |
+| Bootstrap config lost | It is shown only at `create_agent` time and is immutable — delete and recreate the agent. |
 
-### MCP Tools
+## Quick reference
 
-**Agent tools (dedicated):**
+### MCP tools
 
-| Tool | Use |
-|:-----|:----|
-| `mcp__cpln__list_resources` (kind="agent") | List all agents in an org |
-| `mcp__cpln__get_resource` (kind="agent") | Get agent details (registration token hidden) |
-| `mcp__cpln__create_agent` | Create agent and return bootstrap config |
-| `mcp__cpln__update_agent` | Update agent description/tags (bootstrap config and token are immutable) |
-| `mcp__cpln__delete_resource` (kind="agent") | Delete an agent |
-| `mcp__cpln__get_agent_info` | Real-time agent status: active/inactive, lastActive, peerCount, serviceCount |
-| `mcp__cpln__get_agent_eventlog` | Agent event log for troubleshooting connectivity |
+- `mcp__cpln__create_agent` / `update_agent` — create (returns the one-time bootstrap config) / patch description & tags (full profile)
+- `mcp__cpln__get_agent_info` / `get_agent_eventlog` — live status and event log (full profile)
+- `mcp__cpln__add_identity_native_network_resource` / `add_identity_network_resource` — attach a PrivateLink/PSC or agent resource (full profile)
+- `mcp__cpln__remove_identity_network_resource` / `list_identity_network_resources` — remove from either array / list both (full profile)
+- `mcp__cpln__get_resource` / `list_resources` / `delete_resource` (kind `agent` or `identity`) — read and delete on any profile
 
-**Identity tools (for network resource configuration):** see the **cpln-agent-setup** agent, Step 4 — it documents `create_identity`, `update_identity`, `add_identity_network_resource`, `add_identity_native_network_resource`, `remove_identity_network_resource`, and `list_identity_network_resources` with JSON input examples. To inspect what is attached, read with `mcp__cpln__get_resource` (kind="identity") or `mcp__cpln__list_identity_network_resources` (lists both `networkResources` and `nativeNetworkResources`).
+CLI fallback (MCP unavailable, or CI/CD with `CPLN_TOKEN`): `cpln agent create|manifest|up|info|eventlog`. Network resources on an identity are **not** settable via `cpln identity create`/`update` (description and tags only) — edit the identity YAML with `cpln identity edit REF` or `cpln apply -f identity.yaml`.
 
-### Related Skills
+### Related skills
 
-- **cpln-agent-setup** (agent) — Agent deployment walkthrough + identity network resource configuration
-- **cpln-firewall-networking** — Firewall rules, load balancers, service-to-service
-- **cpln-access-control** — Policies, permissions, and identity-based access
+| Skill | Use for |
+|:---|:---|
+| workload | attaching the identity to the workload (`spec.identityLink`) that needs the connectivity |
+| access-control | creating the identity, and policies/permissions on agents |
+| firewall-networking | the Internal firewall for the bi-directional proxy, and service-to-service rules |
+| cpln | the `cpln agent` CLI and `cpln apply` |
 
-### Agent Permissions
+### Documentation
 
-| Permission | Description | Implies |
-|:-----------|:------------|:--------|
-| `create` | Create new agents | |
-| `delete` | Delete agents | |
-| `edit` | Modify agents | view |
-| `manage` | Full access | create, delete, edit, use, view |
-| `use` | Use agent in an identity | view |
-| `view` | Read-only access | |
-
-## Documentation
-
-For the latest reference, see:
-
-- [Native Networking Setup Guide](https://docs.controlplane.com/guides/native-networking/native-networking-setup.md)
+- [Native Networking Setup](https://docs.controlplane.com/guides/native-networking/native-networking-setup.md)
+- [Agent Reference](https://docs.controlplane.com/reference/agent.md) · [Agent Setup Guide](https://docs.controlplane.com/guides/agent.md)
 - [Identity Reference](https://docs.controlplane.com/reference/identity.md)
-- [Agent Reference](https://docs.controlplane.com/reference/agent.md)
-- [Agent Setup Guide](https://docs.controlplane.com/guides/agent.md)
