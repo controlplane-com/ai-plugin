@@ -13,7 +13,7 @@ A **workload** is Control Plane's unit of deployment: one or more containers plu
 
 ## Workload type — the first decision (standard is the default)
 
-`create_workload` defaults the type to **`standard`** when you don't specify one and covers **serverless / standard / stateful**; **cron** workloads are created with the dedicated **`create_cron_workload`** tool. Type is chosen at creation and is **immutable** (see Immutability below). Pick from:
+`create_workload` defaults the type to **`standard`** when you don't specify one and covers all four types — **serverless / standard / stateful**, and **cron** by setting **`type: cron`** (which makes `schedule` required). Type is chosen at creation and is **immutable** (see Immutability below). Pick from:
 
 | | **standard** (default) | serverless | stateful | cron |
 |---|---|---|---|---|
@@ -32,14 +32,14 @@ A workload has **1–8 containers**.
 
 ## The spec at a glance — which tool sets what
 
-There is ONE way to express each concept. Containers always go in the typed `containers[]` array (there are no flat `image`/`cpu`/`port` fields), scaling always goes in the single `autoscaling` block, and cron has its **own pair of tools** so the common path never carries a `job`. `create_workload` handles **serverless / standard / stateful**; **`create_cron_workload`** handles scheduled jobs. The advanced blocks below were split into dedicated `configure_workload_*` tools to keep the common path lean.
+There is ONE way to express each concept. Containers always go in the typed `containers[]` array (there are no flat `image`/`cpu`/`port` fields), scaling always goes in the single `autoscaling` block, and cron is **`create_workload` / `update_workload` with `type: cron`** — the `schedule` + job policy become available (and required), while autoscaling/`capacityAI`/`timeoutSeconds`/`debug` do not apply to cron and are rejected. The advanced blocks below were split into dedicated `configure_workload_*` tools to keep the common path lean.
 
 | Spec block | What it controls | Set with |
 |---|---|---|
-| `containers[]` — `image`, `ports`, `cpu`/`memory`, `env`, `command`/`args`, probes, `metrics`, `volumes` | the container(s) — the only way to define them | `create_workload` / `create_cron_workload` / `update_workload` / `update_cron_workload` |
+| `containers[]` — `image`, `ports`, `cpu`/`memory`, `env`, `command`/`args`, probes, `metrics`, `volumes` | the container(s) — the only way to define them | `create_workload` / `update_workload` (all types, cron included) |
 | `autoscaling` (→ `spec.defaultOptions.autoscaling`) + `capacityAI` / `timeoutSeconds` / `suspend` / `debug` scalars | scaling & resource optimization | `create_workload` / `update_workload` |
-| `firewallConfig` (or the `public` shortcut) | inbound/outbound/internal exposure | `create_workload` / `create_cron_workload` / `update_workload` / `update_cron_workload` |
-| `schedule` + cron policy (`concurrencyPolicy`, `historyLimit`, `restartPolicy`, `activeDeadlineSeconds`) | cron schedule & job policy | `create_cron_workload` / `update_cron_workload` |
+| `firewallConfig` (or the `public` shortcut) | inbound/outbound/internal exposure | `create_workload` / `update_workload` (all types, cron included) |
+| `schedule` + cron policy (`concurrencyPolicy`, `historyLimit`, `restartPolicy`, `activeDeadlineSeconds`) | cron schedule & job policy | `create_workload` / `update_workload` **with `type: cron`** |
 | `loadBalancer` (direct / geo / replicaDirect) | custom ports, static IPs, geo headers | `configure_workload_load_balancer` |
 | `sidecar.envoy` | Envoy filter chain (e.g. JWT auth) | `configure_workload_sidecar` |
 | `extras` | BYOK-only affinity / tolerations / topology | `configure_workload_extras` |
@@ -48,7 +48,7 @@ There is ONE way to express each concept. Containers always go in the typed `con
 | `securityOptions` | `runAsUser`, `filesystemGroupId` | `configure_workload_security` |
 | `requestRetryPolicy` | request retry attempts / conditions | `configure_workload_retry` |
 
-`update_workload` and `update_cron_workload` merge `containers[]` **by name** — send only the container(s) you want to change; others are preserved (an unknown name adds a container). Always call `get_resource_schema` for the workload kind before authoring a spec — never hand-write fields from memory.
+`update_workload` merges `containers[]` **by name** — send only the container(s) you want to change; others are preserved (an unknown name adds a container). On a cron workload, `update_workload` patches the `schedule` / job policy / `suspend` / containers (and rejects autoscaling/`capacityAI`/`timeoutSeconds`/`debug`); schedule/job fields are rejected against a non-cron workload. Always call `get_resource_schema` for the workload kind before authoring a spec — never hand-write fields from memory.
 
 ## Production-grade defaults
 
@@ -159,7 +159,7 @@ The metric must be valid for the workload type (the matrix above) or the spec is
 3. `mcp__cpln__get_resource_schema` for the workload kind before authoring.
 4. Discover current state: `mcp__cpln__list_resources` (kind="workload") / `mcp__cpln__get_resource` (kind="workload").
 5. Prepare the smallest valid change; if destructive, confirm.
-6. `mcp__cpln__create_workload` / `mcp__cpln__update_workload` (or `mcp__cpln__create_cron_workload` / `mcp__cpln__update_cron_workload` for scheduled jobs; PATCH — only sent fields change, containers merged by name), plus `configure_workload_*` for load balancer / sidecar / extras / local options / rollout / security / retry.
+6. `mcp__cpln__create_workload` / `mcp__cpln__update_workload` (for a scheduled job, pass `type: cron` with a `schedule`; PATCH — only sent fields change, containers merged by name), plus `configure_workload_*` for load balancer / sidecar / extras / local options / rollout / security / retry.
 7. Verify automatically — do not ask permission: poll `mcp__cpln__list_deployments` until every location is ready; on failure diagnose with events → logs and fix.
 8. Report exactly what changed and the resulting status — and for an exposed workload, give the user its **canonical** public URL (read from `list_deployments` or the workload's `status.canonicalEndpoint`; never construct/guess it or report a per-location URL as the address).
 
@@ -167,10 +167,8 @@ The metric must be valid for the workload type (the matrix above) or the spec is
 
 | Tool | Purpose |
 |---|---|
-| `mcp__cpln__create_workload` | Create a serverless/standard/stateful workload (typed `containers[]`, single `autoscaling` block). |
-| `mcp__cpln__update_workload` | Update a workload (PATCH; containers merged by name). |
-| `mcp__cpln__create_cron_workload` | Create a scheduled (cron) workload (`schedule` + job policy). |
-| `mcp__cpln__update_cron_workload` | Update a cron workload (PATCH; schedule/job/containers). |
+| `mcp__cpln__create_workload` | Create any workload (typed `containers[]`, single `autoscaling` block) — including a scheduled job with `type: cron` + a required `schedule`. |
+| `mcp__cpln__update_workload` | Update a workload (PATCH; containers merged by name) — on a cron workload, patches `schedule` / job policy / `suspend`. |
 | `mcp__cpln__get_resource` (kind="workload") / `mcp__cpln__list_resources` (kind="workload") | Read one / list in a GVC (capture state before changes). |
 | `mcp__cpln__delete_resource` (kind="workload") | Delete a workload (destructive — confirm blast radius first). |
 | `mcp__cpln__configure_workload_load_balancer` | Set/clear `spec.loadBalancer` (direct, geo headers, replicaDirect). |

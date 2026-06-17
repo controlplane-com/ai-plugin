@@ -5,7 +5,7 @@ description: "Custom domains for Control Plane workloads. Use when the user asks
 
 # Custom Domains
 
-> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+> **Tool availability:** the default `core` profile covers the entire domain workflow — `create_domain`, `update_domain`, the route-edit trio (`add_domain_route` / `update_domain_route` / `remove_domain_route`), listener ports (`add_domain_port` / `remove_domain_port`), TLS (`set_domain_tls` / `clear_domain_tls`), and the generic `list_resources` / `get_resource` / `delete_resource`. Only CORS edits (`set_domain_cors` / `clear_domain_cors`) live in the `full` profile — if one is not advertised, reconnect with `?toolsets=full` or use the `cpln` CLI fallback.
 
 A `domain` is an org-level resource that binds a DNS name to workloads in **one GVC**. **Created ≠ live:** after the resource exists, the user still adds records at their DNS provider — read exactly which from `status.dnsConfig` and hand them over verbatim, never guessed. Every shape decision below is platform-enforced and a wrong combination is a rejected mutation, so decide BEFORE calling `mcp__cpln__create_domain` (the tool requires `dnsMode` and `ports` explicitly). Never set `spec.domain` on a GVC — that legacy field is deprecated; the Domain resource is the only path.
 
