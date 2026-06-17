@@ -151,6 +151,7 @@ The metric must be valid for the workload type (the matrix above) or the spec is
 - Read-only diagnostics (`ls`, `cat`, `env`, `df`, `curl localhost`) are fine.
 - **Any state-changing command** (writes, restarts, signals, installs, migrations) needs **explicit user confirmation first** — state the exact command, what it changes, and the risk.
 - One-shot only — no interactive shells/TTYs/REPLs (use the CLI `cpln workload exec` for those).
+- **If your MCP client's safety layer blocks an approved exec** (some clients block destructive, credential-bearing, or shell-pipe commands — e.g. a `pg_dump | psql` restore — regardless of your approval, *before* the call reaches Control Plane), run the identical command via `cpln workload exec` from a trusted shell. The platform enforces the same authorization; only the client differs. This is an expected client limitation, not a Control Plane error — report it plainly and offer the CLI command rather than retrying the blocked tool.
 
 ## Standard create / update flow
 

@@ -75,7 +75,7 @@ spec:
 
 ## After create — DNS records and status
 
-- Read the domain back and surface `status.dnsConfig` verbatim. CNAME mode points at the GVC endpoint alias (`GVC_ALIAS.cpln.app` — the value is returned with a `<gvcAlias>` placeholder; read the real alias from the GVC). `cname` + `gvcLink` needs one CNAME per workload; `workloadLink` adds per-replica records (`{workload}-{i}-{location}`).
+- Read the domain back and give the user the records from `status.dnsConfig`. CNAME mode points at the GVC endpoint alias. Via the MCP tools the alias is resolved for you, so the CNAME target comes back ready to paste (e.g. `0p2fpmbe7sr5c.t.cpln.app`); via the `cpln` CLI the value is the literal `<gvcAlias>.t.cpln.app` placeholder — substitute the GVC's top-level `alias` field. **Never hand the user a `<gvcAlias>` placeholder as a DNS record.** `cname` + `gvcLink` needs one CNAME per workload; `workloadLink` adds per-replica records (`{workload}-{i}-{location}`).
 - Many DNS providers refuse CNAME at the apex — the user needs ALIAS/ANAME support or a CDN in front.
 - `status.status`: `initializing`, `pendingDnsConfig` (records not seen yet), `pendingCertificate` (validated, cert issuing), `ready`; `warning`/`errored` carry detail in `status.warning`; `usedByGvc` marks a domain referenced by the legacy GVC `spec.domain`. Pending states are expected, not errors. Misconfigurations that pass schema validation — routes to a missing GVC/workload, no valid routes, a disallowed port/protocol, an ignored `hostPrefix` — land as `warning` and increment the `domain_warnings` metric.
 - **Host header:** serverless workloads receive the canonical endpoint as `Host` (the custom domain arrives in `X-Forwarded-Host`); standard/stateful receive the custom domain.

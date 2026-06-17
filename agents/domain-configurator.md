@@ -153,7 +153,7 @@ spec:
 
 Read the records with `mcp__cpln__get_resource` (kind="domain") — CLI: `cpln domain get app.example.com --org ORG -o yaml` — and use `status.dnsConfig` exactly as returned.
 
-- **CNAME mode**: a CNAME from the domain to the GVC endpoint alias, `GVC_ALIAS.cpln.app` (the returned value carries a `<gvcAlias>` placeholder — read the real alias from the GVC: `cpln gvc get GVC --org ORG -o json`, field `alias`). With `gvcLink`, each workload needs its own `{workload}.{domain}` CNAME to the same target; with `dns01`, add the `_acme-challenge` CNAME; with spec-level `workloadLink`, per-replica records (`{workload}-{i}-{location}`) appear too.
+- **CNAME mode**: a CNAME from the domain to the GVC endpoint alias. Via the MCP `get_resource`/domain tools the target comes back resolved (e.g. `0p2fpmbe7sr5c.t.cpln.app`); via `cpln domain get` the value is the literal `<gvcAlias>.t.cpln.app` placeholder — read the real alias from the GVC (`cpln gvc get GVC --org ORG -o json`, top-level field `alias`) and substitute it. Never hand the user a raw `<gvcAlias>` record. With `gvcLink`, each workload needs its own `{workload}.{domain}` CNAME to the same target; with `dns01`, add the `_acme-challenge` CNAME; with spec-level `workloadLink`, per-replica records (`{workload}-{i}-{location}`) appear too.
 - **NS mode**: four NS records for the delegated label:
 
 ```
