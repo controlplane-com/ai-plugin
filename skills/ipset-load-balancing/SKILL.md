@@ -115,7 +115,7 @@ Required before domains can use custom ports or the TCP protocol (without it tho
 | `mcp__cpln__create_ipset` | Create with optional `link` and `locations[]` (`retentionPolicy` defaults to `keep`); friendly location names resolve server-side |
 | `mcp__cpln__update_ipset` | Description, tags, replace `link`, or `removeLink: true` to detach |
 | `mcp__cpln__add_ipset_location` | Add locations or overwrite an existing location's `retentionPolicy` |
-| `mcp__cpln__remove_ipset_location` | Drop location entries (two-phase confirm; releases only IPs whose location is no longer active in the GVC) |
+| `mcp__cpln__remove_ipset_location` | Drop location entries (releases only IPs whose location is no longer active in the GVC) |
 | `mcp__cpln__list_resources` / `mcp__cpln__get_resource` / `mcp__cpln__delete_resource` (kind="ipset") | Read, and delete (releases every IP; blocked while bound) |
 | `mcp__cpln__configure_workload_load_balancer` | Workload side: `direct`, `geoLocation`, `replicaDirect` (`remove: true` clears) |
 | `mcp__cpln__update_gvc` | GVC side: `loadBalancer` (dedicated, ipSet, trustedProxies, multiZone, redirect) |

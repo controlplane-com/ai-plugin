@@ -138,7 +138,7 @@ Global rules (Joi-enforced): each array holds **max 50** entries, and **`name` a
 ## Configuring & verifying
 
 - Attach resources with `mcp__cpln__add_identity_native_network_resource` (PrivateLink/PSC) or `mcp__cpln__add_identity_network_resource` (agent-based) — each takes `org`, `gvc`, `identity`, and one `resource`. Create the identity first (`create_identity`, see `access-control`) if it does not exist.
-- `mcp__cpln__remove_identity_network_resource` removes from **either** array by name (destructive, two-phase: preview then `confirm`). There is no separate native-remove tool.
+- `mcp__cpln__remove_identity_network_resource` removes from **either** array by name (destructive — present the impact and get the user's explicit approval before calling). There is no separate native-remove tool.
 - **Verify:** `mcp__cpln__list_identity_network_resources` lists both arrays; `mcp__cpln__get_agent_info` shows whether an agent is active plus its `peerCount` / `serviceCount`; then confirm the workload actually connects to the endpoint.
 
 ## Agent permissions
