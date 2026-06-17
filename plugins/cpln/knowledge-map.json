@@ -88,6 +88,7 @@
     "update_identity": "access-control",
     "create_cloud_account": "access-control",
     "update_cloud_account": "access-control",
+    "update_org": "org-management",
     "mount_volumeset_to_workload": "stateful-storage",
     "expand_volumeset": "stateful-storage",
     "shrink_volumeset": "stateful-storage",
