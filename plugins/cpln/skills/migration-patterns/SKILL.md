@@ -1,304 +1,170 @@
 ---
 name: migration-patterns
-description: "Migrates workloads from Kubernetes, Docker Compose, or Helm to Control Plane. Use when the user asks about converting k8s manifests, docker-compose.yml, or Helm charts to Control Plane YAML, or migrating an app onto the platform."
+description: "Migrate workloads from Kubernetes, Docker Compose, or Helm to Control Plane. Use when the user asks to convert k8s manifests, a docker-compose.yml, or Helm charts, or to move an existing app onto the platform."
 ---
 
-# Migration Patterns
+# Migrating to Control Plane
 
-## Migration Paths
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
 
-Pick the path by source, not by destination tool — the tools are not interchangeable.
+Each source format has its own converter, and they are not interchangeable: Kubernetes through `cpln convert`, Docker Compose through `cpln stack`, a Helm chart of Control Plane resources through `cpln helm`. All three are **CLI-only — there is no MCP converter.** The dominant failure is hand-translating a Compose/k8s/Helm artifact into Control Plane YAML — even one "small enough to do by hand" — instead of running the tool and then reviewing what it left behind. The converter gets the mechanical translation right; your value is the gap analysis on top of it. If asked to translate by hand, push back: convert first, then work through the fix-ups.
 
-| Source | Tool | Command |
-|:---|:---|:---|
-| Kubernetes manifests | `cpln convert` | `cpln convert --file k8s.yaml --gvc my-gvc` |
-| Kubernetes manifests (convert + apply) | `cpln apply --k8s` | `cpln apply --file k8s.yaml --k8s true` |
-| Kubernetes Helm chart | `helm template` piped to `cpln convert` | `helm template R ./chart -f values.yaml \| cpln convert --file - --gvc my-gvc` |
-| Docker Compose | `cpln stack` | `cpln stack deploy --gvc my-gvc` |
-| Helm chart of CPLN resources | `cpln helm` | `cpln helm install R ./chart --gvc my-gvc` |
+## Pick the conversion path
 
-`cpln helm` does NOT convert Kubernetes manifests — charts must contain only Control Plane kinds. `cpln stack convert` does NOT exist; use `cpln stack manifest` to preview.
-
-## Migration Workflow Discipline — Use the Conversion Tool First
-
-**Hand-translating Compose / Kubernetes / Helm into Control Plane YAML is forbidden as the entry point of a migration**, even when you expect the converter output to need fix-ups. Always run the conversion tool first.
-
-The conversion commands (`cpln convert`, `cpln stack`, `cpln helm`) are **CLI-exclusive — there is no MCP equivalent**; the converter must run as a CLI step. MCP enters *after* conversion: once you have the converted CPLN YAML and have worked through the fix-ups, author/create the individual resources with the typed MCP tools (`mcp__cpln__create_workload`, `mcp__cpln__create_gvc`, `mcp__cpln__create_secret_<type>` (e.g. `create_secret_opaque`), `mcp__cpln__create_identity`, `mcp__cpln__create_volumeset`) so each resource gets production-grade defaults — or apply the whole manifest at once with `cpln apply -f`. Before hand-editing or re-authoring any converted manifest, call `mcp__cpln__get_resource_schema` for the relevant kind so the shape stays valid.
-
-| Source format | First-step command (mandatory) | Notes |
+| Source | Convert (CLI-only) | One-shot deploy |
 |---|---|---|
-| Docker Compose | `cpln stack manifest --compose-file docker-compose.yml --gvc <gvc>` | Converts to CPLN YAML *without deploying* — for review + edits. Or `cpln stack deploy --compose-file docker-compose.yml --gvc <gvc>` for one-shot deploy. |
-| Kubernetes | `cpln convert --file k8s-manifest.yaml --gvc <gvc>` | Converts to CPLN YAML for review. Or `cpln apply --file k8s.yaml --k8s true --gvc <gvc>` for one-shot. |
-| Helm chart | `cpln helm install <release> <chart> --gvc <gvc>` | Direct deploy. Chart contents must produce CPLN-compatible kinds — see "Helm Chart Deployment" below. |
+| Kubernetes manifests | `cpln convert -f k8s.yaml --gvc GVC` | `cpln apply -f k8s.yaml --k8s true` |
+| Kubernetes Helm chart | `helm template R ./chart \| cpln convert -f - --gvc GVC` | — |
+| Docker Compose | `cpln stack manifest --gvc GVC` (preview) | `cpln stack deploy --gvc GVC` |
+| Helm chart of CPLN resources | — | `cpln helm install R ./chart --gvc GVC` |
 
-**Why this is mandatory, not a suggestion:**
+`cpln helm` does **not** convert Kubernetes manifests — its charts must render only Control Plane kinds. There is no `cpln stack convert`; `cpln stack manifest` previews the generated YAML.
 
-- The converter handles base translation correctly: resource shape, secret-type mapping, port protocol inference, identity/policy auto-creation, PVC → volumeset, ingress → domain. Re-doing that by hand duplicates work and introduces transcription errors the converter would not have made.
-- The converter's output is your starting point for the migration's *gap analysis*: bind-mount triage, internal DNS rewrites, build-step replacements, anti-pattern checks. You cannot gap-analyze something you didn't convert.
-- Hand-rolled and converter-rolled outputs diverge in subtle places (auto-created identity/policy names, port protocols, default firewall stance, location handling). Divergence makes future re-runs of the migration painful.
+## Kubernetes (`cpln convert`)
 
-**Anti-patterns to push back against:**
+`cpln convert -f FILE [--gvc GVC]` reads a single file, a directory (recursive), or `-` for stdin, and writes Control Plane YAML. `cpln apply -f FILE --k8s true` runs the same converter and applies the result in one step. Resources that become their own Control Plane resource:
 
-- Writing CPLN workload manifests from scratch when the source is a Compose / k8s / Helm artifact, even when "the source is small enough to translate by hand"
-- Running the converter, throwing the output away, and rewriting from scratch "for clarity"
-- Using the converter only on parts of the source — translating the rest by hand
-- Reasoning "I'll make the conversion explicit by writing it myself" — the AI's value here is the gap analysis on top of the converter's output, not duplicating the converter's work
-
-**If the AI proposes hand-translation as the first step of a migration, push back:** *"Run `cpln stack manifest` (or `cpln convert`) first, then we'll work through the fix-ups."*
-
-## Kubernetes Conversion (`cpln convert`)
-
-### Supported Resources
-
-Resources directly converted to Control Plane equivalents:
-
-| K8s Resource | CPLN Equivalent |
-|:---|:---|
-| Deployment | Workload (type derived) |
-| StatefulSet | Workload (type derived) |
-| ReplicaSet, ReplicationController | Workload (type derived) |
-| DaemonSet | Workload (type derived) |
+| K8s resource | Control Plane resource |
+|---|---|
+| Deployment, StatefulSet, ReplicaSet, ReplicationController, DaemonSet | Workload (type derived) |
 | CronJob | Workload (cron, schedule from spec) |
 | Job | Workload (cron, default schedule `* * * * *`) |
-| Secret | Secret (type-mapped) |
-| ConfigMap | Secret (dictionary). For post-convert decisions on file-mount vs. env-var, and the content-vs-config triage when migrating bind-mounted files, see **"Bind-Mounts: Content vs. Config"** below. |
+| Secret | Secret (type-mapped, below) |
+| ConfigMap | Secret (dictionary) |
 | Ingress | Domain (with routes) |
 | PersistentVolumeClaim | VolumeSet |
 
-Resources that are NOT converted to separate CPLN resources but inform the conversion:
+Resources that shape the conversion without becoming their own resource: **Service** (port-protocol inference, public-exposure detection that sets the workload firewall, ingress route resolution), **HorizontalPodAutoscaler** (workload `minScale`/`maxScale`/`scaleToZeroDelay`/CPU target), **ServiceAccount** (image pull-secret extraction), **PersistentVolume + StorageClass** (volumeset capacity, performance class, filesystem), **EndpointSlice** (pod mapping for selectorless services).
 
-| K8s Resource | Role |
-|:---|:---|
-| Service | Port protocol inference, public-exposure detection (sets workload `firewallConfig`), Ingress route resolution |
-| ServiceAccount | Image pull secret extraction |
-| HorizontalPodAutoscaler | Sets workload `minScale`, `maxScale`, `scaleToZeroDelay`, CPU target |
-| PersistentVolume, StorageClass | Volumeset capacity, performance class, file system type |
-| EndpointSlice | Service-to-Pod mapping for selectorless services |
+**Workload type — `cron > stateful > standard`:** a Job/CronJob becomes `cron`; otherwise any container mounting a volumeset (from a PVC or `volumeClaimTemplates`) becomes `stateful`; everything else is `standard`. The converter never emits `serverless` or `vm` — switch a workload to those yourself after converting.
 
-The converter also auto-creates an **identity** (`identity-<workload>`) and **policy** (`policy-<workload>`) per workload that references secrets, granting `reveal` on those secrets.
+**Secret type mapping:**
 
-### Workload Type Detection Priority
-
-**cron > stateful > standard**
-
-1. Job or CronJob resource → **cron**
-2. Any container mounts a volumeset (from PVC or volumeClaimTemplates) → **stateful**
-3. Everything else → **standard** (this is the default for all non-cron workloads)
-
-### Secret Type Mapping
-
-| K8s Secret Type | CPLN Secret Type |
-|:---|:---|
+| K8s secret | Control Plane type |
+|---|---|
 | `kubernetes.io/dockerconfigjson` | `docker` |
-| Any secret with a key named `payload` | `opaque` |
+| any data key named `payload` | `opaque` |
 | `kubernetes.io/basic-auth` | `userpass` |
-| `kubernetes.io/tls` | `dictionary` (validated for tls.crt/tls.key but stored as dictionary) |
-| Everything else / ConfigMap | `dictionary` |
+| `kubernetes.io/tls` | `dictionary` (validated for `tls.crt`/`tls.key`, stored as a dictionary) |
+| everything else / ConfigMap | `dictionary` |
 
-### PVC to VolumeSet
+**PVC performance class:** `io1`, `io2`, `pd-extreme`, `UltraSSD_LRS`, `thick`, `fast`, `persistent_1` map to `high-throughput-ssd` (matched on the StorageClass parameter value); everything else — `gp2`, `gp3`, the default — maps to `general-purpose-ssd`.
 
-| K8s Storage Class | CPLN Performance Class |
-|:---|:---|
-| Default, `gp2`, `gp3`, and others | `general-purpose-ssd` |
-| `io1`, `io2` (AWS), `pd-extreme` (GCP), `UltraSSD_LRS` (Azure), `thick` (VMware), `fast`, `persistent_1` | `high-throughput-ssd` |
+**Port protocol** (when `--protocol` is not forced): first match of Service `appProtocol`, Service port-name prefix, container port-name prefix, probe type, then well-known port number; default `tcp`.
 
-### Usage
+The converter auto-creates an identity `identity-<workload>` and policy `policy-<workload>` granting `reveal` for every workload that references secrets. When `--gvc` is omitted, workload links carry a `{{GVC}}` placeholder — replace it before applying.
 
-```bash
-# --gvc is optional; when omitted, workload links contain a {{GVC}} placeholder
-cpln convert --file k8s-manifest.yaml --gvc my-gvc > cpln-manifest.yaml
+## What `cpln convert` leaves for you
 
-# One-step convert + apply (equivalent to convert | apply --file -)
-cpln apply --file k8s-manifest.yaml --k8s true
-```
+The converter translates structure faithfully but **warns on only two things** — a ConfigMap/Secret name collision (it renames the ConfigMap with a `-config` suffix) and an `acceptAll*` domain needing a dedicated load balancer. Everything below changes or disappears **silently**, so diff the source against the output.
 
-`--file` accepts a single file, a directory (recursive), or `-` for stdin.
+- **Scaling is pinned, not autoscaled.** A converted workload gets `minScale = maxScale =` the Deployment's `replicas` (or `1` if unset) with `capacityAI: false` — no headroom. An HPA, if present, supplies min/max and a CPU target. Raise `maxScale` above `minScale` for anything that should scale, keep customer-facing `minScale ≥ 2`, and consider Capacity AI (autoscaling-capacity skill).
+- **Silently dropped from the pod spec** (the workload runs, but differently): `envFrom` (bulk ConfigMap/Secret env — re-add the keys as `env` or a mounted dictionary secret), `initContainers` (migrations/setup — run as a separate cron workload or an entrypoint step), `startupProbe` (only liveness/readiness carry over), container `securityContext` except `fsGroup`, and `hostPath` volumes. `emptyDir` becomes a `scratch://` volume.
+- **Not converted at all** (no resource, no warning): NetworkPolicy, PodDisruptionBudget, RBAC, ResourceQuota/LimitRange, ServiceMonitor and other CRDs, and Namespaces — every namespace collapses into the one target GVC. Re-express network rules as the workload firewall (firewall-networking skill) and RBAC as policies (access-control skill).
+- **Images stay literal, sizing is minimal.** `image: nginx:1.25` is kept verbatim, not rewritten to an internal `//image/` ref. `imagePullSecrets` (pod or ServiceAccount) carry over as `//secret/NAME`, but the secret must already exist for a private registry to pull. A container with no `resources` set defaults to a tiny `50m` CPU / `128Mi` memory — size it for production.
 
-### Port Protocol Inference
+## Docker Compose (`cpln stack`)
 
-When `--protocol` is not set, each container port is resolved in this priority order (first match wins, default `tcp`): Service `appProtocol` → Service port name prefix → container port name prefix → liveness/readiness probe type → well-known port number.
+`cpln stack deploy` (alias `up`) builds and deploys; `cpln stack manifest` previews the generated YAML without deploying; `cpln stack rm` (alias `down`) tears down. All take `--dir`/`--directory` and `--compose-file`. `--build` defaults `true` for `deploy` (local `docker build` for `linux/amd64`, then push as `<service>:1.0`) and `false` for `manifest`. Conversion rules:
 
-### Post-Conversion Fixups
+- **Workload type:** `standard`, or `stateful` if the service attaches a named volume.
+- **Volumes:** a named volume becomes a VolumeSet (stateful). A **file** bind mount becomes an opaque secret mounted at the target path. A **directory** bind mount is rejected with an error — split it into individual file bind mounts.
+- **Ports:** `"PORT[:TARGET]/PROTO"` where `PROTO` is `http`, `http2`, `tcp`, or `grpc`; with no `/PROTO` suffix the port has no protocol set. Example: `"50051:50051/grpc"`.
+- **Resources:** default `cpu: 42m`, `memory: 128Mi` (override via `deploy.resources.limits`). A GPU forces a minimum `cpu: 2000m`, `memory: 7168Mi`.
+- **Firewall:** external inbound is opened (`0.0.0.0/0`) when the service has `ports` or `network_mode: host`; outbound is open unless `network_mode: none`.
+- **Secrets/configs:** compose `secrets` and `configs` become opaque secrets with an auto-created identity and a `reveal` policy.
 
-1. If `--gvc` was NOT passed, replace the `{{GVC}}` placeholder in workload links with the actual GVC name
-2. Verify workload type matches your expectations
-3. Check port protocol detection (gRPC, HTTP/2)
-4. Validate Ingress → Domain route mapping
-5. Update service-to-service URLs in your app code to `<workload>.<gvc>.cpln.local[:port]`
-
-After the fix-ups, create the resources. Prefer the typed MCP tools so each gets production-grade defaults — `mcp__cpln__create_gvc` (if the target GVC does not exist), `mcp__cpln__create_secret_<type>` (e.g. `create_secret_opaque`), `mcp__cpln__create_identity`, `mcp__cpln__create_volumeset`, then `mcp__cpln__create_workload`. Apply the converter's manifest directly with `cpln apply -f cpln-manifest.yaml --ready` when you want a one-shot apply or the MCP server is unavailable. Either way, verify the result: poll `mcp__cpln__list_deployments` until each workload reports ready and pair every mutation with a read.
-
-## Docker Compose Migration (`cpln stack`)
-
-### Service-to-Service URLs (Manual Update)
-
-`cpln stack` does NOT automatically rewrite service URLs inside your application code or config. Before deploying, update service-to-service URLs in your Compose file / app code to the Control Plane internal DNS format:
-
-| Compose (before) | Control Plane (after) |
-|:---|:---|
-| `http://redis:6379` | `http://redis.my-gvc.cpln.local:6379` |
-| `http://api:3000` | `http://api.my-gvc.cpln.local:3000` |
-
-Format: `<workload-name>.<gvc>.cpln.local[:<port>]`.
-
-### x-cpln Override Block
-
-Add platform-specific overrides in the compose file. Each top-level key under `x-cpln` replaces the entire corresponding section in the generated workload `spec`:
+**`x-cpln` override block:** any top-level key under a service's `x-cpln` **replaces that entire `spec.<key>` section wholesale** (it does not deep-merge) — there is no allowlist, so any spec field works (`type`, `containers`, `defaultOptions`, `firewallConfig`, `identityLink`, …). Overriding `containers` means restating the full container spec.
 
 ```yaml
 services:
   api:
     image: my-api:latest
     x-cpln:
-      type: serverless           # Overrides derived workload type
-      defaultOptions:            # Replaces entire defaultOptions block
+      type: serverless              # replaces the derived workload type
+      defaultOptions:               # replaces the whole defaultOptions block
         capacityAI: false
-        autoscaling:
-          minScale: 0
-          maxScale: 10
+        autoscaling: { minScale: 2, maxScale: 10 }
 ```
 
-Recognized keys: `type`, `containers`, `defaultOptions`, `firewallConfig`, `identityLink`, `supportDynamicTags`, `loadBalancer`, `rolloutOptions`, `securityOptions`, `localOptions`.
+`cpln stack` does **not** rewrite service URLs in your code or config. Update them to the internal form `<workload>.<gvc>.cpln.local[:<port>]` (e.g. `http://redis:6379` becomes `http://redis.GVC.cpln.local:6379`).
 
-**Warning:** `x-cpln` REPLACES entire top-level spec sections, it does NOT merge. If you override `containers`, you must include the full container spec.
+## Bind-mounts: content vs config
 
-### Commands
+The decisive question for any bind-mounted file: **does it change between environments, or is it identical in dev/staging/prod?**
 
-```bash
-cpln stack deploy --gvc my-gvc                          # Deploy compose project (aliases: up)
-cpln stack manifest --gvc my-gvc > cpln-manifest.yaml   # Preview generated manifest
-cpln workload get --gvc my-gvc                          # List deployed workloads
-cpln stack rm --gvc my-gvc                              # Tear down (aliases: down)
-```
-
-Options accepted by `deploy`, `manifest`, and `rm`: `--directory`/`--dir`, `--compose-file`. `deploy` and `manifest` also accept `--build` (default `true` for deploy, `false` for manifest). There is no `cpln stack convert` subcommand.
-
-### Compose Conversion Gotchas
-
-- **Port protocol suffix**: `"PORT[:TARGET]/PROTO"` where `PROTO` ∈ `http | http2 | tcp | grpc`. Without a suffix the port has no protocol set. Example: `"50051:50051/grpc"`.
-- **Resource defaults**: `cpu: 42m`, `memory: 128Mi` (override via `deploy.resources.limits`). With GPU: min CPU `2000m`, min memory `7168Mi`.
-- **Firewall derivation**: external inbound is allowed (`0.0.0.0/0`) when the service has `ports` OR `network_mode: host`. Outbound is blocked only for `network_mode: none`.
-- **Stateful detection**: any named volume attached to a service makes that workload `stateful`.
-- **Secrets/configs** become CPLN `opaque` secrets with auto-created identity + policy (reveal permission). Bind-mounts can be application content (HTML/JS/CSS, model weights, fonts) or environment-specific config (nginx.conf with `proxy_pass`, app config with env-specific URLs); these go to different places — see the next section.
-
-## Bind-Mounts: Content vs. Config — Two Different Migrations
-
-The single most important question when migrating bind-mounted files: **does this file change between environments, or is it the same in dev / staging / prod?**
-
-| Type | Examples | Where it goes on Control Plane |
+| Type | Examples | Where it goes |
 |---|---|---|
-| **Application content** — versioned with the code, same in every environment | `index.html`, compiled JS/CSS bundle, font files, ML model weights | **Bake into the image.** `COPY` it in the Dockerfile. Or serve from a CDN / object store for SPAs. |
-| **Configuration** — has env-specific values (hostnames, ports, routing, feature flags, paths, credentials) | `nginx.conf` with `proxy_pass http://api.<gvc>.cpln.local:3000/`, app config with env-specific URLs, `.env` files | **Opaque secret mounted as a file volume** at the target path — the ConfigMap equivalent. |
+| **Application content** — versioned with the code, same everywhere | `index.html`, JS/CSS bundle, fonts, ML model weights | Bake into the image (`COPY` in the Dockerfile), or serve from a CDN |
+| **Configuration** — env-specific values | `nginx.conf` with `proxy_pass`, app config with env URLs, `.env` | Opaque secret mounted as a file volume — the ConfigMap equivalent |
 
-**Why the distinction matters:** baking config into the image couples that image to one environment. Want to deploy to staging next? Rebuild the image. Want to switch the upstream API hostname? Rebuild. That's the regression Kubernetes solved with ConfigMaps. Conversely, mounting *application content* via secret volumes is overkill — the content moves in lockstep with the code; image versioning is the right control surface.
+Baking config into the image couples that image to one environment: a hostname or feature-flag change then forces a rebuild. Mounting application content as secret volumes is the opposite mistake — it decouples content from its image version and makes rollbacks strange. A single container's migration is usually **mixed**, decided file by file. Rule of thumb: if changing the file between environments would not count as a code change, it is config and belongs in a secret volume.
 
-**Rule of thumb:** if changing this file between environments wouldn't be considered a code change, it's config and belongs in a secret volume. If the file changes only when the application itself is updated, it belongs in the image.
+Workloads mount secrets as read-only files via `cpln://secret/<name>` volumes (the `workload`/`stateful-storage` skills own the mechanism; `get_resource_schema` for `workload` gives the exact shape):
 
-### Mounting config via secret volumes — the canonical pattern
-
-Control Plane workloads can mount opaque secrets as **read-only files at specific paths** via the volume mechanism. URI scheme `cpln://secret/<name>`. Reference: `docs/reference/workload/volumes.mdx`.
-
-Worked example — nginx that serves baked-in HTML and uses a mounted nginx.conf:
-
-```yaml
-# 1. Opaque secret holding the env-specific nginx.conf
-kind: secret
-type: opaque
-name: web-nginx-conf
-data: { payload: |
-  server {
-    listen 80;
-    location /api/ { proxy_pass http://api.<gvc>.cpln.local:3000/api/; }
-    location / { try_files $uri $uri/ /index.html; }
-  }
-}
----
-# 2. Identity + policy granting reveal on the config secret
-kind: identity
-name: web-identity
----
-kind: policy
-name: web-secrets-access
-target: secret
-targetLinks: [ //secret/web-nginx-conf ]
-bindings:
-  - permissions: [reveal]
-    principalLinks: [ //gvc/<gvc>/identity/web-identity ]
----
-# 3. CUSTOM nginx image with index.html baked in (application content),
-#    but nginx.conf mounted from the secret (environment-specific config)
-kind: workload
-name: web
-spec:
-  identityLink: //gvc/<gvc>/identity/web-identity
-  containers:
-    - name: web
-      image: //image/feedback-collector-web:1   # built from a Dockerfile that COPYs index.html into nginx:alpine
-      ports: [{ protocol: http, number: 80 }]
-      volumes:
-        - uri: cpln://secret/web-nginx-conf
-          path: /etc/nginx/conf.d/default.conf
-```
-
-Dockerfile for `feedback-collector-web`:
-
-```dockerfile
-FROM nginx:alpine
-COPY web/index.html /usr/share/nginx/html/index.html
-# nginx.conf is NOT copied — it's mounted from the secret at runtime
-EXPOSE 80
-```
-
-### Mount semantics by secret type
-
-From `docs/reference/workload/volumes.mdx`:
-
-- **Opaque** (the typical config-file case): mount path must contain at least one subpath; the last path segment becomes the file name and contains the payload. Use this for nginx configs, init scripts, app config files — anything that's a single file.
-- **Dictionary**: if the root secret is mounted, the path becomes a directory and each key becomes a file with the value as contents. Useful for migrating multi-key K8s ConfigMaps directly.
+- **Opaque** (single config file): the path needs at least one subpath; the last segment becomes the file name and holds the `payload`.
+- **Dictionary** (multi-key ConfigMap): mount the secret at a directory path and each key becomes a file.
 - **Docker / GCP / Azure SDK**: mounted as a single file `___cpln___.secret` in the path directory.
 
-### Anti-patterns to avoid
+So an nginx workload migrates *mixed*: `index.html` baked into a custom image, while `nginx.conf` mounts from a `cpln://secret/<name>` opaque secret at `/etc/nginx/conf.d/default.conf`.
 
-- **Baking environment-specific config into a custom image** ("the simplest fix for the bind-mount problem") — couples the image to one environment, requires a rebuild for any config change. Use a secret volume instead.
-- **Mounting application content (HTML/JS/CSS, model weights) as secret volumes** — overkill, decouples content from its image version, makes rollbacks weird. Bake it into the image.
+## Helm (`cpln helm`)
 
-If the AI proposes baking config into a custom image as the migration shortcut, push back. If the AI proposes mounting application content as secret volumes, also push back — the right answer is mixed: content in the image, config in secret volumes, decided file-by-file based on whether the content changes between environments.
+`cpln helm install|upgrade|uninstall|list|template` manages releases of charts that render **only Control Plane kinds**. A rendered object carrying `apiVersion` or `metadata`, or an unknown kind, aborts with `ERROR: Some resources in the rendered template are not CPLN resources`. To migrate an existing Kubernetes Helm chart, render it first and pipe through the converter: `helm template R ./chart | cpln convert -f -`.
 
-## Helm Chart Deployment (`cpln helm`)
+- `cpln.org` and `cpln.gvc` (plus `globals.cpln.*` / `global.cpln.*`) are injected as `--set` overrides — don't define a top-level `cpln` key in `values.yaml`, it gets clobbered.
+- Release state is an opaque secret per revision; `cpln helm list` is org-scoped and takes no `--gvc`.
+- GVC-scoped kinds (`workload`, `identity`, `volumeset`) need `--gvc` or a profile GVC; org-scoped kinds like `domain` do not.
 
-```bash
-cpln helm install my-release ./chart --gvc my-gvc
-cpln helm install my-release oci://registry/chart:tag --gvc my-gvc
-cpln helm upgrade my-release ./chart --gvc my-gvc
-cpln helm uninstall my-release --gvc my-gvc
-cpln helm list --org my-org        # Release list is org-scoped; --gvc is NOT accepted
-```
+Release-name rules, `--history-limit`, OCI charts, and `--wait` are general helm-release operations — the gitops-cicd and cpln skills own those.
 
-**Important:** `cpln helm` deploys charts that contain **only Control Plane resource definitions**. Charts with standard Kubernetes manifests (objects with `apiVersion` or `metadata` fields) will fail with `ERROR: Some resources in the rendered template are not CPLN resources.` To migrate existing K8s Helm charts, run `helm template` to render them to plain K8s manifests first, then pipe through `cpln convert`.
+## Exporting to Terraform / IaC
 
-### Helm Gotchas
+When the target is Infrastructure-as-Code rather than live resources, turn the converted Control Plane YAML into HCL with `mcp__cpln__convert_to_terraform` (dry-run validated against the API first, so the HCL always matches a schema-valid resource), or capture already-created resources with `mcp__cpln__export_terraform`. `mcp__cpln__list_terraform_kinds` and `mcp__cpln__export_terraform_batch` are in the `full` profile. The `iac-terraform-pulumi` skill owns the full Terraform/Pulumi story, including `terraform import`.
 
-- **Release name**: DNS-1123 label (lowercase alphanumeric + `-`, start/end alphanumeric), max **53 chars**. Use `--generate-name` / `-g` for auto-generated names.
-- **Injected values**: `cpln.org`, `cpln.gvc` (and `globals.cpln.*`, `global.cpln.*` aliases) are auto-injected as `--set` overrides. Do not define a top-level `cpln` key in `values.yaml` — it will be clobbered.
-- **Release state**: stored in an opaque secret per release; release list is org-scoped (no `--gvc` on `helm list`).
-- **`--history-limit`**: read per invocation (default `10`). If not re-passed on each `upgrade`, it falls back to the default — it is not persisted on the release.
-- **GVC-scoped kinds** (`workload`, `identity`, `volumeset`, `domain`) require `--gvc` or a GVC in your profile context.
+## Verify
 
-## Migrating to Terraform / IaC
+- After `cpln convert`: confirm each workload's derived type, scaling (`maxScale` raised where needed), port protocols (gRPC/HTTP2), ingress-to-domain routes, and that any `{{GVC}}` placeholder is replaced.
+- After create/apply: `cpln apply -f cpln.yaml --ready`, or poll `mcp__cpln__list_deployments` until each workload reports ready. Pair every mutation with a read.
 
-When the migration target is Infrastructure-as-Code rather than live resources, turn the converted CPLN YAML into Terraform (HCL):
+## Troubleshooting
 
-- `mcp__cpln__convert_to_terraform` — convert a CPLN resource manifest (the converter's YAML/JSON output) into HCL. It DRY-RUN validates the manifest against the API first, so the returned Terraform always corresponds to a schema-valid resource. An unsupported kind is rejected with the supported list (`mcp__cpln__list_terraform_kinds` in the full profile enumerates them up front).
-- `mcp__cpln__export_terraform` — generate HCL for resources that ALREADY exist, from a self link (single resource or bulk by path depth, e.g. `/org/acme/gvc/prod/workload`). Use this when you have already created the migrated resources and want to capture them as code. `mcp__cpln__export_terraform_batch` (full profile) does several explicit self links in one merged, de-duplicated call.
+| Symptom | Cause and fix |
+|---|---|
+| `cpln helm`: "…not CPLN resources" | Chart renders Kubernetes objects (`apiVersion`/`metadata`). Render then convert: `helm template \| cpln convert`. |
+| Env vars missing, or a setup step never ran | `envFrom` and `initContainers` are dropped silently — re-add env keys as `env`/a dictionary secret, and run init logic as a cron workload or entrypoint step. |
+| Workload won't scale under load | `minScale = maxScale` from the source replicas — raise `maxScale` (and enable Capacity AI / a metric). |
+| Compose: "Directory bind mount found" | Directory bind mounts are rejected — mount individual files (each becomes a secret). |
+| App can't reach another service | The converters don't rewrite URLs — point them at `<workload>.<gvc>.cpln.local[:port]`. |
+| Private image won't pull | The image string is kept literal; create the pull secret it references and link it (image skill). |
+| Deployment stuck after converting | The workload references a secret without an identity/policy; the converter adds `identity-<wl>`/`policy-<wl>` — if you re-authored, wire `reveal` yourself (access-control skill). |
 
-This is the only IaC export path — there is no `cpln`-CLI Terraform generator beyond the `--output tf` format on read/apply commands.
+## Quick reference
+
+### MCP tools
+
+- `mcp__cpln__create_workload` / `create_gvc` / `create_secret_opaque` (and the other `create_secret_<type>`) / `create_identity` / `create_volumeset` — author converted resources with production-grade defaults
+- `mcp__cpln__get_resource_schema` — exact shape before hand-editing or re-authoring a converted manifest
+- `mcp__cpln__list_deployments` — poll converted workloads to ready
+- `mcp__cpln__convert_to_terraform` / `mcp__cpln__export_terraform` — converted YAML or live resources to HCL (`iac-terraform-pulumi` skill)
+
+The converters themselves (`cpln convert`, `cpln stack`, `cpln helm`, `cpln apply --k8s`) are CLI-only. In CI/CD, `CPLN_TOKEN` + `cpln apply -f` applies the converted manifest headlessly.
+
+### Related skills
+
+| Skill | Use for |
+|---|---|
+| workload | the spec the converter emits; deploy/diagnose flow, injected `CPLN_*` vars |
+| cpln | the CLI that runs every converter; `apply` ordering, `exec`/`logs` |
+| autoscaling-capacity | giving converted workloads scaling headroom and Capacity AI |
+| stateful-storage | volumeset shape for converted PVCs and compose named volumes |
+| iac-terraform-pulumi | turning converted YAML into Terraform or Pulumi |
+| template-catalog | deploy a database from a template instead of converting one |
 
 ## Documentation
 
-For the latest reference, see:
-
-- [cpln convert Guide](https://docs.controlplane.com/guides/cli/cpln-convert.md)
-- [cpln helm Guide](https://docs.controlplane.com/guides/cpln-helm.md)
-- [Compose Deploy Guide](https://docs.controlplane.com/guides/compose-deploy.md)
-- [cpln apply Guide](https://docs.controlplane.com/guides/cpln-apply.md)
-- [Kubernetes Operator](https://docs.controlplane.com/core/kubernetes-operator.md)
+- [cpln convert](https://docs.controlplane.com/guides/cli/cpln-convert.md)
+- [Compose Deploy](https://docs.controlplane.com/guides/compose-deploy.md)
+- [cpln helm](https://docs.controlplane.com/guides/cpln-helm.md)
+- [cpln apply](https://docs.controlplane.com/guides/cpln-apply.md)
+- [Workload Volumes](https://docs.controlplane.com/reference/workload/volumes.md)
