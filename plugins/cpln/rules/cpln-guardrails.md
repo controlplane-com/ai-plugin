@@ -28,7 +28,7 @@ This is the operating contract for AI agents operating Control Plane — through
 
 ## 2. Universal operating contract
 
-- **MCP first, CLI fallback.** Use MCP tools whenever the MCP server is available and authenticated; otherwise — or for CLI-only or interactive work — fall back to the `cpln` CLI, after **reading the `cpln` skill first**. Never write CLI commands or flags from memory.
+- **MCP first, CLI fallback.** Use MCP tools whenever the MCP server is available and authenticated; otherwise — or for CLI-only or interactive work — fall back to the `cpln` CLI, after **reading the `cpln` skill first**. Never write CLI commands or flags from memory. When an MCP tool covers the action, call it — **never hand the user a `cpln` command as a stand-in for a tool call you can make.** Any `cpln` command you show or run must come from the `cpln` skill, never from recall: recalled syntax is frequently outdated (there is no `cpln secret create … --payload`), and a fabricated command bypasses every typed-tool validation if the user runs it.
 - **Read the recommended skill** named in a tool's description once per session before the first operation of that family.
 - **Schema before authoring.** Call `get_resource_schema` before writing any manifest, API body, `cpln apply` YAML/JSON, CI/CD spec, or conversion input.
 - **Read before update/delete, not before create.** Read a resource's current state before you change or remove it. Do not list or enumerate existing resources just to check whether something already exists before creating it — when the user asks to create, create directly; a name collision comes back as a conflict error you can handle.
@@ -39,6 +39,7 @@ This is the operating contract for AI agents operating Control Plane — through
 - **Never silently downgrade** an incompatible constraint to `disabled`/`none`/`1` replica/`manual`/public/weaker security — surface it with realistic alternatives and a recommendation.
 - **Redact secrets** — passwords, tokens, keys, bearer headers, private keys, connection strings, and secret values — from logs, env vars, errors, URLs, and responses.
 - **Do not reveal plaintext secrets** unless the user explicitly requests it for break-glass debugging, rotation, or inspection; otherwise prefer `cpln://secret/NAME` references.
+- **Never pull a confidential secret value into the conversation.** A value only the user holds — an external API key, cloud credential, or token — must not be requested in chat or passed as a tool argument: it would land in the transcript and every log hop. For such a value, have the user create the secret in the **console** (or, if they prefer the CLI, via `cpln secret create-… --file`, value-in-a-file, never an inline flag) and **verify it exists before you reference it** — never block on a paste, never wire a logging/workload reference to a secret that does not yet exist. A value you can safely generate yourself (a fresh password or token nobody owns yet) you may create directly with the typed secret tool, then tell the user and point them to rotation. Never substitute a placeholder/dummy value to "fill in later" — that ships a silently broken credential (see *Create only what the task needs*).
 - **Report exact results** after every mutation — what changed, where, and current status.
 
 ## 3. Standard mutation workflow
