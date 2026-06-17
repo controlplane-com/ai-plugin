@@ -3,235 +3,160 @@ name: query-spec
 description: "Filters, selects, and sorts Control Plane resources with the query spec language. Use when the user asks about targetQuery, memberQuery, cpln query commands, tag-based selection, property filtering, or dynamic location selection."
 ---
 
-# Query Spec — Filtering & Sorting Resources
+# Query Spec — Filtering & Selecting Resources
 
-> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+Control Plane has one query language used in two ways: **ad-hoc filtering** of a resource list (CLI / API), and **dynamic targeting** embedded inside three resource fields.
 
-Control Plane has a universal query system for filtering and sorting resources. The same spec is used everywhere:
+| Where | Field / command | Purpose |
+|:---|:---|:---|
+| Policy | `targetQuery` | Target resources by tag/property instead of listing `targetLinks` (see **access-control**) |
+| Group | `memberQuery` | Assign members dynamically — **users only** |
+| GVC | `spec.staticPlacement.locationQuery` | Select locations dynamically instead of listing `locationLinks` |
+| CLI | `cpln KIND query` | Ad-hoc filtering — every resource kind |
+| API | `POST /org/ORG/KIND/-query` | Ad-hoc filtering — every resource kind |
 
-- **Policy** `targetQuery` — dynamically target resources by tags/properties (authored via `mcp__cpln__create_policy` / `mcp__cpln__update_policy`)
-- **Group** `memberQuery` — dynamically assign users to groups (authored via `mcp__cpln__create_group` / `mcp__cpln__edit_group`)
-- **GVC** `staticPlacement.locationQuery` — select locations by query instead of explicit `locationLinks` (authored via `mcp__cpln__create_gvc` / `mcp__cpln__update_gvc`)
-- **MCP tools do NOT take a query spec** — `mcp__cpln__list_resources` has no filter param; `mcp__cpln__query_audit_events` filters by kind/name/subject/context/time; `mcp__cpln__query_metrics` takes PromQL. In MCP manifests, query specs appear only inside the resource fields above.
-- **CLI** `cpln RESOURCE query` — ad-hoc query-spec filtering from the command line
-- **API** `POST /org/ORG/RESOURCE/-query` — filter via REST
+**Not an MCP list parameter.** `list_resources` has no filter argument (list a kind, then filter the table yourself); `query_audit_events` filters by kind/name/subject/context/time; `query_metrics` takes PromQL. The query spec appears only inside the three resource fields above, set when you create or update that resource.
 
-## Query Structure
+## Structure
 
 ```yaml
-kind: workload              # resource kind to query
-fetch: items                # "items" (default) or "links"
+kind: workload          # resource kind being selected
+fetch: items            # "items" (objects, default) or "links" (references)
 spec:
-  match: all                # "all", "any", or "none"
+  match: all            # "all" (default), "any", or "none"
   terms:
     - op: "="
       tag: environment
       value: production
-    - op: "exists"
+    - op: exists
       tag: monitored
   sort:
     by: name
     order: asc
 ```
 
-### Match Modes
+## Terms
+
+Each term targets exactly **one** of three fields (mutually exclusive — the schema rejects a term that sets more than one):
+
+| Field | Targets | Example |
+|:---|:---|:---|
+| `tag` | Resource tags (key/value labels) | `tag: environment`, `value: production` |
+| `property` | Built-in properties (`name`, `description`, `status.phase`, …) | `property: name`, `value: my-app` |
+| `rel` | Relationships to other resources | `rel: gvc`, `value: my-gvc` |
+
+### Operators
+
+| Operator | Needs `value` | Meaning |
+|:---|:---:|:---|
+| `=` | yes | Equal (default when `op` is omitted) |
+| `!=` | yes | Not equal |
+| `>` `>=` `<` `<=` | yes | Numeric / date comparison |
+| `~` | yes | Pattern match (schema op name `match`) |
+| `=~` | yes | Regex match (schema op name `regex`) |
+| `contains` | yes | Substring match |
+| `exists` | no | Tag/property is present (any value) |
+| `!exists` | no | Tag/property is absent |
+
+`value` accepts a string, number, boolean, or ISO date. **Boolean values are auto-converted to strings on `tag` terms only** — store `monitored=true` and you must query `value: "true"`, not `value: true`, or it silently matches nothing.
+
+## Match modes
 
 | Mode | Behavior |
 |:---|:---|
 | `all` | Every term must match (default) |
 | `any` | At least one term matches |
-| `none` | No terms may match |
-
-## Terms
-
-Each term filters on exactly **one** of three fields (mutually exclusive):
-
-| Field | What It Targets | Example |
-|:---|:---|:---|
-| `tag` | Resource tags (key-value labels) | `tag: environment`, `value: production` |
-| `property` | Resource properties (name, description, etc.) | `property: name`, `value: my-app` |
-| `rel` | Resource relationships | `rel: gvc`, `value: my-gvc` |
-
-### Operators
-
-| Operator | Category | Requires `value` | Description |
-|:---|:---|:---:|:---|
-| `=` | Equality | Yes | Exact match (default if `op` omitted) |
-| `!=` | Equality | Yes | Not equal |
-| `>` | Comparison | Yes | Greater than |
-| `>=` | Comparison | Yes | Greater than or equal |
-| `<` | Comparison | Yes | Less than |
-| `<=` | Comparison | Yes | Less than or equal |
-| `~` | Pattern | Yes | Regex match |
-| `=~` | Pattern | Yes | Regex match (case-sensitive) |
-| `contains` | String | Yes | Substring match |
-| `exists` | Existence | No | Tag/property exists (any value) |
-| `!exists` | Existence | No | Tag/property does not exist |
+| `none` | No term may match |
 
 ## Sorting
 
-Optional. Only available via API/manifest (not exposed as CLI flags).
-
 ```yaml
 sort:
-  by: name          # required — field to sort by
-  order: asc        # "asc" (default) or "desc"
+  by: name            # required
+  order: asc          # "asc" (default) or "desc"
 ```
 
-### Common Sort Fields
+Sort is **API- and manifest-only** — the `cpln KIND query` CLI has no sort flag, so a sort directive passed there is ignored.
 
-Available for most resources: `id`, `name`, `version`, `description`, `created`, `lastModified`.
+Common fields (most kinds): `id`, `name`, `version`, `description`, `created`, `lastModified`. Kind-specific: `location` adds `origin`/`provider`/`region`; `cloudaccount` adds `provider`; `user` adds `idp`/`email`; `policy` and `group` add `origin`.
 
-Resource-specific fields:
+## CLI
 
-| Resource | Extra Sort Fields |
-|:---|:---|
-| **location** | `origin`, `provider`, `region` |
-| **cloudaccount** | `provider` |
-| **user** | `idp`, `email` |
-| **policy** | `origin` |
-| **group** | `origin` |
-
-## Where Query Specs Apply (and Where They Don't)
-
-Query specs are a **resource-field language**, not a parameter the MCP list/query tools accept:
-
-- `mcp__cpln__list_resources` has NO query/filter param — it lists a kind (org/GVC scope, `limit`); filter the returned table yourself.
-- `mcp__cpln__query_audit_events` filters by `kind`, `name`/`names`, `subject`, `context`, and a time window (`since` or `from`/`to`) — not by query spec.
-- `mcp__cpln__query_metrics` takes PromQL (label matchers like `{workload="api"}`) — a different language entirely.
-
-Query specs DO apply inside these resource fields, authored via the typed MCP tools:
-
-- Policy `targetQuery` — `mcp__cpln__create_policy` / `mcp__cpln__update_policy`
-- Group `memberQuery` — `mcp__cpln__create_group` / `mcp__cpln__edit_group`
-- GVC `staticPlacement.locationQuery` — `mcp__cpln__create_gvc` / `mcp__cpln__update_gvc`
-
-For ad-hoc query-spec filtering of resources, use the CLI (`cpln RESOURCE query`) or the `/-query` API endpoint below.
-
-## CLI Usage
-
-Every resource kind supports `cpln RESOURCE query`:
+**Ad-hoc filtering** — every kind supports `query`:
 
 ```bash
-# Filter workloads by tag
 cpln workload query --tag environment=production
-
-# Filter with multiple tags (match all)
 cpln workload query --match all --tag environment=production --tag region=europe
-
-# Filter by relation (e.g., workloads in a specific GVC)
 cpln workload query --rel gvc=my-gvc
-
-# Filter by property
 cpln policy query --prop name=my-policy
-
-# Existence check (tag exists, no value)
-cpln workload query --tag monitored
-
-# Combine tag + rel
-cpln workload query --match all --rel gvc=emea --tag payment-service=true
-
-# Match any of multiple GVCs
-cpln workload query --match any --rel gvc=gvc-one --rel gvc=gvc-two
+cpln workload query --tag monitored                       # existence (no value)
+cpln workload query --match any --rel gvc=one --rel gvc=two
 ```
 
-### CLI Query Flags
-
-| Flag | Alias | Description |
+| Flag | Alias | Notes |
 |:---|:---|:---|
-| `--match` | | Match mode: `all`, `any`, `none` (default: `all`) |
-| `--tag` | | Filter by tag: `key=value` or just `key` for existence |
-| `--property` | `--prop` | Filter by property: `key=value` |
-| `--rel` | | Filter by relation: `key=value` |
+| `--match` | | `all` / `any` / `none` (default `all`); single value |
+| `--tag` | | `KEY=VALUE`, or `KEY` for existence; repeatable |
+| `--property` | `--prop` | `KEY=VALUE`; repeatable |
+| `--rel` | | `KEY=VALUE`; repeatable |
 
-`--tag`, `--property`, and `--rel` can be repeated to add multiple terms. `--match` accepts a single value.
+Results cap at 50 by default — raise with `--max 0` for all records.
 
-**Resources supporting query:** agent, auditctx, cloudaccount, domain, group, gvc, identity, image, ipset, location, mk8s, org, policy, quota, secret, serviceaccount, task, user, volumeset, workload.
+**Authoring dynamic targeting** — `gvc`, `policy`, and `group` create/update commands embed a query via `--query-match`, `--query-tag`, `--query-property`, `--query-rel` (group also `--query-kind user`):
 
-## API Usage (Fallback)
+```bash
+cpln policy create --name img-policy --query-kind image --query-property repository=my-app ...
+```
 
-When the CLI is unavailable, every resource kind exposes a `/-query` POST endpoint:
+## API
 
 ```
-POST https://api.cpln.io/org/ORG_NAME/workload/-query
+POST https://api.cpln.io/org/ORG/workload/-query
 ```
 
 ```json
-{
-  "spec": {
-    "match": "all",
-    "terms": [
-      { "op": "=", "tag": "region", "value": "emea" },
-      { "rel": "gvc", "op": "=", "value": "mygvc" }
-    ],
-    "sort": { "by": "name", "order": "asc" }
-  }
-}
+{ "spec": { "match": "all",
+  "terms": [
+    { "op": "=", "tag": "region", "value": "emea" },
+    { "rel": "gvc", "op": "=", "value": "mygvc" }
+  ],
+  "sort": { "by": "name", "order": "asc" } } }
 ```
 
-## Policy targetQuery
+## Dynamic targeting examples
 
-Policies can dynamically target resources instead of listing them explicitly in `targetLinks`:
+**Policy `targetQuery`** — applies to matching resources, including ones created later:
 
 ```yaml
 kind: policy
-name: image-repo-policy
 targetKind: image
 targetQuery:
-  kind: image
-  fetch: items
   spec:
-    match: all
     terms:
-      - op: "="
-        property: repository
-        value: my-app
+      - { property: repository, value: my-app }
 bindings:
-  - permissions:
-      - pull
-      - view
-    principalLinks:
-      - //group/developers
+  - permissions: [pull, view]
+    principalLinks: [//group/developers]
 ```
 
-This policy automatically applies to any image whose `repository` property equals `my-app` — including images created after the policy.
-
-## Group memberQuery
-
-Groups can dynamically assign users based on user tags:
+**Group `memberQuery`** — dynamic membership by user tag (users only; service accounts must be added via `memberLinks`):
 
 ```yaml
 kind: group
-name: microsoft-users
 memberQuery:
   kind: user
-  fetch: items
   spec:
-    match: all
     terms:
-      - op: "="
-        tag: firebase/sign_in_provider
-        value: microsoft.com
+      - { tag: "firebase/sign_in_provider", value: "microsoft.com" }
 ```
 
-**Dynamic membership works for users only.** Service accounts must be added directly via `memberLinks`.
+## Defaults & gotchas
 
-## Validation Constraints
+- Omitted `op` defaults to `=`; omitted `match` defaults to `all`; omitted `fetch` defaults to `items`; omitted sort `order` defaults to `asc`.
+- Boolean tag values become strings — query `"true"`, not `true`.
+- `targetQuery` is retroactive: tag a new resource and matching policies cover it automatically — a scope to watch when granting permissions.
+- `memberQuery` ignores service accounts.
 
-From the platform schema:
+## Related
 
-- Each term uses exactly one of `tag`, `property`, or `rel` (mutually exclusive)
-- `value` is required for all operators except `exists` and `!exists`
-- `value` accepts: string, number, boolean, or date (ISO format)
-- Boolean values in tag terms are auto-converted to strings (`true` → `"true"`)
-- Default `op` is `=` if omitted
-- Default `match` is `all` if omitted
-- Default `fetch` is `items`
-- Default sort `order` is `asc`
-
-## Documentation
-
-For the latest reference, see:
-
-- [Query Reference](https://docs.controlplane.com/core/query.md)
-- [Logs Reference](https://docs.controlplane.com/core/logs.md)
+**access-control** (policy `targetQuery` / group `memberQuery` in context) · **cpln** (CLI command surface).
