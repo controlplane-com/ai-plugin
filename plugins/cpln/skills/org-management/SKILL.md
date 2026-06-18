@@ -7,7 +7,7 @@ description: "Manages organizations, billing, users, and authentication on Contr
 
 An **org** is the top-level isolation boundary: every GVC, workload, secret, policy, image, domain, user, group, and service account lives inside one, with no cross-org sharing. An org **cannot be renamed or deleted** once created (every DELETE on `/org` returns 405) and its name is **globally unique** across all of Control Plane — so the first job is choosing a name you can live with permanently.
 
-> **Tool profiles:** the org-settings, group, service-account, and invite tools live in the `full` MCP toolset; only `list_quotas` and the generic `list_resources`/`get_resource`/`delete_resource` reads are in `core`. If a tool below is not advertised, reconnect with `?toolsets=full` or use the `cpln` CLI fallback.
+> **Tool availability:** the org-settings, group, service-account, and invite tools live in the `full` MCP toolset; only `list_quotas` and the generic `list_resources`/`get_resource`/`delete_resource` reads are in `core`. If a tool below is not advertised, reconnect with `?toolsets=full` or use the `cpln` CLI fallback.
 
 ## Organization
 
