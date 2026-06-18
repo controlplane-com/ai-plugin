@@ -128,6 +128,7 @@
     "install_template": "template-catalog",
     "upgrade_template": "template-catalog",
     "rollback_template": "template-catalog",
+    "uninstall_template": "template-catalog",
     "create_mk8s_aws": "mk8s-byok",
     "update_mk8s_aws": "mk8s-byok",
     "create_mk8s_azure": "mk8s-byok",
