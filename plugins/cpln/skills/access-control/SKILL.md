@@ -145,7 +145,8 @@ Members are **users and service accounts only** (≤ 200). Bind policies to grou
 | Org creation, billing, profiles, SSO | `org-management` |
 | Audit trail of policy / access changes | `audit-compliance` |
 | Full workload secret-access flow | `setup-secret` |
-| Workload identities, cloud identity | `native-networking` |
+| Credential-free cloud access (AWS / GCP / Azure / NGS) | `setup-cloud-access` |
+| Workload identities, private-network connectivity | `native-networking` |
 
 ## Documentation
 

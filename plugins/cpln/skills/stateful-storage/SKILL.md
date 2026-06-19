@@ -9,6 +9,8 @@ description: "Creates persistent storage for stateful workloads on Control Plane
 
 A **VolumeSet** is GVC-scoped persistent storage for workloads. The `workload` skill covers the basics (stateful type, reserved mount paths, the 15-volume limit, create-then-verify); this skill is the full volume-set detail. The one trap that drives most rework: **`fileSystemType` and `performanceClass` are immutable** (a PATCH that changes either returns HTTP 400) — to change either you must create a new volumeset, and the old data does not carry over. Choose both at creation.
 
+**Most databases don't need this skill:** `template-catalog` installs Postgres, Redis, MySQL, MongoDB, and more with the volumeset, snapshots, and credentials already wired — hand-build only for a custom app or an unsupported engine.
+
 ## Filesystem types and performance classes
 
 | Filesystem | Access | Workloads | Volumes provisioned | Snapshots / shrink / delete-volume |

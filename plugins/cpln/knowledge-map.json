@@ -64,6 +64,15 @@
     "query-spec": {
       "companions": []
     },
+    "setup-agent": {
+      "companions": []
+    },
+    "setup-cloud-access": {
+      "companions": []
+    },
+    "setup-secret": {
+      "companions": []
+    },
     "stateful-storage": {
       "companions": []
     },
@@ -86,8 +95,8 @@
     "add_key_to_service_account": "access-control",
     "create_identity": "access-control",
     "update_identity": "access-control",
-    "create_cloud_account": "access-control",
-    "update_cloud_account": "access-control",
+    "create_cloud_account": "setup-cloud-access",
+    "update_cloud_account": "setup-cloud-access",
     "update_org": "org-management",
     "mount_volumeset_to_workload": "stateful-storage",
     "expand_volumeset": "stateful-storage",
@@ -151,6 +160,7 @@
     "update_mk8s_paperspace": "mk8s-byok",
     "create_mk8s_generic": "mk8s-byok",
     "update_mk8s_generic": "mk8s-byok",
-    "workload_exec": "workload"
+    "workload_exec": "workload",
+    "workload_reveal_secret": "setup-secret"
   }
 }

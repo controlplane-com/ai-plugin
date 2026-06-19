@@ -12,7 +12,7 @@ A Control Plane workload reaches a private or cross-cloud endpoint through an **
 - **Native networking** (`nativeNetworkResources`) — cloud-native private connectivity over **AWS PrivateLink** or **GCP Private Service Connect**. No agent, lowest latency, no public-internet traversal. The catch: the consumer-side endpoint is created by **Control Plane support**, not self-service.
 - **Agent / wormhole** (`networkResources`) — a lightweight VM or container you run inside the target network that tunnels TCP traffic. Self-service, works for **any** network (VPC, on-prem, cross-cloud, Azure, a laptop), but throughput depends on the agent instance size.
 
-> **Scope:** this skill is the reference for the comparison, producer-side setup, the identity schema, agent sizing, and permissions. For the agent **deployment walkthrough** (create, generate K8s/Docker/VM artifacts, wire up the identity, verify the tunnel), delegate to the **cpln-agent-setup** agent.
+> **Scope:** this skill is the reference for the comparison, producer-side setup, the identity schema, agent sizing, and permissions. For the agent **deployment walkthrough** (create, generate K8s/Docker/VM artifacts, wire up the identity, verify the tunnel), delegate to the **setup-agent** skill.
 
 ## Choosing an option
 
@@ -68,7 +68,7 @@ nativeNetworkResources:
 
 An agent runs inside the target network and opens a persistent **outbound** connection to Control Plane; workload requests are tunneled through it (workload, Control Plane, agent, private endpoint). Use it for on-prem, cross-cloud, Azure, or local development — anywhere PrivateLink/PSC does not reach.
 
-The deployment flow (create the agent, deploy it, attach `networkResources`, verify) is owned by the **cpln-agent-setup** agent. The pieces that belong here regardless of how it is deployed:
+The deployment flow (create the agent, deploy it, attach `networkResources`, verify) is owned by the **setup-agent** skill. The pieces that belong here regardless of how it is deployed:
 
 ```yaml
 networkResources:
