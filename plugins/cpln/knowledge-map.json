@@ -84,6 +84,9 @@
     },
     "workload-security": {
       "companions": []
+    },
+    "workload-troubleshooting": {
+      "companions": []
     }
   },
   "toolSkills": {
@@ -161,6 +164,9 @@
     "create_mk8s_generic": "mk8s-byok",
     "update_mk8s_generic": "mk8s-byok",
     "workload_exec": "workload",
-    "workload_reveal_secret": "setup-secret"
+    "workload_reveal_secret": "setup-secret",
+    "get_workload_events": "workload-troubleshooting",
+    "get_workload_logs": "workload-troubleshooting",
+    "list_workload_replicas": "workload-troubleshooting"
   }
 }
