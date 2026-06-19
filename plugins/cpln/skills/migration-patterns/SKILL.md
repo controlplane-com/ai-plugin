@@ -50,7 +50,7 @@ Resources that shape the conversion without becoming their own resource: **Servi
 
 **PVC performance class:** `io1`, `io2`, `pd-extreme`, `UltraSSD_LRS`, `thick`, `fast`, `persistent_1` map to `high-throughput-ssd` (matched on the StorageClass parameter value); everything else — `gp2`, `gp3`, the default — maps to `general-purpose-ssd`.
 
-**Port protocol** (when `--protocol` is not forced): first match of Service `appProtocol`, Service port-name prefix, container port-name prefix, probe type, then well-known port number; default `tcp`.
+**Port protocol** (when `--protocol` is not forced): Service `appProtocol` wins outright; otherwise the converter gathers hints from the Service and container port-name prefixes, the probe type, and the port number, then picks the most specific (grpc > http2 > http > tcp); default `tcp`.
 
 The converter auto-creates an identity `identity-<workload>` and policy `policy-<workload>` granting `reveal` for every workload that references secrets. When `--gvc` is omitted, workload links carry a `{{GVC}}` placeholder — replace it before applying.
 
@@ -59,7 +59,7 @@ The converter auto-creates an identity `identity-<workload>` and policy `policy-
 The converter translates structure faithfully but **warns on only two things** — a ConfigMap/Secret name collision (it renames the ConfigMap with a `-config` suffix) and an `acceptAll*` domain needing a dedicated load balancer. Everything below changes or disappears **silently**, so diff the source against the output.
 
 - **Scaling is pinned, not autoscaled.** A converted workload gets `minScale = maxScale =` the Deployment's `replicas` (or `1` if unset) with `capacityAI: false` — no headroom. An HPA, if present, supplies min/max and a CPU target. Raise `maxScale` above `minScale` for anything that should scale, keep customer-facing `minScale ≥ 2`, and consider Capacity AI (autoscaling-capacity skill).
-- **Silently dropped from the pod spec** (the workload runs, but differently): `envFrom` (bulk ConfigMap/Secret env — re-add the keys as `env` or a mounted dictionary secret), `initContainers` (migrations/setup — run as a separate cron workload or an entrypoint step), `startupProbe` (only liveness/readiness carry over), container `securityContext` except `fsGroup`, and `hostPath` volumes. `emptyDir` becomes a `scratch://` volume.
+- **Silently dropped from the pod spec** (the workload runs, but differently): `envFrom` (bulk ConfigMap/Secret env — re-add the keys as `env` or a mounted dictionary secret), `initContainers` (migrations/setup — run as a separate cron workload or an entrypoint step), `startupProbe` (only liveness/readiness carry over), container-level `securityContext` (only the pod-level `securityContext.fsGroup` carries over, as `filesystemGroupId`), and `hostPath` volumes. `emptyDir` becomes a `scratch://` volume.
 - **Not converted at all** (no resource, no warning): NetworkPolicy, PodDisruptionBudget, RBAC, ResourceQuota/LimitRange, ServiceMonitor and other CRDs, and Namespaces — every namespace collapses into the one target GVC. Re-express network rules as the workload firewall (firewall-networking skill) and RBAC as policies (access-control skill).
 - **Images stay literal, sizing is minimal.** `image: nginx:1.25` is kept verbatim, not rewritten to an internal `//image/` ref. `imagePullSecrets` (pod or ServiceAccount) carry over as `//secret/NAME`, but the secret must already exist for a private registry to pull. A container with no `resources` set defaults to a tiny `50m` CPU / `128Mi` memory — size it for production.
 
