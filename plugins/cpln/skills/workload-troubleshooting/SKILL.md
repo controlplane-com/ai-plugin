@@ -17,7 +17,7 @@ The symptom-first companion to the `workload` skill (which owns workload types, 
 | `mcp__cpln__get_resource` (kind=`workload`) | The spec and current status. |
 | `mcp__cpln__list_metrics` then `mcp__cpln__query_metrics` | Resource pressure — memory before OOM, CPU, latency. |
 | `mcp__cpln__list_workload_replicas` then `mcp__cpln__workload_exec` | Inspect a live replica. **`workload_exec` runs in a production container and is audit-logged — read-only commands only** (`ls`, `cat`, `env`, `netstat`); confirm before anything that mutates. |
-| `mcp__cpln__query_traces` then `mcp__cpln__get_trace` | For a slow or intermittently failing request: which span in the path spent the time or errored. Requires tracing enabled on the GVC (opt-in); deep dive in `metrics-observability`. |
+| `mcp__cpln__query_traces` then `mcp__cpln__get_trace` | For a slow or intermittently failing request: which span in the path spent the time or errored. **Full profile**; needs tracing enabled on the GVC (opt-in). Deep dive in `metrics-observability`. |
 
 CLI fallback (MCP unavailable, interactive shell, or CI/CD):
 
