@@ -26,6 +26,7 @@
     "setup-cloud-access": {},
     "setup-secret": {},
     "stateful-storage": {},
+    "tag": {},
     "template-catalog": {},
     "workload": {},
     "workload-security": {},
