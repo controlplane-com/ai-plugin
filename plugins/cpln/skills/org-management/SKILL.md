@@ -98,7 +98,7 @@ REST/API calls use `Authorization: Bearer TOKEN` against `https://api.cpln.io`; 
 
 The Console signs in via **Google, GitHub, Microsoft, and SAML** (Firebase-backed). Each user gets a built-in `firebase/sign_in_provider` tag set automatically from the provider used. After sign-in, access is governed entirely by group membership and policies — wire users in with `mcp__cpln__edit_group`, `mcp__cpln__create_policy`, and `mcp__cpln__invite_user_to_org`.
 
-`authConfig.samlOnly` and `domainAutoMembers` are set with `update_org`, but **turning SAML on (IdP/provider setup) is support-gated** — email support@controlplane.com; there is no self-serve tool. The Service Provider metadata you give your IdP (Entity ID, ACS/callback URL) is shown on the Console SAML setup screen — read the exact values there rather than hard-coding them.
+`authConfig.samlOnly` and `domainAutoMembers` are set with `update_org`, but **turning SAML on (IdP/provider setup) is support-gated** — email support@controlplane.com or ping support on Slack; there is no self-serve tool. The Service Provider metadata you give your IdP (Entity ID, ACS/callback URL) is shown on the Console SAML setup screen — read the exact values there rather than hard-coding them.
 
 ## Org permissions (for policies)
 

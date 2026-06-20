@@ -44,7 +44,7 @@ Traffic flows from the workload, through Control Plane infrastructure, to your c
      gcloud sql instances patch INSTANCE --enable-private-service-connect --allowed-psc-projects=cpln-prod01
      ```
      The allowed consumer project must be **`cpln-prod01`**. Cloud SQL must use a private IP only.
-2. **Hand the service name (AWS) / service attachment (GCP) plus the region to `support@controlplane.com`.** They create the consumer-side endpoint and associate it with your org.
+2. **Hand the service name (AWS) / service attachment (GCP) plus the region to `support@controlplane.com` (or ping support on Slack).** They create the consumer-side endpoint and associate it with your org.
 3. **AWS only:** accept the connection in the AWS console (VPC, Endpoint Services, Pending endpoint connections, Accept). Cloud SQL connections are accepted automatically.
 4. **Add a `nativeNetworkResources` entry** to the identity (tools and schema below), then attach the identity to the workload.
 

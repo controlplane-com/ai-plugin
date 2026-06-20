@@ -180,7 +180,7 @@ Contributions are welcome. See `CONTRIBUTING.md` for development, safety, and re
 ## Support
 
 - Product docs: [docs.controlplane.com](https://docs.controlplane.com)
-- Control Plane support: `support@controlplane.com`
+- Control Plane support: `support@controlplane.com` or ping us on Slack
 - Security issues: follow [SECURITY.md](SECURITY.md)
 
 ## License

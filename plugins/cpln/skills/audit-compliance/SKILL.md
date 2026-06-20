@@ -100,7 +100,7 @@ curl -H "Content-Type: application/json" \
 
 ## Compliance
 
-Control Plane is **PCI DSS Level 1** and **SOC 2 Type II** certified (audited by Prescient Assurance). For the SOC 2 report or PCI Attestation of Compliance, contact [support@controlplane.com](mailto:support@controlplane.com); the [PCI Responsibility Matrix](https://controlplane.com/downloads/Control_Plane_PCI_Responsibilities_Matrix.pdf) is public. Stripe handles all payment data.
+Control Plane is **PCI DSS Level 1** and **SOC 2 Type II** certified (audited by Prescient Assurance). For the SOC 2 report or PCI Attestation of Compliance, contact support on Slack or [support@controlplane.com](mailto:support@controlplane.com); the [PCI Responsibility Matrix](https://controlplane.com/downloads/Control_Plane_PCI_Responsibilities_Matrix.pdf) is public. Stripe handles all payment data.
 
 ## Quick reference — MCP tools
 
