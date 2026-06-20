@@ -1,93 +1,35 @@
 {
   "version": 1,
   "skills": {
-    "access-control": {
-      "companions": []
-    },
-    "audit-compliance": {
-      "companions": []
-    },
-    "autoscaling-capacity": {
-      "companions": []
-    },
-    "cdn-rate-limiting": {
-      "companions": []
-    },
-    "cpln": {
-      "companions": []
-    },
-    "domain": {
-      "companions": []
-    },
-    "environment-promotion": {
-      "companions": []
-    },
-    "external-logging": {
-      "companions": []
-    },
-    "firewall-networking": {
-      "companions": []
-    },
-    "gitops-cicd": {
-      "companions": []
-    },
-    "iac-terraform-pulumi": {
-      "companions": []
-    },
-    "image": {
-      "companions": []
-    },
-    "ipset-load-balancing": {
-      "companions": []
-    },
-    "k8s-operator": {
-      "companions": []
-    },
-    "logql-observability": {
-      "companions": []
-    },
-    "metrics-observability": {
-      "companions": []
-    },
-    "migration-patterns": {
-      "companions": []
-    },
-    "mk8s-byok": {
-      "companions": []
-    },
-    "native-networking": {
-      "companions": []
-    },
-    "org-management": {
-      "companions": []
-    },
-    "query-spec": {
-      "companions": []
-    },
-    "setup-agent": {
-      "companions": []
-    },
-    "setup-cloud-access": {
-      "companions": []
-    },
-    "setup-secret": {
-      "companions": []
-    },
-    "stateful-storage": {
-      "companions": []
-    },
-    "template-catalog": {
-      "companions": []
-    },
-    "workload": {
-      "companions": []
-    },
-    "workload-security": {
-      "companions": []
-    },
-    "workload-troubleshooting": {
-      "companions": []
-    }
+    "access-control": {},
+    "audit-compliance": {},
+    "autoscaling-capacity": {},
+    "cdn-rate-limiting": {},
+    "cpln": {},
+    "domain": {},
+    "environment-promotion": {},
+    "external-logging": {},
+    "firewall-networking": {},
+    "gitops-cicd": {},
+    "iac-terraform-pulumi": {},
+    "image": {},
+    "ipset-load-balancing": {},
+    "k8s-operator": {},
+    "logql-observability": {},
+    "metrics-observability": {},
+    "migration-patterns": {},
+    "mk8s-byok": {},
+    "native-networking": {},
+    "org-management": {},
+    "query-spec": {},
+    "setup-agent": {},
+    "setup-cloud-access": {},
+    "setup-secret": {},
+    "stateful-storage": {},
+    "template-catalog": {},
+    "workload": {},
+    "workload-security": {},
+    "workload-troubleshooting": {}
   },
   "toolSkills": {
     "create_policy": "access-control",
