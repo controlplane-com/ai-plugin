@@ -7,7 +7,7 @@
     "email": "support@controlplane.com",
     "url": "https://controlplane.com"
   },
-  "homepage": "https://docs.controlplane.com/mcp/ai-plugin",
+  "homepage": "https://docs.controlplane.com/ai/ai-plugin",
   "repository": "https://github.com/controlplane-com/ai-plugin",
   "license": "MIT",
   "keywords": [
@@ -36,8 +36,8 @@
       "Write"
     ],
     "websiteURL": "https://controlplane.com",
-    "privacyPolicyURL": "https://controlplane.com/privacy",
-    "termsOfServiceURL": "https://controlplane.com/terms",
+    "privacyPolicyURL": "https://controlplane.com/privacy-policy",
+    "termsOfServiceURL": "https://controlplane.com/terms-of-use",
     "defaultPrompt": [
       "Deploy a workload to Control Plane with autoscaling and firewall rules.",
       "Troubleshoot why my workload is not starting.",

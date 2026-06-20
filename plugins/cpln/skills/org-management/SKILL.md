@@ -155,4 +155,4 @@ The Console signs in via **Google, GitHub, Microsoft, and SAML** (Firebase-backe
 
 - [Org Reference](https://docs.controlplane.com/reference/org.md) · [Org Concepts](https://docs.controlplane.com/concepts/org.md)
 - [Create Org](https://docs.controlplane.com/guides/create-org.md) · [Invite Users](https://docs.controlplane.com/guides/invite-users.md)
-- [Manage Profile](https://docs.controlplane.com/guides/manage-profile.md) · [Authentication](https://docs.controlplane.com/core/authentication.md)
+- [Manage Profile](https://docs.controlplane.com/cli-reference/get-started/profiles.md) · [Authentication](https://docs.controlplane.com/core/authentication.md)

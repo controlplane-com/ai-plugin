@@ -144,4 +144,4 @@ CI/CD and headless use: set `CPLN_TOKEN` and run `cpln logs` directly (no profil
 - [Logs Reference](https://docs.controlplane.com/core/logs.md)
 - [CLI logs Command](https://docs.controlplane.com/cli-reference/commands/logs.md)
 - [External Logging Overview](https://docs.controlplane.com/external-logging/overview.md)
-- [LogQL (upstream Grafana reference)](https://grafana.com/docs/loki/latest/logql/)
+- [LogQL (upstream Grafana reference)](https://grafana.com/docs/loki/latest/query/)
