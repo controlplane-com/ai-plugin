@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Added
 
+### Changed
+
+### Fixed
+
+### Removed
+
+## [1.5.0] - 2026-06-21
+
+### Added
+
 - New `tag` skill for resource tagging and tag-based selection.
 - New `workload-troubleshooting` skill, loaded on demand by the troubleshooter agent.
 
