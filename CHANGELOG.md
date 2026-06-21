@@ -8,11 +8,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Added
 
+- New `tag` skill for resource tagging and tag-based selection.
+- New `workload-troubleshooting` skill, loaded on demand by the troubleshooter agent.
+
 ### Changed
+
+- Continued the accuracy and token-efficiency pass across the remaining skills and agents.
+- Setup workflows (secret, cloud access, agent) are now on-demand skills instead of standalone agents and commands.
+- Destructive operations are now single-call with explicit approval, replacing the two-phase preview.
+- Hardened the operating guardrails around secrets, fabricated commands, placeholder resources, and public-workload checks.
+- Cron config folded back into `create_workload` / `update_workload`.
 
 ### Fixed
 
-### Removed
+- Corrected stale documentation and policy links.
 
 ## [1.4.4] - 2026-06-12
 
