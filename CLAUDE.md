@@ -22,7 +22,7 @@ End-user install and capability docs live in `README.md`. Development principles
 | `.claude-plugin/marketplace.json` | Claude marketplace entry. Source: `"./plugins/cpln"`. |
 | `.agents/plugins/marketplace.json` | Codex marketplace entry. |
 | `.cursor-plugin/marketplace.json` | Cursor marketplace entry. |
-| `gemini-extension.json` + `GEMINI.md` + `hooks/hooks.json` | Gemini extension manifest, runtime guardrails, and SessionStart hook. Gemini treats the repo root as its extension dir. |
+| `gemini-extension.json` + `hooks/hooks.json` | Gemini extension manifest and SessionStart hook; the hook injects the same `cpln-guardrails.md` as Claude/Codex (via `inject-rules.sh`), so Gemini needs no separate guardrail context file. Gemini treats the repo root as its extension dir. |
 
 Each per-client MCP config (`.claude-mcp.json`, `.codex-plugin/mcp.json`, `.cursor-plugin/mcp.json`, MCP block in `gemini-extension.json`) points at the hosted server `https://mcp.cpln.io/mcp`. Keep them in sync when changing URL or auth shape.
 
