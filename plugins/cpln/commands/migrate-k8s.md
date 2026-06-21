@@ -4,46 +4,13 @@ description: Migrate Kubernetes manifests, Docker Compose projects, or Helm char
 argument-hint: "[path-to-manifest-or-directory] [--from k8s|compose|helm]"
 ---
 
-# Migrate to Control Plane
+Migrate the Kubernetes, Docker Compose, or Helm source the user pointed to onto Control Plane.
 
-Convert and deploy workloads from Kubernetes, Docker Compose, or Helm.
+Use the **cpln-k8s-migrator** agent — it loads the `migration-patterns` skill (the canonical conversion reference) and carries the migration end to end:
 
-## Usage
+1. Identify the source and pick the converter (CLI-only, no MCP equivalent): `cpln convert` for Kubernetes manifests (pipe `helm template` output in for a Helm chart), `cpln stack` for Docker Compose, or `cpln helm` to deploy a chart that already renders Control Plane resources.
+2. Convert to a file and review it — diff the source against the output for what the converter changed or silently dropped (pinned scaling, `envFrom`, init containers, NetworkPolicy/RBAC, minimal sizing).
+3. Provision in dependency order, MCP-first via the typed `create_*` tools (GVC, then secrets, identities, volumesets, workloads, domains); fall back to `cpln apply -f` when MCP is unavailable or in CI/CD.
+4. Verify every workload is ready across its locations and report the canonical endpoint — never a constructed URL.
 
-```
-/cpln:migrate-k8s deployment.yaml
-/cpln:migrate-k8s ./k8s-manifests/
-/cpln:migrate-k8s --from compose
-/cpln:migrate-k8s --from helm ./chart/
-```
-
-## What It Does
-
-1. Analyzes source manifests and identifies resource types
-2. Runs the appropriate conversion tool — source translation is CLI-exclusive (no MCP equivalent): `cpln convert` (K8s/Helm), `cpln stack` (Compose), or `cpln helm` (CPLN-native charts)
-3. Validates workload type detection (cron > stateful > standard)
-4. Checks for known conversion issues (port inference, secret mapping, PVC sizing)
-5. Reviews converted manifests for Control Plane best practices — calls `mcp__cpln__get_resource_schema` to correct fields against the live schema
-6. Applies in dependency order, MCP-first via the create tools (`mcp__cpln__create_gvc`, `mcp__cpln__create_secret_<type>`, `mcp__cpln__create_identity`, `mcp__cpln__create_workload`, `mcp__cpln__create_volumeset`); falls back to `cpln apply -f` when the MCP server is unavailable or in CI/CD. For an IaC target, emits Terraform with `mcp__cpln__convert_to_terraform` / `mcp__cpln__export_terraform`
-
-## Supported Sources
-
-- **Kubernetes**: Deployments, StatefulSets, CronJobs, Jobs, DaemonSets, Services, Ingresses, Secrets, ConfigMaps, PVCs
-- **Docker Compose**: Services, volumes, networks, secrets
-- **Helm**: Charts from local path or OCI registry
-
-## When to Use
-
-- Migrating existing workloads to Control Plane
-- Converting Kubernetes manifests for the first time
-- Deploying Docker Compose projects to the cloud
-- Installing Helm charts on Control Plane
-
-
-## Framework-Specific Syntax
-
-- **Claude Code**: `/cpln:migrate-k8s ARGS`
-- **Gemini CLI**: `/migrate-k8s ARGS` (omit the `cpln:` prefix; on name conflict, use `/cpln.migrate-k8s`)
-- **Codex**: commands not supported — invoke the matching agent skill or MCP tool directly
-
-Invokes the **cpln-k8s-migrator** agent.
+If the org or target GVC isn't named, ask — never guess.

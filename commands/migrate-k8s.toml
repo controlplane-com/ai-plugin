@@ -3,11 +3,11 @@ description = "Migrate Kubernetes manifests, Docker Compose projects, or Helm ch
 prompt = """
 Migrate to Control Plane from Kubernetes, Docker Compose, or Helm: {{args}}
 
-Use the cpln-k8s-migrator agent to:
-1. Analyze source manifests and identify resource types
-2. Run the appropriate conversion tool (cpln convert, cpln stack, or cpln helm)
-3. Validate workload type detection (cron > stateful > standard)
-4. Check for known conversion issues (port inference, secret mapping, PVC sizing)
-5. Review converted manifests for Control Plane best practices
-6. Apply with correct dependency ordering
+Use the cpln-k8s-migrator agent — it loads the migration-patterns skill (the canonical conversion reference) and carries the migration end to end:
+1. Identify the source and pick the converter (CLI-only): cpln convert for Kubernetes manifests (pipe `helm template` output in for a Helm chart), cpln stack for Docker Compose, or cpln helm to deploy a chart that already renders Control Plane resources.
+2. Convert to a file and review it — diff the source against the output for what the converter changed or silently dropped (pinned scaling, envFrom, init containers, NetworkPolicy/RBAC, minimal sizing).
+3. Provision in dependency order, MCP-first via the typed create_* tools (GVC, then secrets, identities, volumesets, workloads, domains); fall back to cpln apply -f when MCP is unavailable or in CI/CD.
+4. Verify every workload is ready across its locations and report the canonical endpoint — never a constructed URL.
+
+If the org or target GVC isn't named, ask — never guess.
 """
