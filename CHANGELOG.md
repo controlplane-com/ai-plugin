@@ -6,13 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
-### Added
-
-### Changed
-
 ### Fixed
 
-### Removed
+- Plugin hooks config now loads in Codex; its strict parser rejected the editor-only `$schema` hint.
 
 ## [1.5.0] - 2026-06-21
 
