@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Added
 
+### Changed
+
+### Fixed
+
+### Removed
+
+## [1.6.0] - 2026-06-23
+
+### Added
+
 - Antigravity CLI (`agy`) support.
 
 ### Changed
