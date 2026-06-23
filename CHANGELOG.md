@@ -8,11 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Added
 
+- Antigravity CLI (`agy`) support.
+
 ### Changed
 
-### Fixed
+- Every client now connects to the MCP server with the full toolset.
 
 ### Removed
+
+- Gemini CLI support — use Antigravity CLI (`agy`) instead.
 
 ## [1.5.1] - 2026-06-22
 

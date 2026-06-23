@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "cpln": {
+      "serverUrl": "https://mcp.cpln.io/mcp?toolsets=full"
+    }
+  }
+}

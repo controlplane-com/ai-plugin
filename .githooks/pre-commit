@@ -1,18 +1,11 @@
 #!/usr/bin/env bash
 #
-# Pre-commit hook for the ai-plugin repo. Runs the same content gates as CI
-# (.github/workflows/checks.yml) so a broken commit fails locally instead of in
-# CI, and keeps the Gemini-facing mirrors in sync automatically.
+# Pre-commit hook for the ai-plugin repo. Runs the same content gate as CI
+# (.github/workflows/checks.yml) so a broken commit fails locally instead of
+# in CI.
 #
-# Jobs, in order:
-#   1. Mirror sync — when a skill/agent source under plugins/cpln/ is staged,
-#      regenerate the repo-root skills/ and agents/ mirrors and stage them, so
-#      the commit stays self-consistent without anyone running the script.
-#   2. Mirror parity — fail if a generated skills/ or agents/ mirror drifts from
-#      its plugins/cpln/ source (catches a hand-edited mirror).
-#   3. Tool mentions — fail if any MCP tool named in skills/rules/agents/commands
-#      is unknown to the registry or omits its toolset-profile marker. This is
-#      the gate that previously only tripped in CI / a manual run, never here.
+# Tool mentions — fail if any MCP tool named in skills/rules/agents/commands
+# is unknown to the registry or omits its toolset-profile marker.
 #
 # Enable once per clone with:
 #   git config core.hooksPath .githooks
@@ -25,16 +18,9 @@ staged_match() {
   git diff --cached --name-only --diff-filter=ACMRD | grep -qE "$1"
 }
 
-# 1. Regenerate + stage the Gemini mirror when its source changes.
-if staged_match '^plugins/cpln/(skills|agents)/'; then
-  "$REPO_ROOT/scripts/sync-gemini-content.sh" >/dev/null
-  git add "$REPO_ROOT/skills" "$REPO_ROOT/agents"
-fi
-
-# 2 + 3. Run CI's content gates whenever plugin content — or a generated mirror —
-#         is staged. Skips commits that touch only manifests, docs, or scripts.
-if staged_match '^(plugins/cpln/(skills|rules|agents|commands)|skills|agents|commands)/'; then
-  "$REPO_ROOT/scripts/sync-gemini-content.sh" --check
+# Run CI's content gate whenever plugin content is staged. Skips commits that
+# touch only manifests, docs, or scripts.
+if staged_match '^plugins/cpln/(skills|rules|agents|commands)/'; then
   if ! command -v node >/dev/null 2>&1; then
     echo "pre-commit: node is required to run scripts/check-tool-mentions.mjs" >&2
     exit 1

@@ -1,10 +1,9 @@
 name: Checks
 
-# Content validation on every push/PR (the release workflow only fires on version tags):
-#   1. The Gemini mirrors (skills/, agents/ at the repo root) match plugins/cpln/.
-#   2. Every MCP tool mentioned in skills/rules/agents/commands exists in the MCP server's
-#      registry and respects toolset-profile visibility (see scripts/check-tool-mentions.mjs;
-#      regenerate scripts/tools-manifest.json from the MCP server repo when tools change).
+# Content validation on every push/PR (the release workflow only fires on version tags).
+# Checks that every MCP tool mentioned in skills/rules/agents/commands exists in the MCP
+# server's registry and respects toolset-profile visibility (see scripts/check-tool-mentions.mjs;
+# regenerate scripts/tools-manifest.json from the MCP server repo when tools change).
 
 on:
   push:
@@ -13,14 +12,11 @@ on:
 
 jobs:
   validate:
-    name: Mirrors and tool mentions
+    name: Tool mentions
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Gemini mirrors are in sync
-        run: scripts/sync-gemini-content.sh --check
 
       - name: Tool mentions exist and respect toolset profiles
         run: node scripts/check-tool-mentions.mjs

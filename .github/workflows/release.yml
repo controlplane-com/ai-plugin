@@ -1,7 +1,7 @@
 name: Release
 
 # Triggered when a version tag is pushed (e.g. v1.1.0). The job:
-#   1. Verifies all four plugin manifests carry the same version as the tag.
+#   1. Verifies all plugin manifests carry the same version as the tag.
 #   2. Validates every JSON manifest parses.
 #   3. Extracts the matching CHANGELOG section and creates a GitHub Release
 #      with notes + install snippets + a compare link to the previous tag.
@@ -60,7 +60,7 @@ jobs:
           check plugins/cpln/.cursor-plugin/plugin.json '.version'
           check .cursor-plugin/marketplace.json '.metadata.version'
           check .cursor-plugin/marketplace.json '.plugins[0].version'
-          check gemini-extension.json '.version'
+          check plugins/cpln/plugin.json '.version'
           [ "$fail" -eq 0 ] || exit 1
 
       - name: Validate JSON syntax
@@ -69,8 +69,8 @@ jobs:
             .claude-plugin/marketplace.json \
             .agents/plugins/marketplace.json \
             .cursor-plugin/marketplace.json \
-            gemini-extension.json \
-            hooks/hooks.json \
+            plugins/cpln/plugin.json \
+            plugins/cpln/mcp_config.json \
             plugins/cpln/.claude-plugin/plugin.json \
             plugins/cpln/.codex-plugin/plugin.json \
             plugins/cpln/.codex-plugin/mcp.json \
@@ -78,9 +78,6 @@ jobs:
             plugins/cpln/.cursor-plugin/mcp.json \
             plugins/cpln/.claude-mcp.json \
             plugins/cpln/hooks/cpln-hooks.json
-
-      - name: Validate Gemini skills/agents mirror is in sync
-        run: scripts/sync-gemini-content.sh --check
 
       - name: Extract release notes from CHANGELOG
         id: notes
@@ -128,7 +125,7 @@ jobs:
             printf '%s\n' "$NOTES"
             printf '\n---\n\n'
             printf '## Update an existing install\n\n'
-            printf 'If you already have the plugin installed, use the per-client commands below to pull this release. None of the three clients auto-update third-party plugins by default.\n\n'
+            printf 'If you already have the plugin installed, use the per-client commands below to pull this release. None of these clients auto-update third-party plugins by default.\n\n'
             printf '**Claude Code**\n\n'
             printf '```text\n'
             printf '/plugin marketplace update controlplane\n'
@@ -140,28 +137,27 @@ jobs:
             printf 'codex plugin marketplace upgrade controlplane\n'
             printf '```\n\n'
             printf 'Restart Codex so the upgraded plugin manifest is picked up.\n\n'
-            printf '**Gemini CLI**\n\n'
+            printf '**Antigravity CLI**\n\n'
+            printf 'Antigravity has no dedicated update command — reinstall to pull the latest:\n\n'
             printf '```bash\n'
-            printf 'gemini extensions update cpln\n'
-            printf '# or, to update every installed extension at once:\n'
-            printf 'gemini extensions update --all\n'
+            printf 'agy plugin uninstall cpln\n'
+            printf 'agy plugin install https://github.com/%s/plugins/cpln\n' "$REPO"
             printf '```\n\n'
             printf '## First-time install\n\n'
             printf '**Claude Code**\n\n'
             printf '```text\n'
-            printf '/plugin marketplace add %s\n' "$REPO"
+            printf '/plugin marketplace add https://github.com/%s.git\n' "$REPO"
             printf '/plugin install cpln@controlplane\n'
             printf '/reload-plugins\n'
             printf '```\n\n'
             printf '**Codex**\n\n'
             printf '```bash\n'
-            printf 'codex plugin marketplace add %s\n' "$REPO"
+            printf 'codex plugin marketplace add https://github.com/%s.git\n' "$REPO"
             printf '```\n\n'
             printf 'Then start Codex, open `/plugins`, and install `cpln` from the Control Plane marketplace.\n\n'
-            printf '**Gemini CLI**\n\n'
+            printf '**Antigravity CLI**\n\n'
             printf '```bash\n'
-            printf 'gemini extensions install https://github.com/%s.git\n' "$REPO"
-            printf '# add --auto-update to opt into automatic updates for future releases\n'
+            printf 'agy plugin install https://github.com/%s/plugins/cpln\n' "$REPO"
             printf '```\n\n'
             printf '**Generic MCP client** — point it at `https://mcp.cpln.io/mcp`. OAuth 2.1 sign-in handles authorization on first use. See README for the config snippet.\n\n'
             if [ -n "$PREVIOUS_TAG" ]; then

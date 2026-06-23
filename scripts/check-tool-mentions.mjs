@@ -95,15 +95,12 @@ function* walk(dir, exts) {
   }
 }
 
-// Source content only: skills/ and agents/ at the repo root are generated mirrors
-// (scripts/sync-gemini-content.sh --check enforces parity); commands/*.toml at the root
-// are hand-maintained, so they are scanned.
+// Source content lives under plugins/cpln/. Scan skills, rules, agents, and
+// commands for MCP tool mentions.
 for (const dir of ['skills', 'rules', 'agents', 'commands']) {
   const full = path.join(PLUGIN, dir);
   if (fs.existsSync(full)) for (const file of walk(full, ['.md'])) checkFile(file);
 }
-const rootCommands = path.join(ROOT, 'commands');
-if (fs.existsSync(rootCommands)) for (const file of walk(rootCommands, ['.toml'])) checkFile(file);
 
 // knowledge-map toolSkills keys are injected into tool descriptions ("recommended reading")
 // by the MCP server — a stale key is dead steering, and an unknown skill value points at a

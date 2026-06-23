@@ -4,27 +4,25 @@ End-user install and capability docs live in `README.md`. Development principles
 
 ## Repo layout
 
-**Authoritative source lives under `plugins/cpln/`.** All skills, rules, commands, and agents are authored there — edit them only under `plugins/cpln/{skills,rules,commands,agents}/`. The repo-root `skills/` and `agents/` directories are **generated Gemini mirrors — never edit them directly**; change the file under `plugins/cpln/` and let the pre-commit hook (or `scripts/sync-gemini-content.sh`) regenerate the mirror. (The one exception is Gemini slash commands: the `commands/*.toml` files at the repo root are authored by hand alongside their `plugins/cpln/commands/*.md` pair.)
+**Everything lives under `plugins/cpln/`.** All skills, rules, commands, agents, hooks, and per-client manifests are authored there, and every client (Claude Code, Codex, Cursor, Antigravity CLI) resolves that single directory as its plugin root.
 
 | Path | Purpose |
 | --- | --- |
-| `plugins/cpln/` | The plugin itself. Claude, Codex, and Cursor all resolve this as their plugin root. |
-| `plugins/cpln/skills/<name>/SKILL.md` | One domain skill per folder. Companion files (`*.md`) load on demand. Source of truth — mirrored to `skills/` at the repo root for Gemini by `scripts/sync-gemini-content.sh`. |
-| `plugins/cpln/agents/<name>.md` | One self-contained guided workflow per file. Source of truth — mirrored to `agents/` at the repo root for Gemini by `scripts/sync-gemini-content.sh`. |
-| `skills/`, `agents/` | **Generated mirrors. Do not edit.** Refreshed automatically by the pre-commit hook in `.githooks/pre-commit` whenever a file under `plugins/cpln/{skills,agents}/` is staged. Also refreshed by `scripts/bump-version.sh` and validated on CI. |
-| `plugins/cpln/commands/<name>.md` | Slash command for Claude / Codex / Cursor. Each `.md` has a matching `.toml` at the repo root for Gemini — keep the pair aligned by name and description. |
-| `commands/<name>.toml` | Slash command for Gemini. Gemini discovers commands at the extension root (the repo root), not under `plugins/cpln/`. Authored separately from the matching `.md` because the `.toml` `prompt` is a tight model instruction while the `.md` body is user docs. |
-| `plugins/cpln/rules/*.md` | Guardrails and manifest references. Files with `alwaysApply: true` are injected into every session by the `SessionStart` hook in `plugins/cpln/hooks/cpln-hooks.json`. |
+| `plugins/cpln/` | The plugin itself. Claude, Codex, Cursor, and Antigravity CLI all resolve this as their plugin root. |
+| `plugins/cpln/skills/<name>/SKILL.md` | One domain skill per folder. Companion files (`*.md`) load on demand. |
+| `plugins/cpln/agents/<name>.md` | One self-contained guided workflow per file. |
+| `plugins/cpln/commands/<name>.md` | Slash command for Claude / Codex / Cursor. Antigravity imports it as a skill. |
+| `plugins/cpln/rules/*.md` | Guardrails and manifest references. Files with `alwaysApply: true` are injected by the `SessionStart` hook in `plugins/cpln/hooks/cpln-hooks.json` (Claude / Codex) and read by Cursor as native rules. Antigravity has no SessionStart hook and does not load a plugin `rules/` dir (its rules live in `AGENTS.md`), so it gets the same guardrails via the MCP server (`get_cpln_rules`). |
 | `plugins/cpln/.claude-plugin/plugin.json` | Claude plugin manifest. |
 | `plugins/cpln/.codex-plugin/plugin.json` + `mcp.json` | Codex manifest and MCP config. |
 | `plugins/cpln/.cursor-plugin/plugin.json` + `mcp.json` | Cursor manifest and MCP config. |
+| `plugins/cpln/plugin.json` + `mcp_config.json` | Native Antigravity CLI (`agy`) manifest and MCP config (remote server uses `serverUrl`, not `httpUrl`). Antigravity has no `SessionStart` hook event (its hooks are PreToolUse/PostToolUse/PreInvocation/PostInvocation/Stop), so guardrails reach it through the MCP server (`get_cpln_rules` + server-side skill gate), not a hook. `agy plugin validate ./plugins/cpln` gates it; install with `agy plugin install https://github.com/controlplane-com/ai-plugin/plugins/cpln`. |
 | `plugins/cpln/.claude-mcp.json` | Claude MCP config. |
 | `.claude-plugin/marketplace.json` | Claude marketplace entry. Source: `"./plugins/cpln"`. |
 | `.agents/plugins/marketplace.json` | Codex marketplace entry. |
 | `.cursor-plugin/marketplace.json` | Cursor marketplace entry. |
-| `gemini-extension.json` + `hooks/hooks.json` | Gemini extension manifest and SessionStart hook; the hook injects the same `cpln-guardrails.md` as Claude/Codex (via `inject-rules.sh`), so Gemini needs no separate guardrail context file. Gemini treats the repo root as its extension dir. |
 
-Each per-client MCP config (`.claude-mcp.json`, `.codex-plugin/mcp.json`, `.cursor-plugin/mcp.json`, MCP block in `gemini-extension.json`) points at the hosted server `https://mcp.cpln.io/mcp`. Keep them in sync when changing URL or auth shape.
+Each per-client MCP config (`.claude-mcp.json`, `.codex-plugin/mcp.json`, `.cursor-plugin/mcp.json`, and `plugins/cpln/mcp_config.json` for Antigravity) points at the hosted server `https://mcp.cpln.io/mcp?toolsets=full` — every client uses the `?toolsets=full` profile so they all expose the same complete tool set. Keep them in sync when changing URL or auth shape. The remote-URL field name differs per client: Claude/Codex/Cursor/generic use `url`, Antigravity uses `serverUrl`.
 
 ## Plugin id vs display name
 
@@ -37,18 +35,18 @@ Each per-client MCP config (`.claude-mcp.json`, `.codex-plugin/mcp.json`, `.curs
 | Component | Folder/file name | Frontmatter `name:` | Slug in clients |
 | --- | --- | --- | --- |
 | Skills | bare kebab-case (`image`, `access-control`) | **must match folder** (`name: image`) — Cursor enforces this | Claude/Codex: `cpln:image`; Cursor: `/image` |
-| Commands | bare kebab-case (`troubleshoot.md` + `.toml`) | match file (`name: troubleshoot`) | Claude/Codex: `/cpln:troubleshoot`; Gemini/Cursor: `/troubleshoot` |
+| Commands | bare kebab-case (`troubleshoot.md`) | match file (`name: troubleshoot`) | Claude/Codex: `/cpln:troubleshoot`; Cursor: `/troubleshoot` (Antigravity imports as skill) |
 | Agents | bare kebab-case (`workload-troubleshooter.md`) | **prefixed** (`name: cpln-workload-troubleshooter`) — the model invokes by `name:` directly | n/a — invoked programmatically |
 
 Skills and commands use bare names because the plugin namespace (`cpln:`) handles disambiguation in slug-invoking clients, matching the ecosystem convention (`everything-claude-code:e2e-testing`, `claude-mem:make-plan`). Agents are different — they're invoked via the Agent tool by raw `name:`, so the `cpln-` prefix prevents collisions with agents shipped by other plugins.
 
 ## Authoring rules
 
-- **Never write a `cpln` command from memory.** Verify with `cpln <command> --help`. The `cpln` skill (`plugins/cpln/skills/cpln/SKILL.md`) is the canonical CLI reference — command structure, the resource command map, and hallucination traps live there (no longer a rule).
-- Frontmatter on skills, agents, commands: `name` and `description` only. Do not add `version:` — Claude/Codex/Gemini ignore it.
+- **Never write a `cpln` command from memory.** Verify with `cpln <command> --help`. The `cpln` skill (`plugins/cpln/skills/cpln/SKILL.md`) is the canonical CLI reference — command structure, the resource command map, and hallucination traps live there.
+- Frontmatter on skills, agents, commands: `name` and `description` only. Do not add `version:` — Claude/Codex/Cursor/Antigravity ignore it.
 - Skill `description` budget: ≤ ~220 characters (≤ ~270 for the primary `workload` skill). One "what it is" sentence plus a "Use when the user asks about…" trigger-keyword list — no trailing "Covers…" sentence, no MCP tool names. Clients cap the per-session skill listing (Claude Code: ~1% of context); over-budget descriptions get truncated to bare names, which kills intent routing.
 - YAML placeholders in examples use uppercase: `WORKLOAD`, `GVC`, `ORG`.
-- MCP tool names in Claude examples use the `mcp__cpln__` prefix; Gemini/Codex use the bare name.
+- MCP tool names in Claude examples use the `mcp__cpln__` prefix; Codex/Antigravity use the bare name.
 
 ## Local development
 
@@ -58,7 +56,7 @@ claude --plugin-dir ./plugins/cpln
 
 Loads the plugin from this working tree for one session. Edits to skills, agents, commands, rules pick up on `/reload-plugins`; edits to `plugin.json`, hooks, or MCP configs require restarting the session.
 
-Enable the pre-commit hook once per clone so the Gemini-facing `skills/` and `agents/` mirrors stay in sync automatically:
+Enable the pre-commit hook once per clone so the tool-mention gate runs locally before each commit:
 
 ```bash
 git config core.hooksPath .githooks
@@ -68,13 +66,13 @@ git config core.hooksPath .githooks
 
 ```bash
 claude plugin validate .
-gemini extensions validate .
+agy plugin validate ./plugins/cpln
 jq empty \
   .claude-plugin/marketplace.json \
   .agents/plugins/marketplace.json \
   .cursor-plugin/marketplace.json \
-  gemini-extension.json \
-  hooks/hooks.json \
+  plugins/cpln/plugin.json \
+  plugins/cpln/mcp_config.json \
   plugins/cpln/.claude-plugin/plugin.json \
   plugins/cpln/.codex-plugin/plugin.json \
   plugins/cpln/.codex-plugin/mcp.json \

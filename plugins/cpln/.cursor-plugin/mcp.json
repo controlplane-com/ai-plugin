@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "cpln": {
-      "url": "https://mcp.cpln.io/mcp"
+      "url": "https://mcp.cpln.io/mcp?toolsets=full"
     }
   }
 }
