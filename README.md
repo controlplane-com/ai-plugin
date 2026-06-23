@@ -38,7 +38,7 @@ Update with `codex plugin marketplace upgrade controlplane`, then restart Codex.
 
 ### Antigravity CLI
 
-The target must include the `plugins/cpln` subdirectory — the repo root will not install:
+Install the plugin with Antigravity CLI (`agy`):
 
 ```bash
 agy plugin install https://github.com/controlplane-com/ai-plugin/plugins/cpln
@@ -88,7 +88,7 @@ Ask in natural language — the assistant routes to the right skill or agent:
 - "Provision a production Postgres with HA failover and S3 backups."
 - "Convert this `kustomization.yaml` to Control Plane and apply it to `staging` after I confirm."
 
-Two workflows also have slash commands in Claude Code — `/cpln:troubleshoot WORKLOAD` and `/cpln:migrate-k8s FILE`; other clients invoke the same workflows as skills or by name.
+Two workflows also have slash commands in Claude Code — `/cpln:troubleshoot WORKLOAD` and `/cpln:migrate-k8s FILE`; in other clients, ask for the same workflows by name.
 
 ## What's included
 

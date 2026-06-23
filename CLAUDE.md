@@ -11,7 +11,7 @@ End-user install and capability docs live in `README.md`. Development principles
 | `plugins/cpln/` | The plugin itself. Claude, Codex, Cursor, and Antigravity CLI all resolve this as their plugin root. |
 | `plugins/cpln/skills/<name>/SKILL.md` | One domain skill per folder. Companion files (`*.md`) load on demand. |
 | `plugins/cpln/agents/<name>.md` | One self-contained guided workflow per file. |
-| `plugins/cpln/commands/<name>.md` | Slash command for Claude / Codex / Cursor. Antigravity imports it as a skill. |
+| `plugins/cpln/commands/<name>.md` | Slash command for Claude / Codex / Cursor. |
 | `plugins/cpln/rules/*.md` | Guardrails and manifest references. Files with `alwaysApply: true` are injected by the `SessionStart` hook in `plugins/cpln/hooks/cpln-hooks.json` (Claude / Codex) and read by Cursor as native rules. Antigravity has no SessionStart hook and does not load a plugin `rules/` dir (its rules live in `AGENTS.md`), so it gets the same guardrails via the MCP server (`get_cpln_rules`). |
 | `plugins/cpln/.claude-plugin/plugin.json` | Claude plugin manifest. |
 | `plugins/cpln/.codex-plugin/plugin.json` + `mcp.json` | Codex manifest and MCP config. |
@@ -35,7 +35,7 @@ Each per-client MCP config (`.claude-mcp.json`, `.codex-plugin/mcp.json`, `.curs
 | Component | Folder/file name | Frontmatter `name:` | Slug in clients |
 | --- | --- | --- | --- |
 | Skills | bare kebab-case (`image`, `access-control`) | **must match folder** (`name: image`) — Cursor enforces this | Claude/Codex: `cpln:image`; Cursor: `/image` |
-| Commands | bare kebab-case (`troubleshoot.md`) | match file (`name: troubleshoot`) | Claude/Codex: `/cpln:troubleshoot`; Cursor: `/troubleshoot` (Antigravity imports as skill) |
+| Commands | bare kebab-case (`troubleshoot.md`) | match file (`name: troubleshoot`) | Claude/Codex: `/cpln:troubleshoot`; Cursor: `/troubleshoot` |
 | Agents | bare kebab-case (`workload-troubleshooter.md`) | **prefixed** (`name: cpln-workload-troubleshooter`) — the model invokes by `name:` directly | n/a — invoked programmatically |
 
 Skills and commands use bare names because the plugin namespace (`cpln:`) handles disambiguation in slug-invoking clients, matching the ecosystem convention (`everything-claude-code:e2e-testing`, `claude-mem:make-plan`). Agents are different — they're invoked via the Agent tool by raw `name:`, so the `cpln-` prefix prevents collisions with agents shipped by other plugins.

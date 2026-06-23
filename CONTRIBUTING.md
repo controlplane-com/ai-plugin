@@ -29,7 +29,7 @@ claude plugin validate .
 agy plugin validate ./plugins/cpln
 ```
 
-When changing a slash command, edit the `.md` under `plugins/cpln/commands/` (read by Claude / Codex / Cursor; Antigravity imports it as a skill).
+When changing a slash command, edit the `.md` under `plugins/cpln/commands/` (read by Claude / Codex / Cursor).
 
 Skills, agents, commands, rules, and hooks live only under `plugins/cpln/` — every client (Claude Code, Codex, Cursor, Antigravity CLI) resolves that one directory. Enable the pre-commit hook once per clone so the tool-mention gate runs locally:
 

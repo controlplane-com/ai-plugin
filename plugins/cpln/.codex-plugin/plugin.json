@@ -28,7 +28,7 @@
   "interface": {
     "displayName": "Control Plane",
     "shortDescription": "Multi-cloud container platform with 80+ MCP tools",
-    "longDescription": "Deploy and manage containerized workloads across AWS, GCP, Azure, and private clouds. 23 domain skills, 8 guided agents, 8 guardrail rules, and a pre-configured MCP Server with 80+ tools for live infrastructure management.",
+    "longDescription": "Deploy and manage containerized workloads across AWS, GCP, Azure, and private clouds. 30 domain skills, 2 guided agents, 1 guardrail rule, and a pre-configured MCP Server with 80+ tools for live infrastructure management.",
     "developerName": "Control Plane",
     "category": "Developer Tools",
     "capabilities": [
