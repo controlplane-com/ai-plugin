@@ -1,0 +1,13 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.cpln/control-plane",
+  "title": "Control Plane",
+  "description": "Deploy and operate workloads, secrets, and networking across AWS, GCP, Azure, and private clouds.",
+  "version": "1.0.1",
+  "websiteUrl": "https://controlplane.com",
+  "repository": {
+    "url": "https://github.com/controlplane-com/ai-plugin",
+    "source": "github"
+  },
+  "remotes": [{ "type": "streamable-http", "url": "https://mcp.cpln.io/mcp" }]
+}
