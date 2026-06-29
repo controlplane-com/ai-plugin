@@ -1,6 +1,9 @@
 <p align="center">
   <a href="https://controlplane.com">
-    <img src="https://cdn.jsdelivr.net/gh/controlplane-com/brand@main/logo/Control_Plane_logo_full_light.svg" alt="Control Plane" width="240">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://cdn.jsdelivr.net/gh/controlplane-com/brand@main/logo/Control_Plane_logo_full_light.svg">
+      <img src="https://cdn.jsdelivr.net/gh/controlplane-com/brand@main/logo/Control_Plane_logo_full_dark.svg" alt="Control Plane" width="240">
+    </picture>
   </a>
 </p>
 
