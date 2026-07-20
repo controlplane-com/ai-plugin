@@ -23,6 +23,14 @@ Run containerized workloads across AWS, GCP, Azure, OCI, and your own hardware u
 
 Update with `/plugin marketplace update controlplane` then `/reload-plugins` (third-party marketplaces don't auto-update unless you enable it in `/plugin` → **Marketplaces**).
 
+Alternatively, install from [Anthropic's community plugin marketplace](https://github.com/anthropics/claude-plugins-community), where every listing has passed Anthropic's review:
+
+```text
+/plugin marketplace add anthropics/claude-plugins-community
+/plugin install cpln@claude-community
+/reload-plugins
+```
+
 ### Codex
 
 ```bash
