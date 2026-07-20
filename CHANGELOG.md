@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Added
 
+### Changed
+
+### Fixed
+
+### Removed
+
+## [2.0.0] - 2026-07-20
+
+### Added
+
 - Listed on the official MCP registry as `io.cpln/control-plane` (`server.json`).
 
 ### Changed
