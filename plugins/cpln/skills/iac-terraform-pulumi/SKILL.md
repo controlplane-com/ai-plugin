@@ -67,7 +67,7 @@ The exporter emits HCL only. For a Pulumi program, convert the exported HCL with
 
 The exporter covers 16 kinds: agent, auditctx, cloudaccount, domain (routes emitted as `cpln_domain_route`), group, gvc, identity, ipset, location, mk8s, org, policy, secret, serviceaccount, volumeset, workload. `mcp__cpln__list_terraform_kinds` (full profile) enumerates them; on core, just attempt the export — an unsupported kind is rejected with the supported list.
 
-**Secrets export as plaintext.** The exporter follows each secret's reveal link and embeds the revealed values in the HCL. The MCP tools refuse a ref that targets secrets — and refuse wholesale any bulk export that pulled secrets in — unless `includeSecretValues: true` is passed, which requires the user's explicit approval first. The values then live in both the `.tf` file and the state file; protect both.
+**Secrets are never exported.** The upstream exporter would embed revealed values in the HCL, so the MCP tools refuse a ref that targets secrets and refuse wholesale any bulk export that pulled secrets in. Narrow the export to exclude secrets; the user authors secret resources in their own Terraform.
 
 ## CLI fallback: -o tf
 
@@ -79,7 +79,7 @@ cpln workload get --gvc GVC -o tf > workloads.tf         # no ref: every workloa
 cpln gvc get -o tf > gvcs.tf                             # every GVC in the org
 ```
 
-Differences from the MCP tools: the output is bare `resource` blocks only (write the `terraform {}` and `provider "cpln" {}` blocks yourself), no `terraform import` commands, no dependency closure, and no secret guard — `cpln secret get NAME -o tf` prints revealed plaintext when you hold the reveal permission and silently omits the values when you don't. Multiple explicit refs in one call are not supported with `-o tf`; export per resource or use the no-ref bulk form. The sibling `-o crd` emits Kubernetes CRD YAML for the operator path (k8s-operator skill). For stateless manifests instead of HCL, use `-o yaml-slim` with `cpln apply`.
+Differences from the MCP tools: the output is bare `resource` blocks only (write the `terraform {}` and `provider "cpln" {}` blocks yourself), no `terraform import` commands, no dependency closure, and no secret guard — never run `-o tf` against a secret (it can print revealed plaintext). Multiple explicit refs in one call are not supported with `-o tf`; export per resource or use the no-ref bulk form. The sibling `-o crd` emits Kubernetes CRD YAML for the operator path (k8s-operator skill). For stateless manifests instead of HCL, use `-o yaml-slim` with `cpln apply`.
 
 ## Importing existing resources
 
@@ -108,7 +108,7 @@ Each registry page has an Import section with the exact form (composite kinds di
 |---------|---------------|
 | First apply wants to create resources that already exist | The import step was skipped — run the `terraform import` commands from `generateImports` (after `terraform init`), then re-plan |
 | `Kind "X" is not Terraform-convertible` | The exporter covers the 16 kinds above (image and user are not among them); manage others via `cpln apply` |
-| Export refused mentioning plaintext secrets | Re-run with `includeSecretValues: true` only after the user explicitly approves, or narrow the ref to exclude secrets |
+| Export refused mentioning plaintext secrets | Narrow the ref/export to exclude secrets — secret export is not supported |
 | Org create or `auth_config` update fails despite a valid token | Those two operations require `CPLN_REFRESH_TOKEN` |
 | Pulumi lacks a feature the Terraform provider just shipped | The bridge tracks Terraform provider releases — upgrade the `@pulumiverse/cpln` package version |
 
@@ -116,7 +116,7 @@ Each registry page has an Import section with the exact form (composite kinds di
 
 ### MCP tools
 
-- `mcp__cpln__export_terraform` — HCL for existing resources by self link; bulk via path-depth refs; `generateImports`, `includeDependencies`, `includeSecretValues`
+- `mcp__cpln__export_terraform` — HCL for existing resources by self link; bulk via path-depth refs; `generateImports`, `includeDependencies`
 - `mcp__cpln__export_terraform_batch` (full profile) — several explicit links merged into one HCL set
 - `mcp__cpln__convert_to_terraform` — manifest to HCL, dry-run validated first
 - `mcp__cpln__list_terraform_kinds` (full profile) — exporter-supported kinds

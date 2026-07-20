@@ -16,7 +16,7 @@ The pattern: the CDN proxies your domain and uses the workload's **canonical end
 ### Cloudflare
 
 1. **DNS at Cloudflare:** proxied CNAME (orange cloud on) from your subdomain to the canonical endpoint; SSL/TLS mode **Full (strict)**.
-2. **Origin certificate** (SSL/TLS, then Origin Server; RSA 2048) becomes a Control Plane **TLS secret** — `mcp__cpln__create_secret_tls` with the cert and key, **TLS chain left empty** (the origin cert is self-signed).
+2. **Origin certificate** (SSL/TLS, then Origin Server; RSA 2048) becomes a Control Plane **TLS secret** — created by the user with the cert and key, **TLS chain left empty** (the origin cert is self-signed).
 3. **Domain at Control Plane:** `mcp__cpln__create_domain` (CNAME DNS mode), `mcp__cpln__set_domain_tls` with the secret as the custom **server certificate**, `mcp__cpln__add_domain_route` to the workload. **The apex domain must be verified before configuring a subdomain.**
 
 ### Amazon CloudFront
@@ -48,7 +48,7 @@ The [example manifest](https://raw.githubusercontent.com/controlplane-com/exampl
 
 ### 2. Configure the rules
 
-Edit the `ratelimit-config` opaque secret (`mcp__cpln__update_secret_opaque`), [Envoy ratelimit format](https://github.com/envoyproxy/ratelimit#configuration); `unit`: `second` / `minute` / `hour` / `day`:
+Have the user edit the `ratelimit-config` opaque secret, [Envoy ratelimit format](https://github.com/envoyproxy/ratelimit#configuration); `unit`: `second` / `minute` / `hour` / `day`:
 
 ```yaml
 domain: cpln
@@ -130,8 +130,7 @@ Traffic passes, in order: the **CDN** (absorbs and caches), then the **firewall*
 ## Quick reference
 
 - `mcp__cpln__update_workload` — `cpln/rateLimit*` tags; `inboundAllowCIDR` lock-down
-- `mcp__cpln__update_secret_opaque` — edit the ratelimit rules secret
-- `mcp__cpln__create_secret_tls` / `create_domain` / `set_domain_tls` / `add_domain_route` — CDN domain wiring
+- `mcp__cpln__create_domain` / `set_domain_tls` / `add_domain_route` — CDN domain wiring (the TLS and ratelimit secrets are managed by the user)
 - `mcp__cpln__list_deployments` — canonical endpoint + readiness checks
 - CLI only: `cpln apply --file rate-limiting.yaml` (bundled manifest), `cpln workload force-redeployment` (config reload)
 

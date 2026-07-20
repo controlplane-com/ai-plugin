@@ -143,7 +143,7 @@ When the target is Infrastructure-as-Code rather than live resources, turn the c
 
 ### MCP tools
 
-- `mcp__cpln__create_workload` / `create_gvc` / `create_secret_opaque` (and the other `create_secret_<type>`) / `create_identity` / `create_volumeset` — author converted resources with production-grade defaults
+- `mcp__cpln__create_workload` / `create_gvc` / `create_identity` / `create_volumeset` — author converted resources with production-grade defaults (secrets are created by the user; verify with `get_resource` before referencing)
 - `mcp__cpln__get_resource_schema` — exact shape before hand-editing or re-authoring a converted manifest
 - `mcp__cpln__list_deployments` — poll converted workloads to ready
 - `mcp__cpln__convert_to_terraform` / `mcp__cpln__export_terraform` — converted YAML or live resources to HCL (`iac-terraform-pulumi` skill)

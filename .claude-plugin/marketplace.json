@@ -29,7 +29,6 @@
         "deploy",
         "containers",
         "networking",
-        "secrets",
         "autoscaling"
       ]
     }

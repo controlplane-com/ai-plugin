@@ -8,11 +8,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Added
 
+- Listed on the official MCP registry as `io.cpln/control-plane` (`server.json`).
+
 ### Changed
+
+- Secrets are now read-only for AI: listing and reading return metadata only, and no tool or skill creates, edits, deletes, or reveals a secret — manage secret data in the Console, CLI, Terraform, Pulumi, or the API.
+- `workload_reveal_secret` is now `grant_workload_secret_access` — the same one-call workload access grant; it never returns secret values.
+- The `core` toolset grew to 54 tools, adding distributed traces, cron run trigger, replica stop, async command status, and quota listing.
 
 ### Fixed
 
+- Corrected Antigravity command notes and stale component counts.
+- `logql-observability`: `--from`/`--to` accept relative durations (`7d`, `now-1M`) in addition to ISO 8601 timestamps.
+- `audit-compliance`: clarified that billing is processed externally by Stripe and Control Plane stores no cardholder data.
+
 ### Removed
+
+- All secret create/update tools, `reveal_secret`, and the Terraform export option that embedded secret values.
 
 ## [1.6.0] - 2026-06-23
 

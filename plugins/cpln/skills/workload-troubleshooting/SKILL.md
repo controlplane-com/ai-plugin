@@ -16,8 +16,8 @@ The symptom-first companion to the `workload` skill (which owns workload types, 
 | `mcp__cpln__get_workload_logs` | App logs (LogQL); the `_accesslog` container holds HTTP status codes and latency. |
 | `mcp__cpln__get_resource` (kind=`workload`) | The spec and current status. |
 | `mcp__cpln__list_metrics` then `mcp__cpln__query_metrics` | Resource pressure — memory before OOM, CPU, latency. |
-| `mcp__cpln__list_workload_replicas` then `mcp__cpln__workload_exec` | Inspect a live replica. **`workload_exec` runs in a production container and is audit-logged — read-only commands only** (`ls`, `cat`, `env`, `netstat`); confirm before anything that mutates. |
-| `mcp__cpln__query_traces` then `mcp__cpln__get_trace` | For a slow or intermittently failing request: which span in the path spent the time or errored. **Full profile**; needs tracing enabled on the GVC (opt-in). Deep dive in `metrics-observability`. |
+| `mcp__cpln__list_workload_replicas` then `mcp__cpln__workload_exec` | Inspect a live replica. **`workload_exec` runs in a production container and is audit-logged — read-only commands only** (`ls`, `cat`, `netstat`); never dump resolved secret values (`env` prints them on a secret-consuming workload), and confirm before anything that mutates. |
+| `mcp__cpln__query_traces` then `mcp__cpln__get_trace` | For a slow or intermittently failing request: which span in the path spent the time or errored. Needs tracing enabled on the GVC (opt-in). Deep dive in `metrics-observability`. |
 
 CLI fallback (MCP unavailable, interactive shell, or CI/CD):
 
@@ -46,13 +46,13 @@ cpln workload connect WORKLOAD --gvc GVC --location LOCATION      # interactive 
 - **Platform** — images must be `linux/amd64` for managed locations (BYOK allows more).
 - **Pull secret** — a private external registry needs a pull secret in the GVC's `pullSecretLinks`; only `docker`, `ecr`, `gcp` secret types work, and org `//image/` images need none.
 
-Create with `create_secret_docker`, attach with `update_gvc`. Deep setup: `image` skill.
+The registry secret must already exist (created by the user); attach with `update_gvc`. Deep setup: `image` skill.
 
 ### Secret access failures
 
 **Symptoms:** env vars empty, logs show missing config, secret-access errors in events.
 
-A workload reaches a secret only with all three in place: an **identity linked** to it (`spec.identityLink`), a **policy granting that identity `reveal`** on the secret, and a **correct reference**. Fastest fix: `workload_reveal_secret` builds the whole chain in one call. Reference format by type:
+A workload reaches a secret only with all three in place: an **identity linked** to it (`spec.identityLink`), a **policy granting that identity `reveal`** on the secret, and a **correct reference**. Fastest fix: `grant_workload_secret_access` builds the whole chain in one call. Reference format by type:
 
 | Type | Reference |
 |---|---|
@@ -177,7 +177,7 @@ After applying, poll `mcp__cpln__list_deployments` until every location reports 
 |---|---|---|
 | Restarts; `OOMKilled` in events | memory cap too low (or Capacity AI downsized) | `query_metrics` memory; raise `memory` + `cpu` |
 | `ImagePullBackOff` / stuck | bad image ref, wrong platform, missing pull secret | events; GVC `pullSecretLinks` |
-| Env vars empty | broken identity + `reveal` chain or wrong reference | `workload_reveal_secret` |
+| Env vars empty | broken identity + `reveal` chain or wrong reference | `grant_workload_secret_access` |
 | Healthy but 502/503 | spec port ≠ listening port, or a blocked port | `netstat` via `workload_exec` |
 | Unreachable / can't call out | deny-by-default firewall | `firewallConfig` |
 | Won't become ready | probe path/port wrong or too aggressive | events; probe config |
@@ -197,7 +197,7 @@ After applying, poll `mcp__cpln__list_deployments` until every location reports 
 | `mcp__cpln__list_workload_replicas` / `mcp__cpln__workload_exec` | Target and inspect a live replica (audited) |
 | `mcp__cpln__query_metrics` (after `mcp__cpln__list_metrics`) | Memory / CPU / latency pressure |
 | `mcp__cpln__update_workload` | Apply a spec fix (PATCH) |
-| `mcp__cpln__workload_reveal_secret` | Build the identity + `reveal` chain in one call |
+| `mcp__cpln__grant_workload_secret_access` | Build the identity + `reveal` chain in one call |
 | `mcp__cpln__get_resource_schema` | Exact fields before a manifest-level fix |
 
 ### CLI (fallback)

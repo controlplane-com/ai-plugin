@@ -5,7 +5,7 @@ description: "Provisions managed Kubernetes (mk8s) clusters and registers existi
 
 # Managed Kubernetes (mk8s) & BYOK
 
-> **Tool availability:** the `create_mk8s_*` / `update_mk8s_*` tools and the GCP/Triton credential-secret tools (`create_secret_gcp`, `create_secret_keypair`) live in the `mk8s` toolset profile (`?toolsets=mk8s`; `full` includes it). `create_secret_opaque` (used by Azure and every token provider) is in `core`. If an mk8s tool is not advertised, tell the user to reconnect with `?toolsets=mk8s`, or create the resource via the `cpln` CLI. Reads and deletes work on every profile via `list_resources` / `get_resource` / `delete_resource` (kind `mk8s` or `location`).
+> **Tool availability:** the `create_mk8s_*` / `update_mk8s_*` tools live in the `mk8s` toolset profile (`?toolsets=mk8s`; `full` includes it). If an mk8s tool is not advertised, tell the user to reconnect with `?toolsets=mk8s`. Provider credential secrets (opaque token, gcp, keypair) must already exist — created by the user. Reads and deletes work on every profile via `list_resources` / `get_resource` / `delete_resource` (kind `mk8s` or `location`).
 
 Control Plane has three separate "Kubernetes" stories people routinely conflate — get the right one first:
 
@@ -133,7 +133,7 @@ Once the location exists, prefer MCP for the GVC and workload work — `mcp__cpl
 ### MCP tools
 
 - `mcp__cpln__create_mk8s_<provider>` / `update_mk8s_<provider>` — create/merge-patch a cluster (mk8s profile)
-- `mcp__cpln__create_secret_opaque` (core) / `create_secret_gcp` / `create_secret_keypair` (mk8s profile) — provider credentials
+- `mcp__cpln__get_resource` (kind `secret`) — verify the provider credential secret exists (created by the user)
 - `mcp__cpln__get_resource` / `list_resources` / `delete_resource` (kind `mk8s` or `location`) — read/delete on any profile
 - `mcp__cpln__get_resource_schema` (kind `mk8s`) — exact shape and the live `version` set before authoring YAML
 - `mcp__cpln__add_gvc_locations` / `list_deployments` — attach a BYOK location to a GVC and verify workloads

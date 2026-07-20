@@ -62,7 +62,7 @@ Default builder `heroku/builder:24_linux-amd64`. A `Procfile` (one line: `web: S
 - **Private registries (including other Control Plane orgs):** attach a secret to the **GVC** at `spec.pullSecretLinks` — it applies to all workloads in the GVC; there is no per-workload attachment. Only three secret types work as pull secrets: `docker` (Docker Hub, GHCR, ACR, GAR, other Control Plane orgs — matched to images by registry host in its `auths`), `ecr` (its `repos` list must contain the image's repository; credentials are exchanged for ECR tokens and refreshed automatically), and `gcp` (matched only for images under its own project: `gcr.io/PROJECT/...` or `REGION-docker.pkg.dev/PROJECT/...`).
 - **Failures are silent:** a linked secret of the wrong type, or one that fails to materialize, is skipped at deploy with no configuration-time error — the symptom is only an image-pull failure on the replica.
 
-Attach with `mcp__cpln__update_gvc` (`pullSecretLinks` is **merged** with existing links; `removePullSecretLinks` removes; an empty list clears all). Create the secret with `mcp__cpln__create_secret_docker` (single `dockerConfigJson` string — for another Control Plane org use username `<token>` and a service-account key as password), `mcp__cpln__create_secret_ecr`, or `mcp__cpln__create_secret_gcp`. CLI fallback: `cpln gvc update GVC --set 'spec.pullSecretLinks+=//secret/NAME' --org ORG`. The full cross-org setup (source-org service account, pull policy, target-org secret, GVC) is in the `environment-promotion` skill; `cpln image copy NAME:TAG --to-org ORG2 [--to-name NEW] [--to-profile P] [--cleanup]` is the one-time alternative — it docker-logins both orgs, then pulls, retags, and pushes through the **local Docker daemon** (needs `pull` on the source, `create` on the destination).
+Attach with `mcp__cpln__update_gvc` (`pullSecretLinks` is **merged** with existing links; `removePullSecretLinks` removes; an empty list clears all). The registry secret (`docker` — single `dockerConfigJson` string, for another Control Plane org username is the literal `<token>` and the password a service-account key — `ecr`, or `gcp`) must already exist, created by the user. CLI fallback: `cpln gvc update GVC --set 'spec.pullSecretLinks+=//secret/NAME' --org ORG`. The full cross-org setup (source-org service account, pull policy, target-org secret, GVC) is in the `environment-promotion` skill; `cpln image copy NAME:TAG --to-org ORG2 [--to-name NEW] [--to-profile P] [--cleanup]` is the one-time alternative — it docker-logins both orgs, then pulls, retags, and pushes through the **local Docker daemon** (needs `pull` on the source, `create` on the destination).
 
 ## Permissions
 
@@ -117,7 +117,7 @@ MCP tools — images are list/get/delete only; there is no create-, update-, bui
 
 - `mcp__cpln__list_resources` / `mcp__cpln__get_resource` (kind="image") — list, or inspect tags/digest/manifest.
 - `mcp__cpln__delete_resource` (kind="image", name="NAME:TAG") — removes that image record from the org (destructive).
-- `mcp__cpln__update_gvc` — attach pull secrets; `mcp__cpln__create_secret_docker` / `mcp__cpln__create_secret_ecr` / `mcp__cpln__create_secret_gcp` — create them.
+- `mcp__cpln__update_gvc` — attach existing pull secrets (`docker` / `ecr` / `gcp`, created by the user).
 - `mcp__cpln__update_workload` — change a container's image; `mcp__cpln__get_resource_schema` (kind="image") for the exact resource shape.
 
 ### Related skills

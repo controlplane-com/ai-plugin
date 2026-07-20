@@ -104,7 +104,7 @@ Two workflows also have slash commands in Claude Code — `/cpln:troubleshoot WO
 
 - MCP access is production access — scoped to the orgs you grant and your own RBAC.
 - Destructive actions (deleting resources, shrinking/deleting volumes, replacing workloads, applying to production) require explicit confirmation.
-- Secret values are exposed only with `reveal` permission — use least privilege.
+- Secret values are never exposed through the MCP tools — secrets surface as metadata only.
 - The plugin stores no logs, secrets, prompts, or telemetry; your AI client and model provider process prompts per their own policies.
 
 Report vulnerabilities per [SECURITY.md](SECURITY.md).

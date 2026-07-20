@@ -29,7 +29,7 @@ Match the symptoms against the skill's failure catalog and isolate the root caus
 
 ## Phase 3 — Apply the fix and verify
 
-Present each issue as **what's wrong** (with evidence), **why** (the root cause), and **the fix** (the exact tool call or config change). Apply only after the user approves — MCP-first with `mcp__cpln__update_workload` (PATCH), `mcp__cpln__workload_reveal_secret` for the secret chain, or `mcp__cpln__get_resource_schema` + `cpln apply` for manifest-level changes. Keep every change within the schema limits the skill lists (memory ≤ 8× CPU, IDs 1-65534, grace ≤ 900, scale-to-zero needs `keda` on standard/stateful, a metric must be in the type's allow-list) so the update is not rejected. Then poll `mcp__cpln__list_deployments` until ready across locations and report the canonical endpoint it returns — for a public workload, confirm it actually responds, not just that it is ready.
+Present each issue as **what's wrong** (with evidence), **why** (the root cause), and **the fix** (the exact tool call or config change). Apply only after the user approves — MCP-first with `mcp__cpln__update_workload` (PATCH), `mcp__cpln__grant_workload_secret_access` for the secret chain, or `mcp__cpln__get_resource_schema` + `cpln apply` for manifest-level changes. Keep every change within the schema limits the skill lists (memory ≤ 8× CPU, IDs 1-65534, grace ≤ 900, scale-to-zero needs `keda` on standard/stateful, a metric must be in the type's allow-list) so the update is not rejected. Then poll `mcp__cpln__list_deployments` until ready across locations and report the canonical endpoint it returns — for a public workload, confirm it actually responds, not just that it is ready.
 
 ## When to stop and ask
 

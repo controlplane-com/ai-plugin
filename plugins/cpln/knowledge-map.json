@@ -107,7 +107,7 @@
     "create_mk8s_generic": "mk8s-byok",
     "update_mk8s_generic": "mk8s-byok",
     "workload_exec": "workload",
-    "workload_reveal_secret": "setup-secret",
+    "grant_workload_secret_access": "setup-secret",
     "get_workload_events": "workload-troubleshooting",
     "get_workload_logs": "workload-troubleshooting",
     "list_workload_replicas": "workload-troubleshooting"

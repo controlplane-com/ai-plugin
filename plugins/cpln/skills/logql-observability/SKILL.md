@@ -21,12 +21,12 @@ cpln logs '{gvc="GVC", workload="WORKLOAD"} |= "error"' --limit 100
 cpln logs '{gvc="GVC", workload="WORKLOAD", container="main"}' --since 7d
 cpln logs '{gvc="GVC", workload="WORKLOAD"}' --tail              # live follow; the server ends a tail session after 30m
 cpln logs '{gvc="GVC", workload="WORKLOAD"}' \
-  --from 2026-06-01T00:00:00Z --to 2026-06-02T00:00:00Z          # ISO 8601 only; from inclusive, to exclusive
+  --from 2026-06-01T00:00:00Z --to 2026-06-02T00:00:00Z          # ISO 8601 or relative (7d, now-1M); from inclusive, to exclusive
 cpln logs '{gvc="GVC", workload="WORKLOAD"} |= "error"' --since 24h --limit 0   # 0 = unlimited, auto-paginates
 cpln logs '{gvc="GVC", workload="WORKLOAD"}' -o jsonl            # one JSON object per line; -o raw = bare lines
 ```
 
-- `--since` takes relative durations (`ms s m h d w mo y`, compound like `1h30m`). `--from`/`--to` take ISO 8601 timestamps **only** — `--from now-2d` and `--from 7d` fail with `Cannot parse ... into a valid date`.
+- `--since` takes relative durations (`ms s m h d w mo y`, compound like `1h30m`). `--from`/`--to` (CLI) take an ISO 8601 timestamp **or** a relative duration meaning that long ago — `--from 7d`, `--from now-1M`, `--to now-30m` (the CLI accepts `M` for months; the `mcp__cpln__get_workload_logs` tool takes ISO 8601 only).
 - `cpln workload eventlog WORKLOAD` (alias `cpln workload log`) is resource event history, not container output — for application logs always use `cpln logs`.
 
 ## Labels
@@ -122,7 +122,7 @@ CI/CD and headless use: set `CPLN_TOKEN` and run `cpln logs` directly (no profil
 | Symptom | Cause and fix |
 |:---|:---|
 | 403 `requires permission "readLogs" in org` | Grant `readLogs` on the org via policy (it implies `view`) |
-| `Cannot parse now-2d into a valid date` | `--from`/`--to` are ISO 8601 only; relative lookback is `--since` |
+| `Invalid --from format: ...` | `--from`/`--to` accept an ISO 8601 timestamp or a relative duration (`7d`, `now-1M`); correct the value |
 | Empty result for known activity | Window outside retention (default 30d), span over 31 days, or filters too narrow; app may not write to stdout/stderr |
 | `#### Replica logs were rate-limited ... ####` marker | Per-replica cap was hit; lines in that interval are gone — reduce log volume |
 | Line ends with `... [truncated N bytes]` | 16 KiB per-line cap — emit smaller lines |

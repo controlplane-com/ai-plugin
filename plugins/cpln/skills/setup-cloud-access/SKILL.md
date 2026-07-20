@@ -5,7 +5,7 @@ description: Credential-free cloud access (Universal Cloud Identity) for a Contr
 
 # Cloud Access Setup (Universal Cloud Identity)
 
-> **Tool availability:** the cloud-account tools (`create_cloud_account`, `update_cloud_account`, `how_to_create_<provider>_cloud_account`) and the `create_secret_nats_account` / `create_secret_azure_connector` tools live in the **`full`** profile. `create_identity` / `update_identity` and `update_workload` are **`core`**. If a full tool isn't advertised, reconnect with `?toolsets=full` or use the `cpln` CLI. Reads and deletes work on every profile via `list_resources` / `get_resource` / `delete_resource`.
+> **Tool availability:** the cloud-account tools (`create_cloud_account`, `update_cloud_account`, `how_to_create_<provider>_cloud_account`) live in the **`full`** profile. `create_identity` / `update_identity` and `update_workload` are **`core`**. If a full tool isn't advertised, reconnect with `?toolsets=full` or use the `cpln` CLI. The `nats-account` / `azure-connector` secret a cloud account references must already exist — created by the user. Reads and deletes work on every profile via `list_resources` / `get_resource` / `delete_resource`.
 
 A workload reads cloud resources with **no embedded keys**: a GVC-scoped **identity** carries a per-provider cloud-access block that federates with the provider's IAM, and Control Plane vends short-lived credentials at runtime. Cloud SDKs (boto3, google-cloud, @azure/sdk) pick them up automatically — no SDK config.
 
@@ -45,8 +45,8 @@ CLI fallback: `cpln cloudaccount create-<provider> --how --org ORG`.
 |---|---|
 | aws | `roleArn` (the role ARN from step 1) |
 | gcp | `projectId` |
-| azure | `secretLink` to an `azure-connector` secret (`create_secret_azure_connector` first) |
-| ngs | `secretLink` to a `nats-account` secret (`create_secret_nats_account` first) |
+| azure | `secretLink` to an existing `azure-connector` secret (created by the user) |
+| ngs | `secretLink` to an existing `nats-account` secret (created by the user) |
 
 `status.usable` stays `false` until the cloud-side IAM exists. `update_cloud_account` edits the data block / tags (provider stays immutable). CLI fallback: `cpln cloudaccount create-aws|create-gcp|create-azure|create-ngs`.
 
@@ -94,7 +94,7 @@ Reaching a private VPC / on-prem endpoint is a different mechanism on the **same
 |---|---|
 | `how_to_create_<provider>_cloud_account` | Org-specific cloud-side IAM steps (run first) |
 | `create_cloud_account` / `update_cloud_account` | Register / edit a cloud account (provider immutable) |
-| `create_secret_nats_account` / `create_secret_azure_connector` | The secret an NGS / Azure cloud account references |
+| `get_resource` (kind `secret`) | Verify the NGS / Azure connector secret exists before referencing it |
 | `create_identity` / `update_identity` | Create / edit the identity, including its cloud-access block |
 | `update_workload` | Set `spec.identityLink` |
 | `get_resource` / `list_resources` / `delete_resource` (kind `cloud_account` / `identity`) | Read / delete on any profile |

@@ -71,7 +71,7 @@ Reference `values.yaml` for any template lives in the [templates repo](https://g
 
 After install, `get_installed_template <name>` shows the release status, revision, and every resource it created (it decodes the release secret, so the token needs secret **reveal** permission). Then confirm the workloads are healthy with `list_deployments`, and check the generated secrets with `list_resources` (kind `secret`). Add firewall rules or a domain for any workload that needs external access.
 
-**Connection details:** an installed service is reachable inside its GVC at `<release>-<component>.<gvc>.cpln.local:<port>` (e.g. `my-pg-postgres.<gvc>.cpln.local:5432`); credentials live in the generated dictionary secret — reveal it to read them. The exact workload name, port, and secret keys are in `get_installed_template` (created resources) and the `get_template` example values.
+**Connection details:** an installed service is reachable inside its GVC at `<release>-<component>.<gvc>.cpln.local:<port>` (e.g. `my-pg-postgres.<gvc>.cpln.local:5432`); credentials live in the generated dictionary secret — the user reads them in the Console; reference them in workloads as `cpln://secret/NAME.KEY`. The exact workload name, port, and secret keys are in `get_installed_template` (created resources) and the `get_template` example values.
 
 ## Traps
 

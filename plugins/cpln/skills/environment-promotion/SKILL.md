@@ -48,7 +48,7 @@ The target org pulls directly from the source org's registry. Four steps:
 
 1. **Source org — puller credentials**: `mcp__cpln__add_key_to_service_account` (creates the service account if missing; the key is shown **once**).
 2. **Source org — grant pull**: `mcp__cpln__create_policy` with `targetKind: image`, `targetAll: true` (or `targetQuery` by repository), `addPermissions: ["pull"]`, `addServiceAccounts: [LINK]` — bindings go in the create call.
-3. **Target org — docker secret**: `mcp__cpln__create_secret_docker` with `dockerConfigJson` — the username is the **literal string `<token>`** (the registry rejects anything else; the password is the service-account key):
+3. **Target org — docker secret**: have the user create a `docker` secret with this `dockerConfigJson` — the username is the **literal string `<token>`** (the registry rejects anything else; the password is the service-account key):
 
 ```json
 { "auths": { "my-org-dev.registry.cpln.io": { "username": "<token>", "password": "SERVICE_ACCOUNT_KEY" } } }
@@ -70,7 +70,7 @@ cpln serviceaccount create --name image-puller --org my-org-dev                 
 cpln serviceaccount add-key image-puller --description "cross-org pull" --org my-org-dev   # save the key
 cpln policy create --name image-pull --target-kind image --all --org my-org-dev
 cpln policy add-binding image-pull --serviceaccount image-puller --permission pull --org my-org-dev
-cpln secret create-docker --name dev-registry-pull --file docker-config.json --org my-org-prod
+# the user creates the dev-registry-pull docker secret in my-org-prod, then:
 cpln gvc update my-gvc --set 'spec.pullSecretLinks+=//secret/dev-registry-pull' --org my-org-prod
 ```
 
@@ -121,7 +121,7 @@ cpln workload get-deployments my-app --gvc my-gvc --org my-org    # verify every
 | `mcp__cpln__update_workload` / `mcp__cpln__update_gvc` | Patch image, env, scaling, `pullSecretLinks` (PATCH semantics) |
 | `mcp__cpln__add_key_to_service_account` | Puller credentials in the source org (auto-creates the SA; key shown once) |
 | `mcp__cpln__create_policy` | Grant `pull` on images, binding included in the create call |
-| `mcp__cpln__create_secret_docker` | Docker secret from `dockerConfigJson` (username `<token>`) |
+| `mcp__cpln__get_resource` (kind `secret`) | Verify the docker pull secret exists before attaching |
 | `mcp__cpln__list_deployments` | Verify a promotion or rollback is ready per location |
 | `mcp__cpln__export_terraform` / `_batch` / `mcp__cpln__convert_to_terraform` | Export live environments to IaC |
 

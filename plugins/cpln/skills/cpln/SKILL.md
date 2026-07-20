@@ -35,7 +35,7 @@ cpln profile update default --org ORG --gvc GVC  # set defaults ("update" create
 
 **CI/CD needs no profile.** With `CPLN_TOKEN` set (service-account key, from `cpln serviceaccount add-key`), the CLI runs a profile-less session against `api.cpln.io`. Add `CPLN_ORG` / `CPLN_GVC` for defaults and `CPLN_SKIP_UPDATE_CHECK=1` to silence update checks. Resolution everywhere is **flag, then env var, then profile**: `--org` beats `CPLN_ORG` beats the profile default — same for `--gvc`/`CPLN_GVC`, `--profile`/`CPLN_PROFILE`, `--endpoint`/`CPLN_ENDPOINT`, `--token`/`CPLN_TOKEN`. Profiles live in `~/.config/cpln` (override with `CPLN_HOME`).
 
-**Never pass `--token`** — it leaks into logs and shell history; use `CPLN_TOKEN` or a profile. Inspect context with `cpln profile get` — **there is no `cpln whoami`.** **`cpln profile token` (prints the profile's live access JWT) and `cpln secret reveal` are break-glass** — they expose a live credential or secret plaintext: never suggest them or run them on your own; use them only when the user explicitly asks. Explain any profile state changes so operators can revert them.
+**Never pass `--token`** — it leaks into logs and shell history; use `CPLN_TOKEN` or a profile. Inspect context with `cpln profile get` — **there is no `cpln whoami`.** **`cpln profile token` (prints the profile's live access JWT) is break-glass** — it exposes a live credential: never suggest it or run it on your own; use it only when the user explicitly asks. **Secret data commands are off-limits entirely** — never run or suggest `cpln secret reveal`, `cpln secret create-*`, `cpln secret edit`, or `cpln secret delete`; the user manages secret values and lifecycle themselves. Explain any profile state changes so operators can revert them.
 
 ## Command structure & shared flags
 
@@ -90,7 +90,7 @@ Core anti-hallucination reference. **Scope**: org = needs `--org`; gvc = needs `
 |---|---|---|---|
 | **workload** (`w`) | gvc | Full + clone | `connect`, `exec`, `run`, `cron` (get/run/start/stop), `replica` (get/stop), `force-redeployment`, `get-deployments`, `open`, `start`, `stop` |
 | **gvc** | org | Full + clone | `add-location`, `remove-location` (both `--location`, repeatable), `delete-all-workloads` |
-| **secret** | org | **No generic create**; clone | 12 `create-<type>` commands (below), `reveal` (break-glass) |
+| **secret** | org | get only — secret data and lifecycle are managed by the user | — |
 | **policy** | org | Full + clone | `add-binding`, `remove-binding` |
 | **identity** (`id`) | gvc | Full, **no clone** | — |
 | **volumeset** | gvc | Full, no clone | `expand`, `shrink`, `snapshot` (create/delete/get/restore), `volume` (delete/get) |
@@ -153,25 +153,6 @@ cpln logs '{gvc="GVC", workload="WORKLOAD"}' --org ORG --tail
 - Streaming: `--tail` (also `-t`/`-f`). **`--follow` does NOT exist.**
 - `--limit N` (default 30; `0` = unlimited, auto-paginates), `--since` (default `1h`), `--from`/`--to`, `--direction forward|backward`, and its own `-o default|raw|jsonl` (`raw` strips labels and timestamps). Full LogQL: `logql-observability` skill.
 
-### cpln secret create — 12 type-specific commands
-
-`cpln secret create` does **not** exist. All variants require `--name`; all accept `--description`, `--tag`:
-
-| Type | Command | Required flags | Optional |
-|---|---|---|---|
-| Opaque | `create-opaque` | `--file` (**no `--payload` flag**) | `--encoding` (default `base64` — the CLI encodes the file for you, binary-safe; `plain` stores text as-is) |
-| Dictionary | `create-dictionary` | `--entry KEY=VAL` (repeatable) | |
-| Username/Password | `create-userpass` | `--username`, `--password` | |
-| AWS | `create-aws` | `--access-key`, `--secret-key` | `--role-arn`, `--external-id` |
-| GCP | `create-gcp` | `--file` (service-account JSON) | |
-| Azure SDK | `create-azure-sdk` | `--file` | |
-| Azure Connector | `create-azure-connector` | `--url`, `--code` | |
-| Docker | `create-docker` | `--file` (docker config.json) | |
-| ECR | `create-ecr` | `--access-key`, `--secret-key`, `--repo` | `--role-arn`, `--external-id` |
-| TLS | `create-tls` | `--key`, `--cert` | `--chain` |
-| Key Pair | `create-keypair` | `--secret` | `--public`, `--passphrase` |
-| NATS | `create-nats` | `--account-id`, `--private-key` | |
-
 ### cpln workload create
 
 ```bash
@@ -231,15 +212,12 @@ Dedicated verb per operation; the flags are **singular** — `--location`, `--vo
 
 | Wrong | Correct |
 |---|---|
-| `cpln secret create` | `cpln secret create-opaque`, `create-aws`, etc. |
-| `cpln secret create-opaque --payload X` | `--file` only — the CLI has no `--payload` flag (some docs mention one) |
 | `cpln <resource> list` | `cpln <resource> get` (no args = list all) |
 | `cpln logs --follow` | `cpln logs --tail` (or `-t` / `-f`) |
 | `cpln workload log` for container logs | that's the `eventlog` alias (platform events); container logs = `cpln logs '{gvc="GVC", workload="W"}'` |
 | `cpln cloudaccount create` | `cpln cloudaccount create-aws` / `create-azure` / `create-gcp` / `create-ngs` |
 | `cpln mk8s create` | `cpln apply --file mk8s-manifest.yaml` |
 | `cpln workload update REF --identity X` | `cpln workload update REF --set spec.identityLink=//identity/X` |
-| `cpln secret update REF --data '{}'` | `cpln secret edit REF` or `cpln apply --file` |
 | `cpln gvc update REF --location LOC` | `cpln gvc add-location REF --location LOC` |
 | `cpln identity clone` | identity has no clone — `get -o yaml-slim`, edit the name, `cpln apply` |
 | `cpln volumeset ... --locations / --volume-indexes` | singular: `--location`, `--volume-index` |
@@ -284,10 +262,9 @@ cpln workload get-deployments my-app --gvc my-gvc   # verify readiness
 
 ## Workflow: Grant secret access (3 steps)
 
-The 3-step rule (identity + policy + reference) and the `workload_reveal_secret` shortcut (identity + policy in one call) are owned by `rules/cpln-guardrails.md`. CLI fallback:
+The 3-step rule (identity + policy + reference) is owned by `rules/cpln-guardrails.md`. The secret must already exist (created by the user). CLI fallback:
 
 ```bash
-cpln secret create-opaque --name db-password --file ./db-password.txt --org my-org
 cpln identity create --name my-app-identity --gvc my-gvc --org my-org
 cpln workload update my-app --gvc my-gvc --set spec.identityLink=//identity/my-app-identity
 cpln policy create --name secret-access --target-kind secret --resource db-password --org my-org
@@ -307,7 +284,7 @@ cpln apply --file ./manifests/ --gvc my-gvc --ready                # idempotent;
 
 ## Workflow: Rename or clone (names are immutable)
 
-No `rename` exists. **Preferred — `clone`** (on workload, gvc, secret, policy, group, ipset, serviceaccount, mk8s, auditctx; duplicates spec only):
+No `rename` exists. **Preferred — `clone`** (on workload, gvc, policy, group, ipset, serviceaccount, mk8s, auditctx; duplicates spec only; secrets are off-limits — the user clones them):
 
 ```bash
 cpln workload clone old-name --name new-name --gvc my-gvc
@@ -322,7 +299,7 @@ Kinds without clone (identity, volumeset, domain, agent): `get -o yaml-slim`, ed
 ```bash
 cpln logs '{gvc="my-gvc", workload="my-app"}' --org my-org --tail        # stream logs
 cpln logs '{gvc="my-gvc", workload="my-app"} |= "error"' --org my-org    # filter (LogQL, not a shell pipe)
-cpln workload exec my-app --gvc my-gvc -- env                            # inspect runtime env
+cpln workload exec my-app --gvc my-gvc -- ls /app                        # inspect the container filesystem
 cpln workload connect my-app --gvc my-gvc                                # interactive shell
 cpln port-forward my-app 8080:8080 --gvc my-gvc                          # probe locally
 ```
