@@ -10,6 +10,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Changed
 
+- The OpenTelemetry logging workflow accepts an existing Control Plane credentials-secret reference but no longer accepts raw authentication headers.
+- Credential-bearing prompts are refused without an MCP, skill, or CLI call; credential operations may resume only by referencing a secret created outside the conversation.
+
 ### Fixed
 
 ### Removed

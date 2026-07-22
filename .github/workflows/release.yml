@@ -73,11 +73,11 @@ jobs:
             plugins/cpln/mcp_config.json \
             plugins/cpln/.claude-plugin/plugin.json \
             plugins/cpln/.codex-plugin/plugin.json \
-            plugins/cpln/.codex-plugin/mcp.json \
+            plugins/cpln/.mcp.json \
             plugins/cpln/.cursor-plugin/plugin.json \
             plugins/cpln/.cursor-plugin/mcp.json \
             plugins/cpln/.claude-mcp.json \
-            plugins/cpln/hooks/cpln-hooks.json
+            plugins/cpln/hooks/hooks.json
 
       - name: Extract release notes from CHANGELOG
         id: notes

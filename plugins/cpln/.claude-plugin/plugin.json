@@ -1,13 +1,13 @@
 {
   "name": "cpln",
   "version": "2.0.0",
-  "description": "Control Plane — hybrid multi-cloud platform. Skills, agents, and guardrails for deploying workloads, managing secrets, configuring networking, troubleshooting, and migrating from Kubernetes across AWS, GCP, Azure, and private clouds.",
+  "description": "Control Plane — hybrid multi-cloud platform. Skills, agents, and guardrails for deploying workloads, configuring secret access and networking, troubleshooting, and migrating from Kubernetes across AWS, GCP, Azure, and private clouds.",
   "author": {
     "name": "Control Plane",
     "email": "support@controlplane.com",
     "url": "https://controlplane.com"
   },
-  "homepage": "https://docs.controlplane.com/ai/ai-plugin",
+  "homepage": "https://docs.controlplane.com/ai/plugin",
   "repository": "https://github.com/controlplane-com/ai-plugin",
   "license": "MIT",
   "keywords": [
@@ -19,9 +19,9 @@
     "deploy",
     "containers",
     "networking",
-    "secrets",
+    "secret-access",
     "autoscaling"
   ],
   "mcpServers": "./.claude-mcp.json",
-  "hooks": "./hooks/cpln-hooks.json"
+  "hooks": "./hooks/hooks.json"
 }

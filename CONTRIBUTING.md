@@ -20,11 +20,11 @@ jq empty \
   plugins/cpln/mcp_config.json \
   plugins/cpln/.claude-plugin/plugin.json \
   plugins/cpln/.codex-plugin/plugin.json \
-  plugins/cpln/.codex-plugin/mcp.json \
+  plugins/cpln/.mcp.json \
   plugins/cpln/.cursor-plugin/plugin.json \
   plugins/cpln/.cursor-plugin/mcp.json \
   plugins/cpln/.claude-mcp.json \
-  plugins/cpln/hooks/cpln-hooks.json
+  plugins/cpln/hooks/hooks.json
 claude plugin validate .
 agy plugin validate ./plugins/cpln
 ```
@@ -102,7 +102,7 @@ Run before tagging:
 - `CHANGELOG.md` `[Unreleased]` section is empty (everything moved into the new versioned section).
 - `README.md` install instructions match the published marketplace IDs.
 - No real secrets, service account tokens, or org-specific values in the diff.
-- `plugins/cpln/.codex-plugin/mcp.json` uses Codex MCP fields (`url`, `bearer_token_env_var`) and not raw auth headers.
+- `plugins/cpln/.mcp.json` uses Codex MCP fields (`url`, `bearer_token_env_var`) and not raw auth headers.
 - `plugins/cpln/.claude-mcp.json` uses Claude Code MCP fields (`type`, `url`, `headers`) with environment interpolation.
 - `plugins/cpln/mcp_config.json` (Antigravity CLI) uses `serverUrl` for the remote MCP server — not `httpUrl` or `url`.
 - `LICENSE`, `SECURITY.md`, `.env.example`, `.gitignore` are present.

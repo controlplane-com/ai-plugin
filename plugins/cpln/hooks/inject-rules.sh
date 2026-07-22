@@ -16,7 +16,7 @@
 
 set -u
 
-R="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+R="${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}}"
 rules_dir="$R/rules"
 [ -d "$rules_dir" ] || exit 0
 

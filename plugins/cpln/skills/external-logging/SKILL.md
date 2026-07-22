@@ -22,7 +22,7 @@ External logging lives on the **org** (`spec.logging` plus `spec.extraLogging`) 
 | `elastic` | aws or userpass | one variant block — see below | |
 | `fluentd` | none | `host` | `port` default 24224; Fluent Bit forward protocol |
 | `syslog` | none | `host`, `port`, `mode`, `format`, `severity` | `mode` tcp/udp/tls (tls enables TLS); `format` rfc3164/rfc5424; `severity` 0-7; the receiver sees gvc as hostname, workload as appname, replica as procid |
-| `opentelemetry` | opaque (optional) | `endpoint` | OTLP over HTTP, not gRPC; an https endpoint turns TLS on; optional `headers` map; optional `credentials` becomes the Authorization header |
+| `opentelemetry` | opaque (optional) | `endpoint` | OTLP over HTTP, not gRPC; an https endpoint turns TLS on; optional `credentials` becomes the Authorization header. Raw header values are intentionally not accepted by the MCP tool. |
 
 - CloudWatch `region` allowlist: us-east-1, us-east-2, us-west-1, us-west-2, ap-south-1, ap-northeast-1, ap-northeast-2, ap-southeast-1, ap-southeast-2, eu-central-1, eu-west-1, eu-west-2, eu-west-3, eu-south-1, eu-north-1, me-south-1, sa-east-1, af-south-1.
 - CloudWatch `retentionDays`: 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653.

@@ -12,7 +12,7 @@ End-user install and capability docs live in `README.md`. Development principles
 | `plugins/cpln/skills/<name>/SKILL.md` | One domain skill per folder. Companion files (`*.md`) load on demand. |
 | `plugins/cpln/agents/<name>.md` | One self-contained guided workflow per file. |
 | `plugins/cpln/commands/<name>.md` | Slash command for Claude / Codex / Cursor. |
-| `plugins/cpln/rules/*.md` | Guardrails and manifest references. Files with `alwaysApply: true` are injected by the `SessionStart` hook in `plugins/cpln/hooks/cpln-hooks.json` (Claude / Codex) and read by Cursor as native rules. Antigravity has no SessionStart hook and does not load a plugin `rules/` dir (its rules live in `AGENTS.md`), so it gets the same guardrails via the MCP server (`get_cpln_rules`). |
+| `plugins/cpln/rules/*.md` | Guardrails and manifest references. Files with `alwaysApply: true` are injected by the `SessionStart` hook in `plugins/cpln/hooks/hooks.json` (Claude / Codex) and read by Cursor as native rules. Antigravity has no SessionStart hook and does not load a plugin `rules/` dir (its rules live in `AGENTS.md`), so it gets the same guardrails via the MCP server (`get_cpln_rules`). |
 | `plugins/cpln/.claude-plugin/plugin.json` | Claude plugin manifest. |
 | `plugins/cpln/.codex-plugin/plugin.json` + `mcp.json` | Codex manifest and MCP config. |
 | `plugins/cpln/.cursor-plugin/plugin.json` + `mcp.json` | Cursor manifest and MCP config. |
@@ -22,7 +22,7 @@ End-user install and capability docs live in `README.md`. Development principles
 | `.agents/plugins/marketplace.json` | Codex marketplace entry. |
 | `.cursor-plugin/marketplace.json` | Cursor marketplace entry. |
 
-Each per-client MCP config (`.claude-mcp.json`, `.codex-plugin/mcp.json`, `.cursor-plugin/mcp.json`, and `plugins/cpln/mcp_config.json` for Antigravity) points at the hosted server `https://mcp.cpln.io/mcp?toolsets=full` — every client uses the `?toolsets=full` profile so they all expose the same complete tool set. Keep them in sync when changing URL or auth shape. The remote-URL field name differs per client: Claude/Codex/Cursor/generic use `url`, Antigravity uses `serverUrl`.
+Each per-client MCP config (`.claude-mcp.json`, `.mcp.json`, `.cursor-plugin/mcp.json`, and `plugins/cpln/mcp_config.json` for Antigravity) points at the hosted server `https://mcp.cpln.io/mcp?toolsets=full` — every client uses the `?toolsets=full` profile so they all expose the same complete tool set. Keep them in sync when changing URL or auth shape. The remote-URL field name differs per client: Claude/Codex/Cursor/generic use `url`, Antigravity uses `serverUrl`.
 
 ## Plugin id vs display name
 
@@ -75,11 +75,11 @@ jq empty \
   plugins/cpln/mcp_config.json \
   plugins/cpln/.claude-plugin/plugin.json \
   plugins/cpln/.codex-plugin/plugin.json \
-  plugins/cpln/.codex-plugin/mcp.json \
+  plugins/cpln/.mcp.json \
   plugins/cpln/.cursor-plugin/plugin.json \
   plugins/cpln/.cursor-plugin/mcp.json \
   plugins/cpln/.claude-mcp.json \
-  plugins/cpln/hooks/cpln-hooks.json
+  plugins/cpln/hooks/hooks.json
 ```
 
 Codex has no CLI validator; install the plugin and check `~/.codex/log/codex-tui.log` for `cpln`/`controlplane` warnings (there should be none).
