@@ -5,7 +5,7 @@ description: "Writes cpln CLI commands and workflows for Control Plane. Use when
 
 # cpln CLI
 
-**MCP first; the CLI is the fallback** — use it when the MCP server is unavailable or unauthenticated, for the CLI-only operations below, and for interactive debugging or scripted GitOps. **In CI/CD the CLI is the primary interface** — pipelines authenticate with a service-account key in `CPLN_TOKEN`, build/push images (`cpln image build --push`), and apply resources (`cpln apply --ready`). Platform rules (resource model, secrets, destructive ops, production defaults, scale-to-zero, firewall) live in `rules/cpln-guardrails.md`; this skill is the CLI mechanics.
+**MCP first; the CLI is the fallback** — use it when the MCP server is unavailable or unauthenticated, for the CLI-only operations below, and for interactive debugging or scripted GitOps. **In CI/CD the CLI is the primary interface** — pipelines authenticate with a service-account key in `CPLN_TOKEN`, build and push images (`cpln image build --push`, or `--remote` on a runner with no Docker daemon), and apply resources (`cpln apply --ready`). Platform rules (resource model, secrets, destructive ops, production defaults, scale-to-zero, firewall) live in `rules/cpln-guardrails.md`; this skill is the CLI mechanics.
 
 **Never write a `cpln` command from memory.** Verify every verb and flag with `cpln <command> --help` before quoting it. If a command isn't in the resource command map below, assume it isn't real.
 
@@ -15,7 +15,7 @@ No MCP equivalent — the CLI's primary job:
 
 | Command | Purpose |
 |---|---|
-| `cpln image build` | Build a container image (Dockerfile or buildpacks) and push to the org registry |
+| `cpln image build` | Build a container image — locally with Docker, or on Control Plane with `--remote` (no daemon) — and push to the org registry |
 | `cpln image copy` | Copy an image between orgs |
 | `cpln port-forward` | Forward local ports to a running workload |
 | `cpln convert` | Convert Kubernetes manifests to Control Plane specs (Compose is `cpln stack`) |
@@ -225,18 +225,18 @@ Dedicated verb per operation; the flags are **singular** — `--location`, `--vo
 
 ## Building & referencing images
 
-`cpln image build` builds locally and (with `--push`) pushes to the org's **private registry** — the registry referenced in workload specs as `//image/NAME:TAG`:
+`cpln image build` puts an image in the org's **private registry** — the registry referenced in workload specs as `//image/NAME:TAG`. Two ways to run it:
 
 ```bash
-cpln image build --name my-app:v1.0 --push   # reference as //image/my-app:v1.0
+cpln image build --name my-app:v1.0 --remote   # builds on Control Plane, pushes for you — no Docker
+cpln image build --name my-app:v1.0 --push     # builds through the local Docker daemon
 ```
 
-- **Dockerfile**: auto-detected in `--dir` (default `.`), or pass `--dockerfile PATH`. Built with Docker (buildx when available).
-- **Buildpacks**: no Dockerfile means a buildpack build via the `pack` binary (auto-downloaded by the CLI). Default builder `heroku/builder:24_linux-amd64`; `--buildpack` to pin; everything after `--` goes to `pack`.
-- `--platform` defaults to `linux/amd64` — the required arch on Control Plane (wrong arch = `exec format error`). Multi-arch lists need buildx and `--push`.
-- `--env` here is **build-time only** — never available at runtime. `--no-cache` busts layers.
-- **A running Docker daemon is required either way.** On thin CI runners fall back to `docker build` + `docker push` against the org registry (`cpln image docker-login` first).
-- Cross-org copy: `cpln image copy NAME:TAG --to-org ORG2 [--to-name NEW] [--to-profile P]` — logs into both registries, then pulls, tags, pushes.
+- **`--remote`**: uploads `--dir` (default `.`, filtered by `.dockerignore` or `.gitignore`, capped at 500 MB / 20,000 files), or builds a GitHub/GitLab HTTPS repo given with `--repo` (+ `--branch`). The service picks Dockerfile vs generated build and always produces `linux/amd64`. `--detach` returns a build id; `Ctrl+C` stops watching but not the build.
+- **Local**: Dockerfile auto-detected in `--dir` or passed with `--dockerfile PATH`, built with Docker (buildx when available); no Dockerfile means a buildpack build via `pack` (auto-downloaded), default builder `heroku/builder:24_linux-amd64`, everything after `--` goes to `pack`. `--platform` defaults to `linux/amd64`; multi-arch lists need buildx and `--push`. `--env` is **build-time only**, never runtime.
+- **`--dockerfile`, `--builder`, `--buildpack`, `--env`, `--env-file`, `--trust-builder`, `--trust-extra-buildpacks`, `--platform`, and `--push` are rejected with `--remote`**; `--repo`, `--branch`, and `--detach` error without it.
+- **A Docker daemon is required for a local build only.** On thin CI runners use `--remote`, or `docker build` + `docker push` against the org registry after `cpln image docker-login`.
+- Cross-org copy: `cpln image copy NAME:TAG --to-org ORG2 [--to-name NEW] [--to-profile P]` — logs into both registries, then pulls, tags, pushes. **`copy` has no `--remote` mode; it still needs a local daemon.**
 
 Image reference rules in workload specs:
 
@@ -247,7 +247,7 @@ Image reference rules in workload specs:
 | **Other public registry** | exact host path (`gcr.io/...`, `ghcr.io/...`) | No |
 | **External private registry** (ECR, GCR, ACR, private Docker Hub, another CPLN org) | exact host path | **Yes** — `docker`/`ecr`/`gcp` secret on GVC `spec.pullSecretLinks` |
 
-Full image workflow (buildx fallback, cross-org copy, pull-secret setup): `image` skill.
+Full image workflow (remote vs local build detail, buildx fallback, cross-org copy, pull-secret setup): `image` skill.
 
 ## Workflow: Deploy a workload
 
@@ -255,7 +255,7 @@ The CLI runbook (also the CI/CD path):
 
 ```bash
 cpln gvc create --name my-gvc --location aws-us-west-2 --org my-org
-cpln image build --name my-app:v1.0 --push
+cpln image build --name my-app:v1.0 --push          # or --remote, with no Docker daemon
 cpln workload create --name my-app --gvc my-gvc --image //image/my-app:v1.0 --port 8080 --public
 cpln workload get-deployments my-app --gvc my-gvc   # verify readiness
 ```
@@ -314,7 +314,7 @@ Scale-to-zero/autoscaling, production defaults/probes, Template Catalog first, d
 
 | Need | Skill |
 |---|---|
-| Image build details, buildx fallback, pull secrets | `image` |
+| Remote vs local build detail, buildx fallback, pull secrets | `image` |
 | LogQL beyond the basics, per-execution cron queries | `logql-observability` |
 | Query language (`--match` / `--tag` / `--rel`) | `query-spec` |
 | Volumeset semantics and shrink safety | `stateful-storage` |

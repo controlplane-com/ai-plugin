@@ -7,7 +7,7 @@ description: "Sets up CI/CD pipelines and GitOps for Control Plane. Use when the
 
 > **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
 
-In pipelines the **CLI is the primary interface**: authenticate with a service-account key in `CPLN_TOKEN` (no profile needed), push an image, `cpln apply --ready` the manifests. MCP tools do the work around the pipeline — `mcp__cpln__get_resource_schema` before authoring manifests, `mcp__cpln__list_deployments` to confirm a deploy landed. The usual failure is image builds: `cpln image build` runs the build **locally through Docker**, so on runners without a Docker daemon it cannot work — pick the build flow by runner capability, not by habit.
+In pipelines the **CLI is the primary interface**: authenticate with a service-account key in `CPLN_TOKEN` (no profile needed), push an image, `cpln apply --ready` the manifests. MCP tools do the work around the pipeline — `mcp__cpln__get_resource_schema` before authoring manifests, `mcp__cpln__list_deployments` to confirm a deploy landed. The usual failure is image builds: `cpln image build` runs the build **locally through Docker**, so a runner without a daemon needs a different flow — a daemonless builder, or `--remote` to build on Control Plane. Pick by runner capability, not by habit.
 
 ## Service-account authentication
 
@@ -38,12 +38,14 @@ With `CPLN_TOKEN` set the CLI runs a profile-less session; resolution is flag, t
 
 ## Building images in CI: pick the flow by runner capability
 
-`cpln image build` is a **local build wrapper, not a remote build**: with a Dockerfile (`--dockerfile`, or auto-detected in `--dir`) it shells out to `docker buildx build` (legacy `docker build` fallback); with no Dockerfile it downloads the `pack` CLI and runs buildpacks. Every mode needs a working Docker daemon, and `--push` errors unless `docker-credential-cpln` is on PATH. It configures registry auth itself — no separate `docker-login` step.
+`cpln image build --push` builds locally: with a Dockerfile it shells out to `docker buildx build`, otherwise it downloads the `pack` CLI and runs buildpacks. It needs a working Docker daemon and `docker-credential-cpln` on PATH, and it configures registry auth itself — no separate `docker-login` step. Flag behavior and upload rules: `image` skill.
 
 | Runner | Build flow |
 |---|---|
-| Daemon available — GitHub-hosted runners, GitLab with the `docker:dind` service (privileged runners, including gitlab.com SaaS), CircleCI `setup_remote_docker`, Bitbucket `docker` service | `cpln image build --name APP:TAG --push`, or keep an existing docker-native pipeline: login below, then `docker build --platform linux/amd64` + `docker push` (`image` skill, Option B) |
-| No daemon — self-managed GitLab runners without privileged mode, locked-down Kubernetes executors | Daemonless builder (kaniko, buildah, rootless BuildKit) pushing straight to the registry; the build job needs no cpln CLI at all |
+| Daemon available — GitHub-hosted runners, GitLab with the `docker:dind` service (privileged runners, including gitlab.com SaaS), CircleCI `setup_remote_docker`, Bitbucket `docker` service | `cpln image build --name APP:TAG --push`, or keep an existing docker-native pipeline: login below, then `docker build --platform linux/amd64` + `docker push` |
+| No daemon — self-managed GitLab runners without privileged mode, locked-down Kubernetes executors | A daemonless builder (kaniko, buildah, rootless BuildKit) pushing straight to the registry, or `cpln image build --name APP:TAG --remote`, which builds on Control Plane with only `CPLN_TOKEN` and the org |
+
+**A remote build gives up the local build options.** `--dockerfile`, `--builder`, `--buildpack`, `--env`, `--env-file`, and `--platform` do not apply — the service detects the build itself and always produces `linux/amd64`. Choose a daemonless builder instead when a job needs build args or a non-amd64 target. `--repo https://github.com/... --branch main` skips the checkout and builds what the service clones; a private repo needs the org's git connection, and in a **non-interactive pipeline the CLI prints an authorization URL and exits**, so authorize it once from a workstation first.
 
 The org registry is a **standard Docker registry**: `ORG.registry.cpln.io`, username = the literal string `<token>`, password = the service-account key. Any tool that can push an OCI image works:
 
@@ -120,7 +122,10 @@ Official starter repos (CLI): [GitHub Actions](https://github.com/controlplane-c
 
 | Symptom | Cause / fix |
 |---|---|
-| `Cannot connect to the Docker daemon` from `cpln image build` | Runner has no daemon — enable dind/privileged mode, or switch to the daemonless flow above |
+| `Cannot connect to the Docker daemon` from `cpln image build` | Runner has no daemon — enable dind/privileged mode, switch to a daemonless builder, or build remotely with `--remote` |
+| A flag is rejected together with `--remote` | Expected — the service picks the method and always pushes `linux/amd64`, so the local build options do not apply. A job that needs build args or another arch wants a daemonless builder |
+| A remote build prints an authorization URL and the job exits | The org has no git connection for that private repo yet — authorize once interactively, then re-run the pipeline |
+| Remote build upload rejected — over 500 MB / 20,000 files | Add large paths to `.dockerignore` (or `.gitignore`) — a remote folder build uploads the whole context |
 | `The docker-credential-cpln command is not accessible` on `--push` | Helper missing from PATH — npm installs it next to `cpln`; binary installs must copy both binaries |
 | `docker login` or push gets 401 | Username must be the literal `<token>`; the key is the password; check it wasn't truncated |
 | Push rejected for permissions | Pipeline service account lacks `create` on the `image` kind (`access-control`) |
@@ -145,7 +150,7 @@ Official starter repos (CLI): [GitHub Actions](https://github.com/controlplane-c
 | Skill | When |
 |---|---|
 | `cpln` | CLI conventions — profile-less sessions, flag/env/profile precedence |
-| `image` | Build mechanics, buildpacks, registry auth, pull secrets |
+| `image` | Build mechanics — the remote vs local table, buildpacks, registry auth, pull secrets |
 | `environment-promotion` | Moving images/configs across dev/staging/prod, rollback patterns |
 | `iac-terraform-pulumi` | Terraform/Pulumi pipelines instead of `cpln apply` |
 | `access-control` | Service accounts, groups, policies, least privilege |

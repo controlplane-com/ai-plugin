@@ -33,6 +33,8 @@
     "workload-troubleshooting": {}
   },
   "toolSkills": {
+    "build_image": "image",
+    "get_image_build": "image",
     "create_policy": "access-control",
     "get_permissions": "access-control",
     "create_group": "access-control",

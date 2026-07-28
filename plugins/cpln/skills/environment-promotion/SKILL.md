@@ -40,7 +40,7 @@ cpln image copy my-app:abc1234 --to-org my-org-prod              # same credenti
 cpln image copy my-app:abc1234 --to-org my-org-prod --to-profile prod-profile --cleanup
 ```
 
-CLI-only (no MCP tool); requires a running Docker daemon — it docker-logins both registries, then pulls, tags, pushes. `--to-name` renames during copy; `--cleanup` removes the local images (use in CI). Needs `pull` permission on the source image and `create` on images in the target org. After the copy the target references it as `//image/my-app:abc1234` — no pull secret.
+CLI-only (no MCP tool) and **still requires a running Docker daemon — `copy` has no `--remote` mode** — it docker-logins both registries, then pulls, tags, pushes. `--to-name` renames during copy; `--cleanup` removes the local images (use in CI). Needs `pull` permission on the source image and `create` on images in the target org. After the copy the target references it as `//image/my-app:abc1234` — no pull secret.
 
 ### Option B — cross-org pull secret (continuous access)
 
@@ -125,7 +125,7 @@ cpln workload get-deployments my-app --gvc my-gvc --org my-org    # verify every
 | `mcp__cpln__list_deployments` | Verify a promotion or rollback is ready per location |
 | `mcp__cpln__export_terraform` / `_batch` / `mcp__cpln__convert_to_terraform` | Export live environments to IaC |
 
-**CLI fallback** (read the `cpln` skill first; CI/CD uses `CPLN_TOKEN` + `cpln apply --ready`): `cpln image copy` and `cpln image build --push` are CLI-only — no MCP equivalent.
+**CLI fallback** (read the `cpln` skill first; CI/CD uses `CPLN_TOKEN` + `cpln apply --ready`): `cpln image copy` is CLI-only and needs a local Docker daemon. `cpln image build --remote` needs none; over MCP only a **repo** build can be started — a local folder must go through the CLI (`image` skill).
 
 ## Related skills
 

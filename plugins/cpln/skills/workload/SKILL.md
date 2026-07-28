@@ -71,7 +71,8 @@ Platform defaults are not a production design. For any real workload:
 - The `<your-org>.registry.cpln.io/NAME:TAG` form also resolves, but for your own org prefer `//image/NAME:TAG`; the hostname form is mainly used by `docker login` / `docker push`.
 - **All images must be `linux/amd64`** — a wrong-arch image fails with `exec format error`.
 - **Private external registries need a pull secret on the GVC** (`spec.pullSecretLinks`); only `docker`, `ecr`, and `gcp` secret types work as pull secrets. Same-org `//image/...` needs none.
-- Building and pushing is **CLI-only** (`cpln image build --push`); over MCP, images are list/get/delete only (`mcp__cpln__list_resources` / `mcp__cpln__get_resource` / `mcp__cpln__delete_resource`, kind="image").
+- **Build and push:** `cpln image build --name NAME:TAG --remote` builds on Control Plane and pushes for you (no Docker daemon); `--push` builds locally. Over MCP, `mcp__cpln__build_image` starts a build **from a GitHub/GitLab repo only** — a local folder has no path through MCP and must use the CLI.
+- Image **records** over MCP are list/get/delete (`mcp__cpln__list_resources` / `mcp__cpln__get_resource` / `mcp__cpln__delete_resource`, kind="image"). Detail: `image` skill.
 
 ## Run real images
 
@@ -187,7 +188,7 @@ The metric must be valid for the workload type (the matrix above) or the spec is
 | `mcp__cpln__grant_workload_secret_access` | Grant an **existing** workload secret access (identity + `reveal` policy; you still add the reference — create the workload first). |
 | `mcp__cpln__mount_volumeset_to_workload` | Attach a volume set to a stateful workload. |
 
-**CLI fallback** (read the `cpln` skill first): use when MCP is unavailable/unauthenticated, for interactive work (`cpln workload exec`, `cpln workload connect`, `port-forward`), image build/copy, or as the primary interface in CI/CD (`CPLN_TOKEN` + `cpln apply --ready`).
+**CLI fallback** (read the `cpln` skill first): use when MCP is unavailable/unauthenticated, for interactive work (`cpln workload exec`, `cpln workload connect`, `port-forward`), a local-folder image build or an image copy, or as the primary interface in CI/CD (`CPLN_TOKEN` + `cpln apply --ready`).
 
 **Raw API escape hatch:** for a spec field no typed `create_workload` / `update_workload` / `configure_workload_*` tool exposes, use `mcp__cpln__cpln_api_request` (raw GET/POST/PATCH/DELETE; disabled by default — only when advertised) — call `mcp__cpln__get_resource_schema` first for the exact path and body, and prefer the typed tools whenever they cover the field. If it is not advertised, apply the full manifest with the `cpln` CLI instead.
 

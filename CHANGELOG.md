@@ -9,15 +9,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 ### Added
 
 - When a task needs a secret that does not exist, the plugin now offers a placeholder manifest for the user to fill in and apply, documenting every secret type's accepted `data` shape, including the JSON string forms for `docker`, `gcp`, and `azure-sdk`.
+- `build_image` and `get_image_build` build a container image from a GitHub or GitLab repository and report its progress.
+- Remote image builds with `cpln image build --remote`, which run on Control Plane instead of local Docker.
 
 ### Changed
 
 - The OpenTelemetry logging workflow accepts an existing Control Plane credentials-secret reference but no longer accepts raw authentication headers.
 - Credential-bearing prompts are refused without an MCP, skill, or CLI call; credential operations may resume only by referencing a secret created outside the conversation.
+- CI/CD guidance now offers remote builds as an option for runners without a Docker daemon.
 
 ### Fixed
 
-### Removed
+- The skills and guardrails no longer claim that every image build needs a local Docker daemon.
 
 ## [2.0.0] - 2026-07-20
 

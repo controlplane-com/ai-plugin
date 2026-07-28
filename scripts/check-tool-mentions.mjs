@@ -32,7 +32,7 @@ const TIER = { core: 1, mk8s: 2, full: 3, conditional: 4 };
 
 const TOKEN_RE = /\b(?:mcp__cpln__)?([a-z][a-z0-9]*(?:_[a-z0-9]+)+)\b/g;
 const VERB_PREFIXES = new Set([
-  'list', 'get', 'create', 'update', 'delete', 'query', 'reveal', 'export', 'convert', 'install',
+  'list', 'get', 'create', 'update', 'delete', 'query', 'reveal', 'export', 'convert', 'install', 'build',
   'uninstall', 'upgrade', 'rollback', 'browse', 'mount', 'configure', 'search', 'preview', 'set',
   'add', 'remove', 'patch', 'stop', 'restart', 'scale', 'clone', 'deploy', 'run',
   'apply', 'validate', 'describe', 'fetch', 'grant', 'revoke', 'attach', 'detach',
