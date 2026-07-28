@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Added
 
+### Changed
+
+### Fixed
+
+### Removed
+
+## [2.1.0] - 2026-07-28
+
+### Added
+
 - When a task needs a secret that does not exist, the plugin now offers a placeholder manifest for the user to fill in and apply, documenting every secret type's accepted `data` shape, including the JSON string forms for `docker`, `gcp`, and `azure-sdk`.
 - `build_image` and `get_image_build` build a container image from a GitHub or GitLab repository and report its progress.
 - Remote image builds with `cpln image build --remote`, which run on Control Plane instead of local Docker.
