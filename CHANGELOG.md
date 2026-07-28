@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Added
 
+- When a task needs a secret that does not exist, the plugin now offers a placeholder manifest for the user to fill in and apply, documenting every secret type's accepted `data` shape, including the JSON string forms for `docker`, `gcp`, and `azure-sdk`.
+
 ### Changed
 
 - The OpenTelemetry logging workflow accepts an existing Control Plane credentials-secret reference but no longer accepts raw authentication headers.

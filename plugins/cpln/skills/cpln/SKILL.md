@@ -262,7 +262,7 @@ cpln workload get-deployments my-app --gvc my-gvc   # verify readiness
 
 ## Workflow: Grant secret access (3 steps)
 
-The 3-step rule (identity + policy + reference) is owned by `rules/cpln-guardrails.md`. The secret must already exist (created by the user). CLI fallback:
+The 3-step rule (identity + policy + reference) is owned by `rules/cpln-guardrails.md`. The secret must already exist (created by the user — offer to draft the manifest for them to fill and apply; `setup-secret` skill). CLI fallback:
 
 ```bash
 cpln identity create --name my-app-identity --gvc my-gvc --org my-org

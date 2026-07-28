@@ -5,7 +5,7 @@ description: Credential-free cloud access (Universal Cloud Identity) for a Contr
 
 # Cloud Access Setup (Universal Cloud Identity)
 
-> **Tool availability:** the cloud-account tools (`create_cloud_account`, `update_cloud_account`, `how_to_create_<provider>_cloud_account`) live in the **`full`** profile. `create_identity` / `update_identity` and `update_workload` are **`core`**. If a full tool isn't advertised, reconnect with `?toolsets=full` or use the `cpln` CLI. The `nats-account` / `azure-connector` secret a cloud account references must already exist — created by the user. Reads and deletes work on every profile via `list_resources` / `get_resource` / `delete_resource`.
+> **Tool availability:** the cloud-account tools (`create_cloud_account`, `update_cloud_account`, `how_to_create_<provider>_cloud_account`) live in the **`full`** profile. `create_identity` / `update_identity` and `update_workload` are **`core`**. If a full tool isn't advertised, reconnect with `?toolsets=full` or use the `cpln` CLI. The `nats-account` / `azure-connector` secret a cloud account references must already exist — created by the user; offer to draft the manifest for them to fill and apply (`setup-secret` skill). Reads and deletes work on every profile via `list_resources` / `get_resource` / `delete_resource`.
 
 A workload reads cloud resources with **no embedded keys**: a GVC-scoped **identity** carries a per-provider cloud-access block that federates with the provider's IAM, and Control Plane vends short-lived credentials at runtime. Cloud SDKs (boto3, google-cloud, @azure/sdk) pick them up automatically — no SDK config.
 

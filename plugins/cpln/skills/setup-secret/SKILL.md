@@ -1,11 +1,11 @@
 ---
 name: setup-secret
-description: Sets up complete secret access for a Control Plane workload — identity, policy, and reference injection. Use when a workload needs to read a secret, configure a pull secret, or fix a deployment paused on a secret reference.
+description: Secret access wiring and manifest authoring. Use when a workload needs to read a secret, the user asks to create a secret or generate secret YAML, configure a pull secret, or fix a deployment paused on a secret reference.
 ---
 
 # Secret Access Setup
 
-> **Tool availability:** secrets are read-only through MCP on every profile — `list_resources` / `get_resource` (kind="secret") show existence and metadata, never values. No tool creates, edits, deletes, or reveals a secret: secret data and lifecycle are managed by the user (Console, CLI, Terraform, Pulumi, or the API). `grant_workload_secret_access` (every profile) grants a workload access — it never returns values.
+> **Tool availability:** secrets are read-only through MCP on every profile — `list_resources` / `get_resource` (kind="secret") show existence and metadata, never values. No tool creates, edits, deletes, or reveals a secret: secret data and lifecycle are managed by the user (Console, CLI, Terraform, Pulumi, or the API); you draft manifests with placeholders, the user fills the values and applies. `grant_workload_secret_access` (every profile) grants a workload access — it never returns values.
 
 Secret access is the #1 thing users get wrong: a workload reads a secret only when **three** things are all in place. Miss any one and the value is silently absent at runtime — or the deployment pauses on an unresolved reference.
 
@@ -30,11 +30,49 @@ spec:
     - //secret/my-registry
 ```
 
+## Authoring a secret manifest — the user applies it
+
+Drafting the manifest is an expected part of the job — users ask for a scaffold, fill in the real values themselves, and apply it. Generate the YAML with UPPERCASE placeholders, then always hand back the next steps:
+
+1. **Fill in the placeholders locally** — the value never enters the chat.
+2. **Apply it**: `cpln apply -f secret.yaml --org ORG`, the Console's **cpln apply** button (paste the YAML), or the per-type CLI command that reads the value from a file (`cpln secret create-docker --name NAME --file config.json`).
+3. **Treat the filled file as a live credential** — keep it out of git and delete it after applying.
+4. **Say when it's done** — verify with `get_resource` (kind="secret") and continue with the access chain below.
+
+Never ask for the real value in chat, and never apply the manifest yourself.
+
+`data` has a fixed shape per `type`, validated by the backend on create. The trap: **for `docker`, `gcp`, and `azure-sdk`, `data` is a single JSON string** (a `>-` block scalar in YAML), never a YAML mapping — an object is rejected.
+
+```yaml
+kind: secret
+name: my-registry
+type: docker
+data: >-
+  {"auths":{"REGISTRY_HOST":{"username":"USERNAME","password":"PASSWORD"}}}
+```
+
+| `type` | `data` | Backend validation |
+|---|---|---|
+| `opaque` | object `{payload, encoding?}` | `payload` valid base64 when `encoding: base64` (default `plain`) |
+| `dictionary` | object of string values | keys match `[-._a-zA-Z0-9]+` |
+| `userpass` | object `{username, password, encoding?}` | — |
+| `tls` | object `{cert, key?, chain?}` | `cert` and `key` must be valid PEM |
+| `keypair` | object `{secretKey, publicKey?, passphrase?}` | `secretKey` a valid PEM private key |
+| `aws` | object `{accessKey, secretKey, roleArn?, externalId?}` | `accessKey` starts `AKIA`, `roleArn` starts `arn:` |
+| `ecr` | aws fields + `repos` (1–20) | each `ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com[/REPO]` |
+| `azure-connector` | object `{url, code}` | `url` must be https |
+| `nats-account` | object `{accountId, privateKey}` | `accountId` a public nkey (`A…`), `privateKey` a seed (`SA…`) |
+| `docker` | **JSON string** | must parse with an `auths` object keyed by registry host, at least one entry |
+| `gcp` | **JSON string** | full service-account key: `type`, `project_id`, `private_key_id`, `private_key`, `client_email`, `client_id`, `auth_uri`, `token_uri`, `auth_provider_x509_cert_url`, `client_x509_cert_url` |
+| `azure-sdk` | **JSON string** | `subscriptionId` / `tenantId` / `clientId` (UUIDs) plus `clientSecret` |
+
+`mcp__cpln__get_resource_schema` (kind="secret") returns the apply schema and REST endpoints.
+
 ## Workflow
 
 ### 1 — Identify the secret
 
-The secret must already exist — the user creates and rotates it through any Control Plane surface: Console, CLI (value-in-a-file, never an inline flag), Terraform, Pulumi, or the API. Confirm it exists with `list_resources` or `get_resource` (kind="secret") before wiring anything; never ask for the value in chat and never invent a placeholder.
+The secret must already exist — the user creates and rotates it through any Control Plane surface: Console, CLI (value-in-a-file, never an inline flag), Terraform, Pulumi, or the API. Confirm it exists with `list_resources` or `get_resource` (kind="secret") before wiring anything; never ask for the value in chat and never invent a placeholder. If it does not exist yet, author the manifest (section above) and wait until the user has applied it.
 
 ### 2 — Grant the workload access
 
@@ -77,6 +115,7 @@ Inject as an **env var** or a **volume mount** (`{ uri: "cpln://secret/NAME", pa
 
 ## Common mistakes
 
+- **Object `data` on a docker / gcp / azure-sdk secret** — those three types take one JSON string; a YAML mapping fails validation.
 - **No identity** — a workload with no `identityLink` reads no secrets.
 - **`view` instead of `reveal`** — metadata only, no value.
 - **Bad reference** — must be `cpln://secret/NAME`, not the bare name.

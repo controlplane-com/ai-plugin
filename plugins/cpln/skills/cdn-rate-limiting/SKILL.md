@@ -16,7 +16,7 @@ The pattern: the CDN proxies your domain and uses the workload's **canonical end
 ### Cloudflare
 
 1. **DNS at Cloudflare:** proxied CNAME (orange cloud on) from your subdomain to the canonical endpoint; SSL/TLS mode **Full (strict)**.
-2. **Origin certificate** (SSL/TLS, then Origin Server; RSA 2048) becomes a Control Plane **TLS secret** — created by the user with the cert and key, **TLS chain left empty** (the origin cert is self-signed).
+2. **Origin certificate** (SSL/TLS, then Origin Server; RSA 2048) becomes a Control Plane **TLS secret** — created by the user with the cert and key (offer a manifest scaffold; `setup-secret` skill), **TLS chain left empty** (the origin cert is self-signed).
 3. **Domain at Control Plane:** `mcp__cpln__create_domain` (CNAME DNS mode), `mcp__cpln__set_domain_tls` with the secret as the custom **server certificate**, `mcp__cpln__add_domain_route` to the workload. **The apex domain must be verified before configuring a subdomain.**
 
 ### Amazon CloudFront

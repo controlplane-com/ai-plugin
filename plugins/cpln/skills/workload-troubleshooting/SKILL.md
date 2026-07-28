@@ -46,7 +46,7 @@ cpln workload connect WORKLOAD --gvc GVC --location LOCATION      # interactive 
 - **Platform** — images must be `linux/amd64` for managed locations (BYOK allows more).
 - **Pull secret** — a private external registry needs a pull secret in the GVC's `pullSecretLinks`; only `docker`, `ecr`, `gcp` secret types work, and org `//image/` images need none.
 
-The registry secret must already exist (created by the user); attach with `update_gvc`. Deep setup: `image` skill.
+The registry secret must already exist (created by the user — offer a manifest scaffold for them to fill and apply, `setup-secret` skill); attach with `update_gvc`. Deep setup: `image` skill.
 
 ### Secret access failures
 

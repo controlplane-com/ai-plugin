@@ -125,7 +125,7 @@ CLI fallback (read the `cpln` skill first; CI/CD = `CPLN_TOKEN` + `cpln apply`):
 | Workload ports, exposure, canonical URL | `workload` |
 | Dedicated load balancer (wildcard hosts, tcp ports) | `ipset-load-balancing` |
 | CDN/WAF in front, rate limiting | `cdn-rate-limiting` |
-| Keypair secrets for custom certificates | `access-control` |
+| Keypair secrets for custom certificates | `setup-secret` |
 
 ## Documentation
 
