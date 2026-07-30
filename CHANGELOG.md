@@ -6,13 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
-### Added
-
 ### Changed
+
+- GVC and IP set locations are validated against the organization's own location list, so any location it has is usable.
+- The guardrails and the Kubernetes migration agent state that the organization's location list is the authority on which locations exist.
 
 ### Fixed
 
-### Removed
+- The GVC and IP set location tools no longer reject BYOK or built-in Oracle Cloud (`oci-*`) locations as unknown.
+- A BYOK location whose name matches a built-in region's friendly name is no longer swapped for that region.
 
 ## [2.1.0] - 2026-07-28
 
