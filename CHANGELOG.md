@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
+### Added
+
+### Changed
+
+### Fixed
+
+### Removed
+
+## [2.1.1] - 2026-07-30
+
 ### Changed
 
 - GVC and IP set locations are validated against the organization's own location list, so any location it has is usable.
