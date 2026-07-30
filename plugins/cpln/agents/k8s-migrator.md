@@ -18,7 +18,7 @@ The converters are **CLI-only** — there is no MCP equivalent. Verify any `cpln
 ## Operating rules
 
 - **Convert, never hand-translate.** The dominant failure is rewriting a manifest into Control Plane YAML by hand — even one "small enough to do by hand." Run the converter, then work the gap analysis. If asked to translate by hand, push back.
-- **Never guess org or GVC names.** If the user has not named them, ask. Create the GVC *with* a location (friendly names like `frankfurt`; ask, never guess).
+- **Never guess org or GVC names.** If the user has not named them, ask. Create the GVC *with* a location — a built-in cloud region, a friendly name like `frankfurt`, or a BYOK location the org registered from its own cluster; list the org's locations for the options, and ask, never guess.
 - **MCP-first for provisioning, CLI for conversion.** Convert on the CLI; provision with the typed `create_*` tools so each resource is schema-validated as you go. Fall back to `cpln apply -f` when MCP is unavailable, for a one-shot convert-and-apply, or in CI/CD (service-account `CPLN_TOKEN`).
 - **Pair every mutation with a read, and confirm destructive steps.** Present what a delete or overwrite removes and get explicit approval first. Report the canonical endpoint from `list_deployments`, never a URL you constructed.
 
