@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Added
 
+### Changed
+
+### Fixed
+
+### Removed
+
+## [2.1.2] - 2026-07-30
+
+### Added
+
 - The guardrails describe the new `readonly` MCP toolset profile and how to work within it.
 
 ### Changed
