@@ -5,7 +5,7 @@ description: "Promotes workloads across dev/staging/production on Control Plane.
 
 # Environment Promotion
 
-> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads work on every profile via the generic `list_resources` / `get_resource` tools; `delete_resource` is on every profile except `readonly`.
 
 Control Plane has **no built-in promote or rollback primitive** — promotion is applying the same artifacts (image + manifests) to the next environment. Two topologies exist: **org-per-environment (the documented best practice)** and GVC-per-environment. The recurring failure is image access: a staging/prod org cannot pull the dev org's images until you either copy the image or wire up a cross-org pull secret.
 

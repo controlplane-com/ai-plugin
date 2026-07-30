@@ -5,7 +5,7 @@ description: "Builds, pushes, and manages container images on Control Plane. Use
 
 # Control Plane Images
 
-> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads work on every profile via the generic `list_resources` / `get_resource` tools; `delete_resource` is on every profile except `readonly`.
 
 Every org gets a private registry at `ORG.registry.cpln.io` — a standard Docker registry (`docker login`/`push`/`pull`/`search` all work). Pushing a tag automatically creates an **image resource** named `NAME:TAG` in the org (read-only `repository`, `tag`, `digest`, `manifest` fields; only metadata tags are editable). An image resource is never created directly — `POST /org/ORG/image` returns 403 "You can create an image only by pushing" — but a **build** can run on Control Plane instead of local Docker (`cpln image build --remote`), which is the answer whenever there is no Docker daemon. The recurring failures are a wrong reference form, a non-`linux/amd64` image (`exec format error`), and a missing or mismatched pull secret.
 

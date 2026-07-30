@@ -5,7 +5,7 @@ description: "Firewall rules and service-to-service communication on Control Pla
 
 # Firewall & Networking
 
-> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads work on every profile via the generic `list_resources` / `get_resource` tools; `delete_resource` is on every profile except `readonly`.
 
 Deep detail for `spec.firewallConfig` and the enforcement model behind it; the `workload` skill owns the summary (deny-by-default, exposure decided at create time, LB picker). Set `firewallConfig` with `create_workload` / `update_workload` — or `public: true`, the shortcut that opens inbound AND outbound to `0.0.0.0/0` (mutually exclusive with an explicit `firewallConfig`). A firewall change creates a new deployment version — a rolling replace, live in about a minute (`vm` workloads are the exception: firewall updates apply in place without restarting the VM).
 

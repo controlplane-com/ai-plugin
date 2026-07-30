@@ -5,7 +5,7 @@ description: "Provisions managed Kubernetes (mk8s) clusters and registers existi
 
 # Managed Kubernetes (mk8s) & BYOK
 
-> **Tool availability:** the `create_mk8s_*` / `update_mk8s_*` tools live in the `mk8s` toolset profile (`?toolsets=mk8s`; `full` includes it). If an mk8s tool is not advertised, tell the user to reconnect with `?toolsets=mk8s`. Provider credential secrets (opaque token, gcp, keypair) must already exist — created by the user; offer to draft the manifest for them to fill and apply (`setup-secret` skill). Reads and deletes work on every profile via `list_resources` / `get_resource` / `delete_resource` (kind `mk8s` or `location`).
+> **Tool availability:** the `create_mk8s_*` / `update_mk8s_*` tools live in the `mk8s` toolset profile (`?toolsets=mk8s`; `full` includes it). If an mk8s tool is not advertised, tell the user to reconnect with `?toolsets=mk8s`. Provider credential secrets (opaque token, gcp, keypair) must already exist — created by the user; offer to draft the manifest for them to fill and apply (`setup-secret` skill). Reads work on every profile via `list_resources` / `get_resource` (kind `mk8s` or `location`); `delete_resource` is on every profile except `readonly`.
 
 Control Plane has three separate "Kubernetes" stories people routinely conflate — get the right one first:
 

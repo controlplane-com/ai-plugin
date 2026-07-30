@@ -5,7 +5,7 @@ description: "Workload metrics, PromQL, Grafana, and tracing on Control Plane. U
 
 # Metrics, Tracing & Observability
 
-> **Tool availability:** every MCP tool named here is advertised on all toolset profiles. Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+> **Tool availability:** every metric and trace tool named here is advertised on all toolset profiles, `readonly` included. Reads work on every profile via the generic `list_resources` / `get_resource` tools; `delete_resource` is on every profile except `readonly`.
 
 Control Plane stores every workload's metrics as Prometheus-compatible time series in a managed backend (Mimir), queryable in PromQL through the per-org managed Grafana or the MCP tools. The org is the tenant — it comes from the endpoint path, so there is no `org=` label and no cross-org queries. Two traps dominate. **Series names are short:** memory is `mem_used` / `mem_reserved` / `mem_billable`, not `memory_*` — a `memory_used` query returns nothing, so ground names with `list_metrics` first. **Rate-shaped metrics are pre-rated:** `egress`, `requests_per_second`, and the latency buckets are already rated by the platform's recording rules, so you query them bare — wrapping them in `rate()` again returns garbage. Finally, a workload's in-pod `CPLN_TOKEN` cannot authenticate to the metrics endpoint; querying from outside the mesh needs a user or service-account token.
 

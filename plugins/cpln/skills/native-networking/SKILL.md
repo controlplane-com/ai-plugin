@@ -5,7 +5,7 @@ description: "Connects Control Plane workloads to private VPCs, on-prem networks
 
 # Native Networking & Agent Connectivity
 
-> **Tool availability:** the `create_agent` / `update_agent`, `get_agent_info` / `get_agent_eventlog`, and `add_identity_network_resource` / `add_identity_native_network_resource` / `remove_identity_network_resource` / `list_identity_network_resources` tools live in the **`full`** toolset profile. If one is not advertised, tell the user to reconnect the MCP server with `?toolsets=full`, or use the `cpln` CLI. Reads and deletes work on every profile via `list_resources` / `get_resource` / `delete_resource` (kind `agent` or `identity`).
+> **Tool availability:** the `create_agent` / `update_agent`, `get_agent_info` / `get_agent_eventlog`, and `add_identity_network_resource` / `add_identity_native_network_resource` / `remove_identity_network_resource` / `list_identity_network_resources` tools live in the **`full`** toolset profile. If one is not advertised, tell the user to reconnect the MCP server with `?toolsets=full`, or use the `cpln` CLI. Reads work on every profile via `list_resources` / `get_resource` (kind `agent` or `identity`); `delete_resource` is on every profile except `readonly`.
 
 A Control Plane workload reaches a private or cross-cloud endpoint through an **identity** (gvc-scoped) carrying one of two resource arrays. Attach that identity to the workload (`spec.identityLink`) — without the attachment, nothing routes. Both paths are wired **independently of the workload's external egress firewall**: you do *not* open an `outboundAllow*` rule to reach them. The two options:
 

@@ -8,7 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Added
 
+- The guardrails describe the new `readonly` MCP toolset profile and how to work within it.
+
 ### Changed
+
+- Skill availability notes no longer promise that deletes work on every profile — `delete_resource` is absent from `readonly`.
 
 ### Fixed
 

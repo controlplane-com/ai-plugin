@@ -5,7 +5,7 @@ description: "Manages Control Plane resources with Terraform or Pulumi. Use when
 
 # Infrastructure as Code — Terraform & Pulumi
 
-> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads work on every profile via the generic `list_resources` / `get_resource` tools; `delete_resource` is on every profile except `readonly`.
 
 Control Plane has one Terraform provider, `controlplane-com/cpln`. The Pulumi provider (`@pulumiverse/cpln`, published by pulumiverse) is bridged from it, so coverage, semantics, and auth are identical — only the casing changes. The platform also runs a hosted terraform-exporter that converts live resources or schema-validated manifests into provider-correct HCL, reachable through MCP tools and `cpln KIND get -o tf`. The common failure is hand-writing HCL from memory: the nested block shapes are deep and version-specific, and resources that already exist get re-created instead of imported. Generate the HCL, then edit it.
 

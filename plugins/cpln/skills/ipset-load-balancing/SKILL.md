@@ -5,7 +5,7 @@ description: "Static IPs and load balancers on Control Plane. Use when the user 
 
 # IP Sets & Load Balancing
 
-> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads work on every profile via the generic `list_resources` / `get_resource` tools; `delete_resource` is on every profile except `readonly`.
 
 An IP set reserves one static public IPv4 address per location and attaches it to a **direct** (per-workload) or **dedicated** (per-GVC) load balancer. The linking is bidirectional, and the recurring failure is configuring only one side: the IP set's `spec.link` must point at the workload/GVC AND that target's load balancer must reference the IP set back — otherwise addresses sit `unbound` and the IP set carries `status.warning: Cross-link misconfiguration`. The `workload` skill is primary for the LB-type picker and routing basics; this skill carries the full configuration.
 

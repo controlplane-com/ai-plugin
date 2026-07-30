@@ -5,7 +5,7 @@ description: "Migrate workloads from Kubernetes, Docker Compose, or Helm to Cont
 
 # Migrating to Control Plane
 
-> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads work on every profile via the generic `list_resources` / `get_resource` tools; `delete_resource` is on every profile except `readonly`.
 
 Each source format has its own converter, and they are not interchangeable: Kubernetes through `cpln convert`, Docker Compose through `cpln stack`, a Helm chart of Control Plane resources through `cpln helm`. All three are **CLI-only — there is no MCP converter.** The dominant failure is hand-translating a Compose/k8s/Helm artifact into Control Plane YAML — even one "small enough to do by hand" — instead of running the tool and then reviewing what it left behind. The converter gets the mechanical translation right; your value is the gap analysis on top of it. If asked to translate by hand, push back: convert first, then work through the fix-ups.
 

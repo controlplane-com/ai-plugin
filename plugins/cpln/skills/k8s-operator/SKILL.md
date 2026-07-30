@@ -5,7 +5,7 @@ description: "Manages Control Plane resources as Kubernetes CRDs. Use when the u
 
 # Kubernetes Operator
 
-> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads work on every profile via the generic `list_resources` / `get_resource` tools; `delete_resource` is on every profile except `readonly`.
 
 The operator (Helm chart `cpln-operator`) runs in any Kubernetes cluster and reconciles `cpln.io/v1` custom resources, plus labeled native Secrets, against the platform on a 30-second loop. Reach for it only when resources must live in Git and be reconciled from a cluster (ArgoCD/Flux); for direct provisioning prefer the typed MCP tools, and for pipeline-driven YAML prefer `cpln apply` (`gitops-cicd` skill). The recurring failure is manifest shape: `org`, `gvc`, and `description` sit at the **top level next to `spec`**, not inside it — author the `spec` block with `mcp__cpln__get_resource_schema`, or skip hand-writing entirely by exporting with `-o crd`.
 

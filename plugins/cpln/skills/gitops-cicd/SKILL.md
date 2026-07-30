@@ -5,7 +5,7 @@ description: "Sets up CI/CD pipelines and GitOps for Control Plane. Use when the
 
 # GitOps & CI/CD
 
-> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads work on every profile via the generic `list_resources` / `get_resource` tools; `delete_resource` is on every profile except `readonly`.
 
 In pipelines the **CLI is the primary interface**: authenticate with a service-account key in `CPLN_TOKEN` (no profile needed), push an image, `cpln apply --ready` the manifests. MCP tools do the work around the pipeline — `mcp__cpln__get_resource_schema` before authoring manifests, `mcp__cpln__list_deployments` to confirm a deploy landed. The usual failure is image builds: `cpln image build` runs the build **locally through Docker**, so a runner without a daemon needs a different flow — a daemonless builder, or `--remote` to build on Control Plane. Pick by runner capability, not by habit.
 

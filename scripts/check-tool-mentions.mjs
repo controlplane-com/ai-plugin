@@ -16,6 +16,10 @@
  * Deliberate "this tool does not exist" prose is fine: lines matching the negation
  * patterns (e.g. "There is no `create_user`") are exempt from the existence check.
  *
+ * The `readonly` profile sits outside this tier ladder — it withholds every write tool, so
+ * markers would have to sit on nearly every mention. Content covers it in prose instead: the
+ * guardrails define it, and availability notes name the tools that survive on it.
+ *
  * The manifest is generated from the MCP server's tool registry — regenerate it there after tool changes.
  *
  * Usage: node scripts/check-tool-mentions.mjs   (exit 1 on any violation)

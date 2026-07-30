@@ -5,7 +5,7 @@ description: "Ships Control Plane org logs to external providers. Use when the u
 
 # External Logging
 
-> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads work on every profile via the generic `list_resources` / `get_resource` tools; `delete_resource` is on every profile except `readonly`.
 
 External logging lives on the **org** (`spec.logging` plus `spec.extraLogging`) and ships **every workload log in the org** — there is no per-GVC or per-workload filtering. One primary provider plus up to 3 extras (4 total); each logging block holds exactly one provider key. Logs stay queryable in built-in LogQL regardless (separate org retention, `spec.observability.logsRetentionDays`, default 30 days). The recurring failure is credentials: each provider needs a pre-created secret of the exact type below — a wrong-type secret passes configuration and the log router then **silently skips that provider**, so logs simply never arrive.
 

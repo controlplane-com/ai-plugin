@@ -5,7 +5,7 @@ description: "Queries workload logs with LogQL on Control Plane. Use to troubles
 
 # LogQL & Log Observability
 
-> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads and deletes work on every profile via the generic `list_resources` / `get_resource` / `delete_resource` tools.
+> **Tool availability:** `get_workload_logs` is advertised on every toolset profile, `readonly` included. Some other MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads work on every profile via the generic `list_resources` / `get_resource` tools; `delete_resource` is on every profile except `readonly`.
 
 Control Plane stores workload stdout/stderr in Loki and queries it with LogQL. The org is the Loki tenant — it comes from the endpoint path, so `org` is never a query label and queries cannot cross orgs. Reading logs requires the org-level `readLogs` permission, and the in-pod `CPLN_TOKEN` cannot authenticate to the logs endpoint — use a user or service-account token (see the `workload` skill). The recurring agent failure is passing a raw `query` to the MCP tool alongside structured params: a raw query replaces them entirely (the tool rejects the combination), so a raw query must embed every label itself.
 
