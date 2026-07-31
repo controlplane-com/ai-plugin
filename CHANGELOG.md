@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
+### Added
+
+### Changed
+
+### Fixed
+
+### Removed
+
+## [2.2.0] - 2026-07-31
+
 ### Changed
 
 - Running a command inside a live container is now directed to the `cpln` CLI everywhere, because the MCP server no longer exposes an exec tool, while listing a workload's running replicas continues to work through MCP.
