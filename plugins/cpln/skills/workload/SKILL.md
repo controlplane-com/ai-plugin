@@ -147,12 +147,7 @@ The metric must be valid for the workload type (the matrix above) or the spec is
 
 ## Running commands in a live replica
 
-`mcp__cpln__list_workload_replicas` → `mcp__cpln__workload_exec` runs ONE command in a replica. It is the **highest-risk** tool: audited, and it hits a replica **serving live traffic**.
-
-- Read-only diagnostics (`ls`, `cat`, `env`, `df`, `curl localhost`) are fine.
-- **Any state-changing command** (writes, restarts, signals, installs, migrations) needs **explicit user confirmation first** — state the exact command, what it changes, and the risk.
-- One-shot only — no interactive shells/TTYs/REPLs (use the CLI `cpln workload exec` for those).
-- **If your MCP client's safety layer blocks an approved exec** (some clients block destructive, credential-bearing, or shell-pipe commands — e.g. a `pg_dump | psql` restore — regardless of your approval, *before* the call reaches Control Plane), run the identical command via `cpln workload exec` from a trusted shell. The platform enforces the same authorization; only the client differs. This is an expected client limitation, not a Control Plane error — report it plainly and offer the CLI command rather than retrying the blocked tool.
+Use `mcp__cpln__list_workload_replicas` for replica discovery. When in-container inspection is essential, read the `cpln` skill and use its verified CLI workflow. Any state-changing command needs explicit user confirmation after stating the exact command, impact, and risk; never surface resolved secret values.
 
 ## Standard create / update flow
 
@@ -183,12 +178,12 @@ The metric must be valid for the workload type (the matrix above) or the spec is
 | `mcp__cpln__list_deployments` | PRIMARY post-deploy readiness monitor (all locations); per-location errors **and** the canonical public URL to report. Pass the optional `location` (e.g. `aws-us-east-1`) for ONE deployment's full detail — version chain, per-container readiness, full JSON. |
 | `mcp__cpln__get_workload_events` | Probe/scheduling failures after a bad deploy. |
 | `mcp__cpln__get_workload_logs` | App-side logs (LogQL) for runtime/startup errors. |
-| `mcp__cpln__list_workload_replicas` → `mcp__cpln__workload_exec` | List replicas, then run one command in one. |
+| `mcp__cpln__list_workload_replicas` | List running replicas. |
 | `mcp__cpln__workload_start_cron` | Trigger an out-of-band run of a cron workload. |
 | `mcp__cpln__grant_workload_secret_access` | Grant an **existing** workload secret access (identity + `reveal` policy; you still add the reference — create the workload first). |
 | `mcp__cpln__mount_volumeset_to_workload` | Attach a volume set to a stateful workload. |
 
-**CLI fallback** (read the `cpln` skill first): use when MCP is unavailable/unauthenticated, for interactive work (`cpln workload exec`, `cpln workload connect`, `port-forward`), a local-folder image build or an image copy, or as the primary interface in CI/CD (`CPLN_TOKEN` + `cpln apply --ready`).
+**CLI fallback** (read the `cpln` skill first): use when MCP is unavailable/unauthenticated, for live container commands and interactive work, a local-folder image build or an image copy, or as the primary interface in CI/CD (`CPLN_TOKEN` + `cpln apply --ready`).
 
 **Raw API escape hatch:** for a spec field no typed `create_workload` / `update_workload` / `configure_workload_*` tool exposes, use `mcp__cpln__cpln_api_request` (raw GET/POST/PATCH/DELETE; disabled by default — only when advertised) — call `mcp__cpln__get_resource_schema` first for the exact path and body, and prefer the typed tools whenever they cover the field. If it is not advertised, apply the full manifest with the `cpln` CLI instead.
 
@@ -208,6 +203,7 @@ Load the matching skill (one or several) when you need more than the primary rul
 | Metrics, PromQL, Grafana, Prometheus federation | `metrics-observability` |
 | Logs, LogQL, events, per-execution cron logs | `logql-observability` |
 | Private networking, agents, VPC, on-prem connectivity | `native-networking` |
+| Running workloads on own hardware, bare metal, data center, mk8s, BYOK | `mk8s-byok` |
 | Databases, caches, queues, brokers, common infra | `template-catalog` |
 | Secrets, identities, policies, RBAC, service accounts | `access-control` |
 

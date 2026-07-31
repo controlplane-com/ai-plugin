@@ -22,7 +22,7 @@ No MCP equivalent — the CLI's primary job:
 | `cpln cp` | Copy files in or out of a running container |
 | `cpln apply` | Scripted GitOps — declarative create-or-update from files |
 
-Interactive TTY sessions (`workload connect`, `exec -it`) and streamed logs (`cpln logs --tail`) are also CLI-only — MCP's `workload_exec` / `get_workload_logs` cover one-shot commands and log fetches. Everything else — discovery and CRUD — prefer the MCP tools (generic `mcp__cpln__list_resources` / `get_resource` / `delete_resource` with a `kind`, typed `create_*`/`update_*` for mutations).
+One-shot and interactive container commands, TTY sessions (`workload connect`, `exec -it`), and streamed logs (`cpln logs --tail`) are also CLI-only; MCP's `get_workload_logs` covers bounded log fetches. Everything else — discovery and CRUD — prefer the MCP tools (generic `mcp__cpln__list_resources` / `get_resource` / `delete_resource` with a `kind`, typed `create_*`/`update_*` for mutations).
 
 When no MCP tool covers a resource, field, or sub-endpoint, use the `cpln` CLI for that piece (ground the command in this skill and `--help`) or tell the user what is missing. The raw-API escape hatch (`cpln_api_request`) is disabled by default — it bypasses the typed tools' pre-call validation.
 

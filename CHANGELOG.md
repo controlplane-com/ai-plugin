@@ -6,13 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
-### Added
-
 ### Changed
+
+- Running a command inside a live container is now directed to the `cpln` CLI everywhere, because the MCP server no longer exposes an exec tool, while listing a workload's running replicas continues to work through MCP.
 
 ### Fixed
 
-### Removed
+- Asking whether workloads can run on your own bare metal, on-prem VMs, or data-center servers now routes to the mk8s and BYOK skill instead of returning cloud regions, and that skill explains both routes to turning your hardware into a location along with the node minimums that decide which one applies.
+- The skill router previously had no entry for Kubernetes clusters at all, and sent anything mentioning on-prem to private networking even when the user wanted to run there rather than connect to it.
 
 ## [2.1.2] - 2026-07-30
 

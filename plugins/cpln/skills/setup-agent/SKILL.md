@@ -13,7 +13,7 @@ A wormhole agent is a lightweight VM or container you run **inside the target ne
 
 ## Before you start
 
-Confirm with the user: what private resource the workload must reach (host/IP + ports), where it lives (cloud/VPC/on-prem/cluster), the org, and whether an agent already exists (`list_resources` kind="agent"). **Reach for an agent only when PrivateLink/PSC does not fit** — for an AWS or GCP managed service, native networking is lower-latency and needs no agent (see native-networking). An agent is right for on-prem, cross-cloud, Azure, or local development.
+Confirm with the user: what private resource the workload must reach (host/IP + ports), where it lives (cloud/VPC/on-prem/cluster), the org, and whether an agent already exists (`list_resources` kind="agent"). **Reach for an agent only when PrivateLink/PSC does not fit** — for an AWS or GCP managed service, native networking is lower-latency and needs no agent (see native-networking). An agent is right for on-prem, cross-cloud, Azure, or local development. **Check which direction the user means:** an agent lets a Control Plane workload *reach into* their network; it does not run the workload on their hardware. For that — bare metal, on-prem VMs, a data-center server as a deployment target — the answer is a BYOK location (`mk8s-byok`).
 
 ## Step 1 — Create the agent
 
@@ -71,7 +71,7 @@ Key constraints (Joi-enforced; mirrored by the tool): `name` unique across **bot
 
 - `get_agent_info` — `lastActive` within 60s means active; check `peerCount` and `serviceCount`. `get_agent_eventlog` shows connection events and errors. (CLI: `cpln agent info|eventlog AGENT --org ORG`.)
 - `list_identity_network_resources` confirms the entry is on the identity.
-- From the workload, dial the resource **`name`** (e.g. `nc -zv on-prem-db 5432` via `workload_exec`). For a **TLS** target, connect on the **FQDN**, not the `name` — the certificate is issued for the FQDN.
+- From the workload, dial the resource **`name`**. Use the `cpln` CLI after reading the `cpln` skill when an in-container connectivity probe is required. For a **TLS** target, connect on the **FQDN**, not the `name` — the certificate is issued for the FQDN.
 
 ## Common mistakes
 

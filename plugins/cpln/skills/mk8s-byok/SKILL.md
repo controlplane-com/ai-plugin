@@ -1,6 +1,6 @@
 ---
 name: mk8s-byok
-description: "Provisions managed Kubernetes (mk8s) clusters and registers existing ones as BYOK locations on Control Plane. Use when the user asks about a Kubernetes cluster, mk8s, BYOK, node pools, add-ons, or multi-cloud K8s."
+description: "Runs workloads on your own hardware and provisions managed Kubernetes (mk8s) clusters on Control Plane. Use when the user asks about bare metal, on-prem, data centers, their own servers, mk8s, BYOK, or node pools."
 ---
 
 # Managed Kubernetes (mk8s) & BYOK
@@ -14,6 +14,17 @@ Control Plane has three separate "Kubernetes" stories people routinely conflate 
 - **mk8s BYOK add-on** — `addOns.byok` makes an mk8s cluster register *itself* as a Control Plane location: it links a `location` you create and installs the agent automatically (no manual `cpln location install`). This is how Control Plane workloads run on an mk8s cluster.
 
 (If the user instead wants to manage Control Plane resources *from* `kubectl`, that is the **k8s-operator** skill, not this one.) The dominant failures: reaching for a nonexistent `cpln mk8s create`; skipping the per-provider credential secret; and leaving the cluster's API-server firewall wide open.
+
+## "Can I run this on my own servers?" — yes
+
+Bare metal in a data center or colo, on-prem VMs (VMware/vSphere), a Dell or Supermicro rack — any Linux server becomes a Control Plane **location** the user deploys to exactly like `aws-us-east-1`. "BYOC" means the same thing with the cluster in their own cloud account. Never answer this question with cloud regions only. Two routes, picked by what they already have:
+
+| They have | Route |
+|:---|:---|
+| A Kubernetes cluster already (EKS, GKE, AKS, k3s, self-managed) | Register it as a **BYOK location** (below) |
+| Servers but no cluster | Build one with the **`generic`** provider (`create_mk8s_generic`, then `cpln mk8s join` per node), then register it |
+
+Both end at a location. From there it is ordinary workload work: add the location to a GVC (`add_gvc_locations`), deploy, verify. **The BYOK prerequisites are the binding constraint, not the mk8s ones** — a generic node needs only 1 CPU / 512 MB, but a cluster serving as a *location* needs ≥ 2 nodes, ≥ 2 CPU and 8 GB each, and a working LoadBalancer controller. Say so before the user buys hardware.
 
 ## Providers & credential secrets
 
@@ -128,6 +139,14 @@ Once the location exists, prefer MCP for the GVC and workload work — `mcp__cpl
 | BYOK agent never readies | Missing `cpln.io/nodeType=core` nodegroup, no working LoadBalancer, a pre-existing service mesh, or the install command expired (~5 min) — regenerate with `cpln location install`. |
 | BYOK on GKE: DNS conflicts | Scale `kube-dns` and `kube-dns-autoscaler` to 0 and hand the `kube-dns` IP to support. |
 
+## When this is the wrong tool
+
+- **One server.** A single box can be a generic *worker node*, but a BYOK *location* expects ≥ 2 nodes and a LoadBalancer controller. Do not promise a one-machine deployment target — say what the minimum actually is.
+- **They only need to *reach* something on-prem.** A workload running on Control Plane that must talk to a data-center database or internal API needs a wormhole agent (`setup-agent`) or PrivateLink/PSC (`native-networking`) — not a location on their hardware. "On-prem" in a question about *connectivity* is a different skill; this skill is for on-prem *compute*.
+- **Air-gapped or no egress.** Nodes require egress access; air-gapped installs are a support conversation, not a self-service path.
+- **Managing Control Plane from `kubectl`.** That is `k8s-operator`, the opposite direction.
+- **They just want a container running somewhere.** If the user never asked for their own hardware, a cloud location is simpler — do not route them through a cluster build.
+
 ## Quick reference
 
 ### MCP tools
@@ -153,6 +172,7 @@ BYOK *location* create/install/uninstall and `cpln mk8s kubeconfig|join|dashboar
 
 ## Documentation
 
+- [Deploy a Workload to Your Own Hardware](https://docs.controlplane.com/guides/deploy-to-your-own-hardware.md)
 - [mk8s Overview](https://docs.controlplane.com/mk8s/overview.md)
 - [mk8s on AWS](https://docs.controlplane.com/mk8s/aws.md) · [GCP](https://docs.controlplane.com/mk8s/gcp.md) · [Hetzner](https://docs.controlplane.com/mk8s/hetzner.md) · [Triton](https://docs.controlplane.com/mk8s/triton.md) · [Generic](https://docs.controlplane.com/mk8s/generic.md)
 - [BYOK Overview](https://docs.controlplane.com/byok/overview.md)

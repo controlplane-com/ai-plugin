@@ -16,7 +16,7 @@ The symptom-first companion to the `workload` skill (which owns workload types, 
 | `mcp__cpln__get_workload_logs` | App logs (LogQL); the `_accesslog` container holds HTTP status codes and latency. |
 | `mcp__cpln__get_resource` (kind=`workload`) | The spec and current status. |
 | `mcp__cpln__list_metrics` then `mcp__cpln__query_metrics` | Resource pressure — memory before OOM, CPU, latency. |
-| `mcp__cpln__list_workload_replicas` then `mcp__cpln__workload_exec` | Inspect a live replica. **`workload_exec` runs in a production container and is audit-logged — read-only commands only** (`ls`, `cat`, `netstat`); never dump resolved secret values (`env` prints them on a secret-consuming workload), and confirm before anything that mutates. |
+| `mcp__cpln__list_workload_replicas` | Confirm which replicas are currently running. Use the `cpln` CLI after reading the `cpln` skill if in-container inspection is essential. |
 | `mcp__cpln__query_traces` then `mcp__cpln__get_trace` | For a slow or intermittently failing request: which span in the path spent the time or errored. Needs tracing enabled on the GVC (opt-in). Deep dive in `metrics-observability`. |
 
 CLI fallback (MCP unavailable, interactive shell, or CI/CD):
@@ -67,7 +67,7 @@ The manual chain: `access-control` and `setup-secret` skills.
 
 ### Port mismatch — healthy but 502/503
 
-- The spec port must match what the process listens on — confirm with `netstat -tln` via `workload_exec`.
+- The spec port must match what the process listens on — compare the workload spec with application startup logs. If that is inconclusive, use the `cpln` CLI after reading the `cpln` skill for an in-container socket check.
 - On serverless, the runtime injects `PORT` and rejects a `PORT` env var that doesn't equal the exposed port.
 - **Type rules:** serverless exposes exactly one port (zero is rejected; TCP needs a dedicated LB — see *Dedicated load balancer & domain*); standard and stateful expose zero or more; cron serves no endpoint.
 - **Blocked ports** (cannot bind, invalid for TCP probes): `8012, 8022, 9090, 9091, 15000, 15001, 15006, 15020, 15021, 15090, 41000`.
@@ -178,7 +178,7 @@ After applying, poll `mcp__cpln__list_deployments` until every location reports 
 | Restarts; `OOMKilled` in events | memory cap too low (or Capacity AI downsized) | `query_metrics` memory; raise `memory` + `cpu` |
 | `ImagePullBackOff` / stuck | bad image ref, wrong platform, missing pull secret | events; GVC `pullSecretLinks` |
 | Env vars empty | broken identity + `reveal` chain or wrong reference | `grant_workload_secret_access` |
-| Healthy but 502/503 | spec port ≠ listening port, or a blocked port | `netstat` via `workload_exec` |
+| Healthy but 502/503 | spec port ≠ listening port, or a blocked port | workload spec and startup logs |
 | Unreachable / can't call out | deny-by-default firewall | `firewallConfig` |
 | Won't become ready | probe path/port wrong or too aggressive | events; probe config |
 | Can't reach another workload | target internal firewall `none`, or `https://` used | target `inboundAllowType`; use `http://` |
@@ -194,7 +194,7 @@ After applying, poll `mcp__cpln__list_deployments` until every location reports 
 | `mcp__cpln__list_deployments` | Primary per-location readiness monitor |
 | `mcp__cpln__get_workload_events` | Image / crash / probe / schedule events |
 | `mcp__cpln__get_workload_logs` | App and `_accesslog` logs |
-| `mcp__cpln__list_workload_replicas` / `mcp__cpln__workload_exec` | Target and inspect a live replica (audited) |
+| `mcp__cpln__list_workload_replicas` | List running replicas |
 | `mcp__cpln__query_metrics` (after `mcp__cpln__list_metrics`) | Memory / CPU / latency pressure |
 | `mcp__cpln__update_workload` | Apply a spec fix (PATCH) |
 | `mcp__cpln__grant_workload_secret_access` | Build the identity + `reveal` chain in one call |

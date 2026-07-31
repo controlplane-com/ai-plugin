@@ -130,7 +130,6 @@
     "update_volumeset": "core",
     "update_workload": "core",
     "upgrade_template": "core",
-    "workload_exec": "core",
     "workload_start_cron": "core",
     "workload_stop_replica": "core"
   }

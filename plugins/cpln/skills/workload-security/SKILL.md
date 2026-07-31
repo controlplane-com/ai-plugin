@@ -200,7 +200,6 @@ All `configure_workload_*` tools are `full`-profile, set-or-clear PATCH (`remove
 | `mcp__cpln__list_deployments` | Poll per-location readiness; surfaces probe failures |
 | `mcp__cpln__get_workload_events` | Probe / liveness failure reason + message |
 | `mcp__cpln__get_workload_logs` | App-side logs for security / probe issues |
-| `mcp__cpln__workload_exec` | One-off command in a live replica (audited) |
 
 ### CLI (fallback)
 

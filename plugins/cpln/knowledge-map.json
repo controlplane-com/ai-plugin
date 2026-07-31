@@ -108,7 +108,6 @@
     "update_mk8s_paperspace": "mk8s-byok",
     "create_mk8s_generic": "mk8s-byok",
     "update_mk8s_generic": "mk8s-byok",
-    "workload_exec": "workload",
     "grant_workload_secret_access": "setup-secret",
     "get_workload_events": "workload-troubleshooting",
     "get_workload_logs": "workload-troubleshooting",

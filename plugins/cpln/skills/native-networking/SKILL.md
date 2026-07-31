@@ -24,6 +24,8 @@ A Control Plane workload reaches a private or cross-cloud endpoint through an **
 | Cross-cloud / multi-VPC | Agent | Yes | Self-service |
 | Azure VNet, or a developer laptop | Agent | Yes | Self-service |
 
+**This skill is about *reaching* a private network, not running in one.** If the user wants the workload itself to *run* on their own hardware — bare metal, an on-prem VM, a data-center server — that is a BYOK location, not an agent: see `mk8s-byok`.
+
 ## Calling a resource from a workload
 
 Once the identity is attached (`spec.identityLink`), the workload reaches either kind of resource like an ordinary host — no SDK, env var, or code change:

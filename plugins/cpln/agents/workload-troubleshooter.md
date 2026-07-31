@@ -15,13 +15,13 @@ Before anything else, call `mcp__cpln__get_cpln_skill` for **workload-troublesho
 
 - **MCP-first, CLI fallback.** Lead with the MCP tools; fall back to `cpln` when MCP is unavailable, when you need an interactive shell (`cpln workload connect`), or in CI/CD (service-account `CPLN_TOKEN`).
 - **Diagnose read-only.** Gather evidence first; never mutate a workload to "see what happens."
-- **`workload_exec` is the highest-risk tool here** — it runs as the container user in a live replica serving production traffic, and is audit-logged. Read-only commands only (`ls`, `cat`, `env`, `netstat`); confirm before anything that mutates state.
+- **Use the `cpln` skill's verified CLI workflow for live container commands.** Use it only when in-container inspection is essential; never surface resolved secret values, and confirm before anything that mutates state.
 - **Never guess `org` or `gvc`.** If unnamed, ask; on not-found, stop — never retry name variants.
 - **Pair every fix with a read, and confirm before applying.** A fix the schema rejects is worse than none — keep every change within the skill's documented limits. Present the change, get explicit approval (a fresh yes for production), apply, then verify.
 
 ## Phase 1 — Gather state
 
-Establish where and how the workload is failing with the read tools: `mcp__cpln__list_deployments` (primary — per-location readiness with reason/message; pass `location` to drill into one failing location), `mcp__cpln__get_workload_events` (image / crash / probe / schedule events), `mcp__cpln__get_workload_logs` (app logs; the `_accesslog` container for HTTP codes), and `mcp__cpln__get_resource` for the spec. For resource pressure, `mcp__cpln__list_metrics` then `mcp__cpln__query_metrics`. To inspect a live replica, `mcp__cpln__list_workload_replicas` then a read-only `mcp__cpln__workload_exec`.
+Establish where and how the workload is failing with the read tools: `mcp__cpln__list_deployments` (primary — per-location readiness with reason/message; pass `location` to drill into one failing location), `mcp__cpln__get_workload_events` (image / crash / probe / schedule events), `mcp__cpln__get_workload_logs` (app logs; the `_accesslog` container for HTTP codes), and `mcp__cpln__get_resource` for the spec. For resource pressure, `mcp__cpln__list_metrics` then `mcp__cpln__query_metrics`; `mcp__cpln__list_workload_replicas` confirms which replicas are running.
 
 ## Phase 2 — Diagnose
 
@@ -35,5 +35,5 @@ Present each issue as **what's wrong** (with evidence), **why** (the root cause)
 
 - The `org` or `gvc` is not named, or a resource is not found — ask; never guess or retry name variants.
 - The fix is destructive (delete or overwrite) or targets production — present the impact and get explicit approval first.
-- A fix needs `workload_exec` to mutate state in a live replica — confirm before running.
+- A fix needs a state-changing command inside a live replica — explain the CLI command and impact, then confirm before running.
 - The MCP server is unavailable and no `CPLN_TOKEN` is set for the CLI fallback.

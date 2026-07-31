@@ -135,7 +135,7 @@ Direct LB does not terminate TLS (the workload owns its certificates), and its t
 
 1. `mcp__cpln__get_resource` (kind="workload") — read `spec.firewallConfig` before changing it, and send the COMPLETE desired `firewallConfig` on update (it replaces as a unit, not field-by-field).
 2. `mcp__cpln__list_deployments` — wait for the new version to report ready in every location.
-3. Probe: inbound with `curl` from an allowed and a blocked vantage; outbound from inside via `mcp__cpln__workload_exec` running `curl -sv https://HOST`.
+3. Probe inbound with `curl` from an allowed and a blocked vantage. For an outbound probe from inside the container, use the `cpln` CLI after reading the `cpln` skill.
 
 ## Troubleshooting
 
@@ -159,7 +159,6 @@ Direct LB does not terminate TLS (the workload owns its certificates), and its t
 | `mcp__cpln__configure_workload_load_balancer` | Set `spec.loadBalancer` (direct, geo headers, replicaDirect); `remove: true` clears it |
 | `mcp__cpln__update_gvc` | Dedicated LB, `trustedProxies`, GVC-level `ipSet` |
 | `mcp__cpln__get_resource` (kind="workload") / `mcp__cpln__list_deployments` | Read back config; confirm the rollout |
-| `mcp__cpln__workload_exec` | In-pod curl to test outbound rules |
 
 CLI fallback (no MCP, or CI/CD with `CPLN_TOKEN`): `cpln workload get WORKLOAD --gvc GVC -o yaml > w.yaml`, edit `spec.firewallConfig`, then `cpln apply --file w.yaml --gvc GVC`.
 
