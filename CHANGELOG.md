@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
+### Added
+
+### Changed
+
+### Fixed
+
+### Removed
+
+## [2.2.2] - 2026-08-05
+
 ### Fixed
 
 - The plugin no longer fails to load its hooks in Claude Code, which now loads the standard hooks file automatically.
