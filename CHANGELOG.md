@@ -6,13 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
-### Added
-
-### Changed
-
 ### Fixed
 
-### Removed
+- Capacity AI works on every workload type, defaulting off on stateful and vm, and on cron it applies at the next scheduled run.
+- A standard workload with no named autoscaling metric ends up with autoscaling disabled.
 
 ## [2.2.0] - 2026-07-31
 

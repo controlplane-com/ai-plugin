@@ -95,7 +95,7 @@ Default probes: serverless gets readiness + liveness TCP on the container port; 
 **Symptoms:** won't schedule, throttled, or Capacity AI not adjusting.
 
 - CPU/memory must fit org quota; `maxScale` × per-replica resources is enforced at scheduling.
-- **Capacity AI** does not apply with CPU-utilization or multi-metric autoscaling, or on stateful workloads — use `minCpu` / `minMemory` instead (those persist; `capacityAI` is stripped on stateful).
+- **Capacity AI** runs on every workload type, but it is off with CPU-utilization or multi-metric autoscaling, and off by default on stateful and vm — check `spec.defaultOptions.capacityAI` before blaming the tuner, and set it to `true` to opt a stateful workload in. On cron the new reservation only lands at the next execution.
 - **Stateful sizing** — `minCpu`/`cpu` at most 4000m apart (ratio ≤ 4:1); `minMemory`/`memory` at most 4096Mi apart (ratio ≤ 4:1).
 - **Ephemeral storage** — 1GB per CPU core (minimum 1GB); exceeding it replaces the replica.
 
@@ -161,7 +161,7 @@ A fix the Joi schema rejects at `update_workload` time is worse than none. Befor
 - `memory` (MiB) at most 8× `cpu` (millicores); CPU ≥ 25m; memory ≥ 32MiB; `minCpu`/`minMemory` never above `cpu`/`memory`.
 - `runAsUser` / `filesystemGroupId`: 1-65534 (0/root rejected).
 - `terminationGracePeriodSeconds`: ≤ 900 (higher only with the `cpln/relaxGracePeriodMax` tag).
-- `capacityAI` with `metric: cpu` is rejected; `capacityAI` is stripped on stateful, cron, and vm.
+- `capacityAI` with `metric: cpu` is rejected, as is `capacityAI: true` with a GPU container; every workload type otherwise accepts it (stateful and vm just default it off).
 - Standard/stateful `minScale: 0` requires `metric: keda`; cron and vm cannot scale to zero.
 - A metric outside the workload type's allow-list is rejected.
 

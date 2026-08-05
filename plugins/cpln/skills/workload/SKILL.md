@@ -19,7 +19,7 @@ A **workload** is Control Plane's unit of deployment: one or more containers plu
 |---|---|---|---|---|
 | Use for | long-running services, APIs, workers | request/event-driven HTTP that scales on demand | databases & anything needing stable disk or per-replica identity | scheduled jobs |
 | Autoscaling metrics | cpu, memory, latency, rps, multi, keda, disabled | concurrency, cpu, memory, rps, disabled | cpu, memory, latency, rps, multi, keda, disabled | n/a — runs on a `schedule` |
-| Capacity AI | on by default | on by default | not applied | not applied |
+| Capacity AI | on by default | on by default | off by default — opt in | on by default; lands at the next run |
 | Probes | define readiness + liveness | define readiness + liveness | define readiness + liveness | ignored |
 | `ext4`/`xfs` volumes | no | no | **yes (only here)** | no |
 | `shared` volumes | yes | yes | yes | yes |
@@ -32,7 +32,7 @@ A workload has **1–8 containers**.
 
 ## The spec at a glance — which tool sets what
 
-There is ONE way to express each concept. Containers always go in the typed `containers[]` array (there are no flat `image`/`cpu`/`port` fields), scaling always goes in the single `autoscaling` block, and cron is **`create_workload` / `update_workload` with `type: cron`** — the `schedule` + job policy become available (and required), while autoscaling/`capacityAI`/`timeoutSeconds`/`debug` do not apply to cron and are rejected. The advanced blocks below were split into dedicated `configure_workload_*` tools to keep the common path lean.
+There is ONE way to express each concept. Containers always go in the typed `containers[]` array (there are no flat `image`/`cpu`/`port` fields), scaling always goes in the single `autoscaling` block, and cron is **`create_workload` / `update_workload` with `type: cron`** — the `schedule` + job policy become available (and required), while autoscaling/`timeoutSeconds`/`debug` do not apply to cron and are rejected (`capacityAI` does apply). The advanced blocks below were split into dedicated `configure_workload_*` tools to keep the common path lean.
 
 | Spec block | What it controls | Set with |
 |---|---|---|
@@ -48,7 +48,7 @@ There is ONE way to express each concept. Containers always go in the typed `con
 | `securityOptions` | `runAsUser`, `filesystemGroupId` | `configure_workload_security` |
 | `requestRetryPolicy` | request retry attempts / conditions | `configure_workload_retry` |
 
-`update_workload` merges `containers[]` **by name** — send only the container(s) you want to change; others are preserved (an unknown name adds a container). On a cron workload, `update_workload` patches the `schedule` / job policy / `suspend` / containers (and rejects autoscaling/`capacityAI`/`timeoutSeconds`/`debug`); schedule/job fields are rejected against a non-cron workload. Always call `get_resource_schema` for the workload kind before authoring a spec — never hand-write fields from memory.
+`update_workload` merges `containers[]` **by name** — send only the container(s) you want to change; others are preserved (an unknown name adds a container). On a cron workload, `update_workload` patches the `schedule` / job policy / `suspend` / `capacityAI` / containers (and rejects autoscaling/`timeoutSeconds`/`debug`); schedule/job fields are rejected against a non-cron workload. Always call `get_resource_schema` for the workload kind before authoring a spec — never hand-write fields from memory.
 
 ## Production-grade defaults
 
@@ -99,7 +99,7 @@ Set via `spec.defaultOptions.autoscaling.metric`; the system keeps the metric ne
 
 The metric must be valid for the workload type (the matrix above) or the spec is rejected — e.g. `concurrency` on a `standard` workload is rejected (it is serverless-only). Match the metric to the workload's traffic shape: `rps`/`concurrency` for HTTP, `cpu`/`memory` for compute-bound work, `latency` for SLO-driven APIs. For tuning targets/percentiles, multi-metric, KEDA, scale-to-zero, or Capacity AI, load the `autoscaling-capacity` skill.
 
-**Capacity AI** auto-tunes CPU/memory between `minCpu`/`minMemory` and `cpu`/`memory`. On by default for **standard** and **serverless**; **not applied** to stateful or cron. It is **rejected with the `cpu` metric** (when explicitly enabled) and **with GPUs**.
+**Capacity AI** auto-tunes CPU/memory between `minCpu`/`minMemory` and `cpu`/`memory`. It works on **every** type: on by default for standard, serverless, and cron (on cron the new reservation lands at the next execution); off by default on stateful, where you opt in with `capacityAI: true`. It is **rejected with the `cpu` metric** (when explicitly enabled) and **with GPUs**.
 
 ## Networking, firewall & exposure
 

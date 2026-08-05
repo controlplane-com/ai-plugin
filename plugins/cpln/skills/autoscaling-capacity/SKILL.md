@@ -22,7 +22,7 @@ Deep skill for scaling and resource optimization. Everything scaling lives in **
 | `keda` | external / event-driven triggers | standard / stateful | GVC must enable KEDA first; `target` is rejected |
 | `disabled` | nothing — fixed at `minScale` | all | realized as min = max |
 
-If `metric` is omitted, serverless defaults to `concurrency`; standard/stateful default to `cpu`. A metric invalid for the workload type is **rejected** (e.g. `concurrency` on standard).
+If `metric` is omitted, serverless defaults to `concurrency` and stateful to `cpu`. **Standard is the trap:** with Capacity AI on (its default) an omitted metric resolves to `disabled` — min = max, no autoscaling — so always name the metric on a standard workload that must scale. A metric invalid for the workload type is **rejected** (e.g. `concurrency` on standard).
 
 **The metric constrains the type — decide them together.** Type is chosen at creation and is immutable, so a metric-type mismatch is a *type* problem, not a metric problem. The most common case: concurrency-style scaling on a standard workload — the fix is to create the workload as **serverless** (concurrency lives only there) or use **`rps`** on standard (the closest equivalent), not to retry with the same pairing.
 
@@ -105,7 +105,7 @@ autoscaling:
 
 ## Capacity AI
 
-Right-sizes each container's **reserved** resources (what you're billed for) from usage history, between the `minCpu`/`minMemory` floor and the `cpu`/`memory` ceiling. **On by default for serverless and standard; stripped on stateful and cron.**
+Right-sizes each container's **reserved** resources (what you're billed for) from usage history, between the `minCpu`/`minMemory` floor and the `cpu`/`memory` ceiling. **Every workload type supports it.** Default **on** for standard, serverless, and cron; default **off** for stateful and vm — set `capacityAI: true` to opt in there.
 
 ```yaml
 spec:
@@ -121,14 +121,14 @@ spec:
 
 - **With `metric: cpu`:** explicitly enabling Capacity AI is **rejected** (dynamic CPU allocation fights CPU-based scaling); left unset with `cpu` or `multi`, it silently defaults to **off**.
 - **GPU containers reject Capacity AI.**
-- Adjustments land **in place** on standard when the cluster supports pod resize (no restart; otherwise a rolling update); on serverless they roll a new revision. Throttle frequency with `capacityAIUpdateMinutes` (min 2 — via `localOptions` or `cpln apply`; not on create/update tools).
+- Adjustments land **in place** on standard and stateful when the cluster supports pod resize (no restart; otherwise a rolling update); serverless rolls a new revision; **cron picks up the new reservation on its next execution** — a run already in flight is never resized. Throttle frequency with `capacityAIUpdateMinutes` (min 2 — via `localOptions` or `cpln apply`; not on create/update tools).
 - Idle floor is **25m** CPU, rising with memory at **1 millicore per 3 MiB**. A just-changed workload pauses adjustments while history rebuilds — apps that reserve resources at startup may not benefit.
 
 ### Resource bounds (all types)
 
 - Floors: CPU ≥ `25m`, memory ≥ `32Mi`; `minCpu ≤ cpu`, `minMemory ≤ memory`; `memory(MiB) / cpu(millicores) ≤ 8` (32 with tag `cpln/relaxMemoryToCpuRatio`).
-- **Without Capacity AI** (standard/serverless, explicit off): `cpu`/`memory` are the fixed allocation; `minCpu`/`minMemory` are ignored.
-- **Stateful** has no Capacity AI, but `minCpu`/`minMemory` still work: they become the static **reserved** request while `cpu`/`memory` stay the burst ceiling. Constraints: max/min ratio ≤ **4** AND gap ≤ **4000m** CPU / **4096Mi** memory.
+- **With Capacity AI off:** `cpu`/`memory` are the fixed allocation and `minCpu`/`minMemory` are ignored — except on **stateful**, where `minCpu`/`minMemory` become the static **reserved** request and `cpu`/`memory` stay the burst ceiling.
+- **Stateful `minCpu`/`minMemory` are bounded** whether or not Capacity AI is on: max/min ratio ≤ **4** AND gap ≤ **4000m** CPU / **4096Mi** memory.
 - **GPU:** `nvidia` model `t4` (quantity up to 4) or `a10g` (exactly 1); strict per-model CPU/memory minimums — fetch exact numbers with `mcp__cpln__get_resource_schema` (`kind: workload`).
 - **Cost:** billing follows reserved resources, so Capacity AI (or stateful `minCpu`) directly lowers cost.
 
@@ -137,9 +137,9 @@ spec:
 | | standard | serverless | stateful | cron |
 |---|---|---|---|---|
 | Metrics | cpu, memory, latency, rps, multi, keda, disabled | concurrency, cpu, memory, rps, disabled | same as standard | none — autoscaling stripped |
-| Capacity AI | default on | default on | stripped | stripped |
+| Capacity AI | default on | default on | default off — opt in | default on; lands at the next run |
 | Scale to zero | keda only | yes (concurrency/rps) | keda only | no |
-| Resize without restart | yes | no (new revision) | — | — |
+| Resize without restart | yes | no (new revision) | yes | n/a — next run |
 
 ## Troubleshooting
 
@@ -149,7 +149,7 @@ spec:
 | Not scaling down | Standard/stateful stabilization window = `scaleToZeroDelay` (default 300s); check `minScale` |
 | Scale-to-zero not happening | Serverless needs `concurrency`/`rps`; standard/stateful need `metric: keda`; check `scaleToZeroDelay` |
 | KEDA not triggering | KEDA enabled on the GVC? Trigger auth secret listed in `gvc.spec.keda.secrets`? Source firewall allows `cpln://internal/keda`? |
-| Capacity AI not adjusting | Restrictions (cpu metric, stateful, GPU); recent spec change pauses it; `capacityAIUpdateMinutes` throttle |
+| Capacity AI not adjusting | Off by default on stateful; off with `metric: cpu` or `multi`; rejected with GPUs; a recent spec change pauses it; `capacityAIUpdateMinutes` throttle; on cron it only lands at the next execution |
 | Replicas stuck at `minScale` | The scaling metric never resolves — verify the PromQL/trigger returns data |
 
 ## Quick reference — MCP tools
