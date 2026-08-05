@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
+### Added
+
+### Changed
+
+### Fixed
+
+### Removed
+
+## [2.2.1] - 2026-08-05
+
 ### Fixed
 
 - Capacity AI works on every workload type, defaulting off on stateful and vm, and on cron it applies at the next scheduled run.
