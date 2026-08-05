@@ -6,13 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
-### Added
-
-### Changed
-
 ### Fixed
 
-### Removed
+- The plugin no longer fails to load its hooks in Claude Code, which now loads the standard hooks file automatically.
+- The scaling metric table no longer calls CPU the default for standard workloads, contradicting the note directly below it.
 
 ## [2.2.1] - 2026-08-05
 

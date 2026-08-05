@@ -43,7 +43,7 @@ There is ONE way to express each concept. Containers always go in the typed `con
 | `loadBalancer` (direct / geo / replicaDirect) | custom ports, static IPs, geo headers | `configure_workload_load_balancer` |
 | `sidecar.envoy` | Envoy filter chain (e.g. JWT auth) | `configure_workload_sidecar` |
 | `extras` | BYOK-only affinity / tolerations / topology | `configure_workload_extras` |
-| `localOptions` (incl. `spot`, `multiZone`, `capacityAIUpdateMinutes`) | per-location overrides of `defaultOptions` | `configure_workload_local_options` |
+| `localOptions` (incl. `multiZone`, `capacityAIUpdateMinutes`) | per-location overrides of `defaultOptions` | `configure_workload_local_options` |
 | `rolloutOptions` | graceful termination, surge/unavailable | `configure_workload_rollout` |
 | `securityOptions` | `runAsUser`, `filesystemGroupId` | `configure_workload_security` |
 | `requestRetryPolicy` | request retry attempts / conditions | `configure_workload_retry` |

@@ -22,6 +22,5 @@
     "secret-access",
     "autoscaling"
   ],
-  "mcpServers": "./.claude-mcp.json",
-  "hooks": "./hooks/hooks.json"
+  "mcpServers": "./.claude-mcp.json"
 }

@@ -15,7 +15,7 @@ Deep skill for scaling and resource optimization. Everything scaling lives in **
 |---|---|---|---|
 | `concurrency` | avg in-flight requests per replica | **serverless only** (its default) | pair with `maxConcurrency` for a hard per-replica cap |
 | `rps` | requests per second per replica | all three | consistent-response-time HTTP |
-| `cpu` | % of allocated CPU | all three (standard/stateful default) | `target` ≤ 100; conflicts with Capacity AI (below) |
+| `cpu` | % of allocated CPU | all three (stateful default) | `target` ≤ 100; conflicts with Capacity AI (below) |
 | `memory` | % of allocated memory | all three | `target` ≤ 100 |
 | `latency` | response time in **ms** at `metricPercentile` | standard / stateful | `p50` (default) / `p75` / `p99`; `target` is ms, not % |
 | `multi[]` | several metrics; highest replica count wins | standard / stateful | entries from `cpu` / `memory` / `rps` only, each at most once; **replaces** `metric` and top-level `target` |
@@ -46,7 +46,7 @@ spec:
     capacityAI: true
 ```
 
-- **Per-location overrides:** `spec.localOptions[]` (same fields + `location`) via `mcp__cpln__configure_workload_local_options` — also the only MCP home of `capacityAIUpdateMinutes`, `spot`, and `multiZone`; it replaces the full list.
+- **Per-location overrides:** `spec.localOptions[]` (same fields + `location`) via `mcp__cpln__configure_workload_local_options`, the only MCP tool that sets `capacityAIUpdateMinutes` or `multiZone`; it replaces the full list. Both also exist on `spec.defaultOptions`, reachable with `cpln apply`.
 - **`scaleToZeroDelay` is dual-purpose:** on serverless it is the idle period before scaling to 0; on standard/stateful it sets the **scale-down stabilization window** (default 300s) — scale-up is immediate.
 
 ### Multi-metric (standard/stateful)
@@ -157,7 +157,7 @@ spec:
 | Tool | Purpose |
 |---|---|
 | `mcp__cpln__create_workload` / `mcp__cpln__update_workload` | The `autoscaling` block (incl. `multi`, `keda`) and `capacityAI` |
-| `mcp__cpln__configure_workload_local_options` | Per-location overrides; `capacityAIUpdateMinutes`, `spot`, `multiZone` |
+| `mcp__cpln__configure_workload_local_options` | Per-location overrides; `capacityAIUpdateMinutes`, `multiZone` |
 | `mcp__cpln__update_gvc` | Enable KEDA on the GVC (`keda.enabled`, `identityLink`, `secrets`) |
 | `mcp__cpln__list_deployments` | Replica counts and readiness per location |
 | `mcp__cpln__get_workload_events` | Scaling/scheduling events and errors |
