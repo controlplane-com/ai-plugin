@@ -19,7 +19,7 @@ A **workload** is Control Plane's unit of deployment: one or more containers plu
 |---|---|---|---|---|
 | Use for | long-running services, APIs, workers | request/event-driven HTTP that scales on demand | databases & anything needing stable disk or per-replica identity | scheduled jobs |
 | Autoscaling metrics | cpu, memory, latency, rps, multi, keda, disabled | concurrency, cpu, memory, rps, disabled | cpu, memory, latency, rps, multi, keda, disabled | n/a — runs on a `schedule` |
-| Capacity AI | on by default | on by default | off by default — opt in | on by default; lands at the next run |
+| Capacity AI | on by default | on by default | supported | on by default; lands at the next run |
 | Probes | define readiness + liveness | define readiness + liveness | define readiness + liveness | ignored |
 | `ext4`/`xfs` volumes | no | no | **yes (only here)** | no |
 | `shared` volumes | yes | yes | yes | yes |
@@ -99,7 +99,7 @@ Set via `spec.defaultOptions.autoscaling.metric`; the system keeps the metric ne
 
 The metric must be valid for the workload type (the matrix above) or the spec is rejected — e.g. `concurrency` on a `standard` workload is rejected (it is serverless-only). Match the metric to the workload's traffic shape: `rps`/`concurrency` for HTTP, `cpu`/`memory` for compute-bound work, `latency` for SLO-driven APIs. For tuning targets/percentiles, multi-metric, KEDA, scale-to-zero, or Capacity AI, load the `autoscaling-capacity` skill.
 
-**Capacity AI** auto-tunes CPU/memory between `minCpu`/`minMemory` and `cpu`/`memory`. It works on **every** type: on by default for standard, serverless, and cron (on cron the new reservation lands at the next execution); off by default on stateful, where you opt in with `capacityAI: true`. It is **rejected with the `cpu` metric** (when explicitly enabled) and **with GPUs**.
+**Capacity AI** auto-tunes CPU/memory between `minCpu`/`minMemory` and `cpu`/`memory`. It works on **every** type: on by default for standard, serverless, and cron (on cron the new reservation lands at the next execution). It is **rejected with the `cpu` metric** (when explicitly enabled) and **with GPUs**.
 
 ## Networking, firewall & exposure
 

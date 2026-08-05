@@ -105,7 +105,7 @@ autoscaling:
 
 ## Capacity AI
 
-Right-sizes each container's **reserved** resources (what you're billed for) from usage history, between the `minCpu`/`minMemory` floor and the `cpu`/`memory` ceiling. **Every workload type supports it.** Default **on** for standard, serverless, and cron; default **off** for stateful and vm — set `capacityAI: true` to opt in there.
+Right-sizes each container's **reserved** resources (what you're billed for) from usage history, between the `minCpu`/`minMemory` floor and the `cpu`/`memory` ceiling. **Every workload type supports it.** Standard, serverless, and cron enable it by default.
 
 ```yaml
 spec:
@@ -137,7 +137,7 @@ spec:
 | | standard | serverless | stateful | cron |
 |---|---|---|---|---|
 | Metrics | cpu, memory, latency, rps, multi, keda, disabled | concurrency, cpu, memory, rps, disabled | same as standard | none — autoscaling stripped |
-| Capacity AI | default on | default on | default off — opt in | default on; lands at the next run |
+| Capacity AI | default on | default on | supported | default on; lands at the next run |
 | Scale to zero | keda only | yes (concurrency/rps) | keda only | no |
 | Resize without restart | yes | no (new revision) | yes | n/a — next run |
 
@@ -149,7 +149,7 @@ spec:
 | Not scaling down | Standard/stateful stabilization window = `scaleToZeroDelay` (default 300s); check `minScale` |
 | Scale-to-zero not happening | Serverless needs `concurrency`/`rps`; standard/stateful need `metric: keda`; check `scaleToZeroDelay` |
 | KEDA not triggering | KEDA enabled on the GVC? Trigger auth secret listed in `gvc.spec.keda.secrets`? Source firewall allows `cpln://internal/keda`? |
-| Capacity AI not adjusting | Off by default on stateful; off with `metric: cpu` or `multi`; rejected with GPUs; a recent spec change pauses it; `capacityAIUpdateMinutes` throttle; on cron it only lands at the next execution |
+| Capacity AI not adjusting | Check the stored `spec.defaultOptions.capacityAI`; off with `metric: cpu` or `multi`; rejected with GPUs; a recent spec change pauses it; `capacityAIUpdateMinutes` throttle; on cron it only lands at the next execution |
 | Replicas stuck at `minScale` | The scaling metric never resolves — verify the PromQL/trigger returns data |
 
 ## Quick reference — MCP tools
