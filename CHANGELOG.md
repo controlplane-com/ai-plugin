@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
+### Added
+
+### Changed
+
+### Fixed
+
+### Removed
+
+## [2.2.3] - 2026-08-10
+
 ### Fixed
 
 - Creating or updating a volume set now requires the storage skill first, closing the last create and update tools that could run without one.
