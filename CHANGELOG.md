@@ -6,13 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
-### Added
-
-### Changed
-
 ### Fixed
 
-### Removed
+- Creating or updating a volume set now requires the storage skill first, closing the last create and update tools that could run without one.
+- Shared volume set manifests now spell out the CPU and memory bounds on `mountOptions.resources`, including that leaving one bound out lets the default fill it in and trip the ratio check.
+- Apply failures now explain that `cpln apply` reports every rejected resource rather than stopping at the first, so a workload complaining about a non-existent volume set is a cascade of the earlier failure and not a missing dependency.
 
 ## [2.2.2] - 2026-08-05
 

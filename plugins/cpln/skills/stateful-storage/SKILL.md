@@ -111,7 +111,7 @@ Shrink, volume-delete, snapshot-delete, and restore are destructive: **snapshot 
 
 ## Shared filesystem
 
-A `shared` volumeset is mounted read-write by many workloads at once but supports only expand — no snapshots, shrink, or volume-delete. Each mount point is provisioned its own CPU/memory; tune with `mountOptions.resources` (defaults `minCpu 500m`, `maxCpu 2000m`, `minMemory 1Gi`, `maxMemory 2Gi`; max/min at most 4000m and 4096Mi apart, ratio at most 4:1):
+A `shared` volumeset is mounted read-write by many workloads at once but supports only expand (no snapshots, shrink, or volume-delete). Each mount point is provisioned its own CPU/memory, tuned with `mountOptions.resources`:
 
 ```yaml
 spec:
@@ -120,6 +120,14 @@ spec:
   mountOptions:
     resources: { minCpu: 500m, maxCpu: 2000m, minMemory: 1Gi, maxMemory: 2Gi }
 ```
+
+**Every `mountOptions.resources` bound is validated, and hand-written values usually violate it.** Defaults are `minCpu 500m`, `maxCpu 2000m`, `minMemory 1Gi`, `maxMemory 2Gi`. The rules:
+
+- `maxCpu / minCpu` at most **4**, and `maxCpu - minCpu` at most **4000m**
+- `maxMemory / minMemory` at most **4**, and `maxMemory - minMemory` at most **4096Mi**
+- **Omitting a bound does not skip the check.** The default fills in for whichever side you leave out: `maxCpu: 4000m` alone is compared against the default `minCpu: 500m` (8:1) and rejected, and `minCpu: 100m` alone is compared against the default `maxCpu: 2000m` (20:1) and rejected the same way.
+
+Raising a ceiling means raising its floor with it: `minCpu 1000m` / `maxCpu 4000m` passes, `minCpu 500m` / `maxCpu 4000m` does not. The rejection reads `"spec.mountOptions.resources" failed custom validation because The ratio between maxCpu and minCpu must be less than 4:1`; the check is actually `> 4`, so an exact 4:1 spread (the defaults) is accepted. The block is accepted on ext4/xfs volumesets too, and validated the same way, but only `shared` provisions mount points that use it.
 
 ## Custom encryption (AWS only)
 
@@ -157,6 +165,8 @@ Workload type is immutable, so adding an ext4/xfs volume to a serverless/standar
 | 400 on mount with a path | Path is reserved (`/dev`, `/tmp`, `/var`, ...) | Mount elsewhere (e.g. `/data`, `/mnt/...`) |
 | HTTP 429 on expand | 4 expansions on that volume in the last 24 h | Wait for the oldest to age out; plan larger steps |
 | 400 on shrink | New size cannot hold used bytes (+5%) | Shrink less, or free space / snapshot then rebuild |
+| 400 "The ratio between maxCpu and minCpu must be less than 4:1" (same for memory) | `mountOptions.resources` spread past 4:1 or past 4000m / 4096Mi, counting the default that fills any bound you left out | Raise `minCpu` / `minMemory` or lower `maxCpu` / `maxMemory`, and always set both bounds of a pair |
+| 400 "Workload X references non-existent volume sets" | The volumeset in the same apply failed its own validation. `cpln apply` reports every failure and does not stop at the first, so the workload PUT still ran | Fix the volumeset error above it and re-apply the bundle; the ordering is already correct |
 | Snapshot fields rejected | Volumeset is `shared` | Snapshots need ext4/xfs |
 | Deployment stuck after mount | Volume provisioning (2-5 min on first deploy) | Poll `list_deployments`; check `get_workload_logs` if it stays unready |
 

@@ -46,6 +46,8 @@
     "create_cloud_account": "setup-cloud-access",
     "update_cloud_account": "setup-cloud-access",
     "update_org": "org-management",
+    "create_volumeset": "stateful-storage",
+    "update_volumeset": "stateful-storage",
     "mount_volumeset_to_workload": "stateful-storage",
     "expand_volumeset": "stateful-storage",
     "shrink_volumeset": "stateful-storage",
