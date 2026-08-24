@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
+### Added
+
+### Changed
+
+### Fixed
+
+### Removed
+
+## [2.2.4] - 2026-08-24
+
 ### Changed
 
 - Adding a BYOK location to a GVC now uses the `update_gvc` tool.
