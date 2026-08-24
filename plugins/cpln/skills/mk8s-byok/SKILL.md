@@ -24,7 +24,7 @@ Bare metal in a data center or colo, on-prem VMs (VMware/vSphere), a Dell or Sup
 | A Kubernetes cluster already (EKS, GKE, AKS, k3s, self-managed) | Register it as a **BYOK location** (below) |
 | Servers but no cluster | Build one with the **`generic`** provider (`create_mk8s_generic`, then `cpln mk8s join` per node), then register it |
 
-Both end at a location. From there it is ordinary workload work: add the location to a GVC (`add_gvc_locations`), deploy, verify. **The BYOK prerequisites are the binding constraint, not the mk8s ones** — a generic node needs only 1 CPU / 512 MB, but a cluster serving as a *location* needs ≥ 2 nodes, ≥ 2 CPU and 8 GB each, and a working LoadBalancer controller. Say so before the user buys hardware.
+Both end at a location. From there it is ordinary workload work: add the location to a GVC (`update_gvc` with `addLocations`), deploy, verify. **The BYOK prerequisites are the binding constraint, not the mk8s ones** — a generic node needs only 1 CPU / 512 MB, but a cluster serving as a *location* needs ≥ 2 nodes, ≥ 2 CPU and 8 GB each, and a working LoadBalancer controller. Say so before the user buys hardware.
 
 ## Providers & credential secrets
 
@@ -119,7 +119,7 @@ Remove with `cpln location uninstall CLUSTER` and run the printed command on the
 
 **Provider notes.** GKE: first give the `kube-dns` Service IP (`kubectl get svc -n kube-system kube-dns`) to support; then, *after* Control Plane config is applied, scale `kube-dns` and `kube-dns-autoscaler` (in `kube-system`) to 0 replicas. EKS: enable the Amazon VPC CNI, `kube-proxy`, CoreDNS, and Amazon EBS CSI Driver add-ons. On-prem/airgapped: contact support.
 
-Once the location exists, prefer MCP for the GVC and workload work — `mcp__cpln__add_gvc_locations`, then deploy and poll `mcp__cpln__list_deployments`. CLI fallback: `cpln gvc add-location GVC --location CLUSTER`.
+Once the location exists, prefer MCP for the GVC and workload work: `mcp__cpln__update_gvc` with `addLocations: [CLUSTER]`, then deploy and poll `mcp__cpln__list_deployments`. CLI fallback: `cpln gvc add-location GVC --location CLUSTER`.
 
 ## Verify
 
