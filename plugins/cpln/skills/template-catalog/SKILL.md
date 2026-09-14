@@ -55,15 +55,21 @@ Access scope lives in the template's `values` — but the **key name varies per 
 When MCP is unavailable, or in pipelines with a service-account `CPLN_TOKEN`, use `cpln helm` against the OCI registry `oci://ghcr.io/controlplane-com/templates/<TEMPLATE>` (the slug is the template name):
 
 ```bash
-cpln helm install my-pg oci://ghcr.io/controlplane-com/templates/postgres -f values.yaml  # omit --version for latest
+cpln helm install my-pg oci://ghcr.io/controlplane-com/templates/postgres --version 3.4.1 -f values.yaml \
+  --state-tag cpln/marketplace=true \
+  --state-tag cpln/marketplace-template=postgres \
+  --state-tag cpln/marketplace-template-version=3.4.1 \
+  --state-tag cpln/marketplace-gvc=my-gvc
 cpln helm template my-pg oci://ghcr.io/controlplane-com/templates/postgres -f values.yaml # preview rendered resources
 cpln helm list                                  # releases in the org
 cpln helm get values <RELEASE> --all            # currently applied values
-cpln helm upgrade <RELEASE> oci://... -f values.yaml
+cpln helm upgrade <RELEASE> oci://... -f values.yaml --state-tag cpln/marketplace-template-version=<NEW_VERSION>
 cpln helm history <RELEASE>                      # revision numbers, for rollback
 cpln helm rollback <RELEASE> [<REVISION>]        # previous revision if omitted
 cpln helm uninstall <RELEASE>
 ```
+
+**The four `--state-tag` flags are not optional.** `install_template` and the Console apply them for you; a raw `cpln helm install` does not. They go on the release state secret, and without them the release is an ordinary Helm release: the Console lists it under **Helm Releases** rather than the Template Catalog's **Releases** page, and neither the Terraform `cpln_catalog_template` resource nor the Pulumi `CatalogTemplate` resource will manage it (both require `cpln/marketplace`, `cpln/marketplace-template`, and `cpln/marketplace-template-version` to exist). Omit `cpln/marketplace-gvc` for a `createsGvc` template. State tags carry over between revisions, so an upgrade only needs to restate `cpln/marketplace-template-version`. Pin `--version` on a tagged install: omitting it resolves to latest, which leaves you with no version to put in `cpln/marketplace-template-version`.
 
 Reference `values.yaml` for any template lives in the [templates repo](https://github.com/controlplane-com/templates) at `<template>/versions/<version>/values.yaml`.
 
@@ -80,6 +86,7 @@ After install, `get_installed_template <name>` shows the release status, revisio
 - Uninstall removes the resources the release created, **including volume data** — confirm the blast radius first.
 - `values` key names (credentials, resources, access scope) differ across templates — copy from `get_template`, don't hand-write from memory.
 - Backups (e.g. `postgres`, `mongodb`) need a **Cloud Account + storage IAM policy** to exist first, referenced in the `values` backup block — see the `get_template` prerequisites.
+- A raw `cpln helm install` needs the four `cpln/marketplace*` `--state-tag` flags. Leave them off and the release installs fine but is invisible to the Console's Template Catalog, Terraform, and Pulumi.
 
 ## Troubleshooting
 
@@ -91,6 +98,7 @@ After install, `get_installed_template <name>` shows the release status, revisio
 | `get_installed_template` permission denied | token lacks secret reveal | grant `reveal` on the release secret via a policy |
 | Install failed / release stuck | partial apply, bad values, or unready workloads | inspect `get_installed_template` and `cpln helm history`; fix values and `upgrade_template`, or `uninstall` and reinstall |
 | Workloads pending after install | image pull / firewall / resources | see the `workload` skill's troubleshooting |
+| CLI-installed release missing from the Console's Template Catalog | `cpln/marketplace*` state tags never set | re-run the upgrade with the chart and all four tags: `cpln helm upgrade <RELEASE> oci://ghcr.io/controlplane-com/templates/<T> --version <V> -f values.yaml --state-tag cpln/marketplace=true --state-tag cpln/marketplace-template=<T> --state-tag cpln/marketplace-template-version=<V> --state-tag cpln/marketplace-gvc=<GVC>` (the chart argument is mandatory; `cpln helm upgrade <RELEASE>` alone is rejected) |
 
 ## Quick reference
 
@@ -106,7 +114,7 @@ After install, `get_installed_template <name>` shows the release status, revisio
 | `mcp__cpln__list_installed_templates` | Inventory of releases in the org | core |
 | `mcp__cpln__get_installed_template` | One release's status + created resources | core |
 
-CLI fallback (CI/CD via a service-account `CPLN_TOKEN`): `cpln helm install|template|list|get|upgrade|rollback|uninstall|history` against `oci://ghcr.io/controlplane-com/templates/<TEMPLATE>`.
+CLI fallback (CI/CD via a service-account `CPLN_TOKEN`): `cpln helm install|template|list|get|upgrade|rollback|uninstall|history` against `oci://ghcr.io/controlplane-com/templates/<TEMPLATE>`. Every CLI install must carry the four `cpln/marketplace*` `--state-tag` flags; see [CLI fallback (CI/CD)](#cli-fallback-cicd).
 
 ## Related skills
 
