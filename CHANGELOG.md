@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Added
 
+### Changed
+
+### Fixed
+
+### Removed
+
+## [2.3.0] - 2026-09-22
+
+### Added
+
 - `create-app` skill: write an app from the user's request, build it, deploy it, and hand back the URL and a download link.
 - `write_app_files` and `get_app_files` join the `image` skill, the guardrails, and the knowledge map; `build_image` builds the stored files when `repoUrl` is omitted.
 - `uploadPaths` on `write_app_files` returns an upload link for files the user has to provide.
