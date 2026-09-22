@@ -125,7 +125,7 @@ cpln workload get-deployments my-app --gvc my-gvc --org my-org    # verify every
 | `mcp__cpln__list_deployments` | Verify a promotion or rollback is ready per location |
 | `mcp__cpln__export_terraform` / `_batch` / `mcp__cpln__convert_to_terraform` | Export live environments to IaC |
 
-**CLI fallback** (read the `cpln` skill first; CI/CD uses `CPLN_TOKEN` + `cpln apply --ready`): `cpln image copy` is CLI-only and needs a local Docker daemon. `cpln image build --remote` needs none; over MCP only a **repo** build can be started — a local folder must go through the CLI (`image` skill).
+**CLI fallback** (read the `cpln` skill first; CI/CD uses `CPLN_TOKEN` + `cpln apply --ready`): `cpln image copy` is CLI-only and needs a local Docker daemon. `cpln image build --remote` needs none; over MCP a build starts from a **repo** or from app files written with `mcp__cpln__write_app_files`. A folder on the user's machine must go through the CLI (`image` skill).
 
 ## Related skills
 

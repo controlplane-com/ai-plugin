@@ -71,12 +71,13 @@ Platform defaults are not a production design. For any real workload:
 - The `<your-org>.registry.cpln.io/NAME:TAG` form also resolves, but for your own org prefer `//image/NAME:TAG`; the hostname form is mainly used by `docker login` / `docker push`.
 - **All images must be `linux/amd64`** — a wrong-arch image fails with `exec format error`.
 - **Private external registries need a pull secret on the GVC** (`spec.pullSecretLinks`); only `docker`, `ecr`, and `gcp` secret types work as pull secrets. Same-org `//image/...` needs none.
-- **Build and push:** `cpln image build --name NAME:TAG --remote` builds on Control Plane and pushes for you (no Docker daemon); `--push` builds locally. Over MCP, `mcp__cpln__build_image` starts a build **from a GitHub/GitLab repo only** — a local folder has no path through MCP and must use the CLI.
+- **Build and push:** `cpln image build --name NAME:TAG --remote` builds on Control Plane and pushes for you (no Docker daemon); `--push` builds locally. Over MCP, `mcp__cpln__build_image` builds **a GitHub/GitLab repo** (`repoUrl`) **or app files stored with `mcp__cpln__write_app_files`** (no `repoUrl`); a folder on the user's machine has no path through MCP and must use the CLI.
 - Image **records** over MCP are list/get/delete (`mcp__cpln__list_resources` / `mcp__cpln__get_resource` / `mcp__cpln__delete_resource`, kind="image"). Detail: `image` skill.
+- **Changing the code behind a workload's image:** take NAME from `//image/NAME:TAG` and call `mcp__cpln__get_app_files` first. It says whether the code is stored on Control Plane (edit it, build the next tag, `mcp__cpln__update_workload`), sits in a folder on the user's machine, lives in a repository, or is not on Control Plane at all. Never rewrite it from scratch under the same name (`create-app` skill, "Changing an app that already exists").
 
 ## Run real images
 
-Run an actual container image — not an inline/base64/heredoc app on a generic base image. For databases, caches, queues, brokers, search, gateways, or other common infrastructure, install a Template Catalog entry first (`mcp__cpln__browse_templates` → `mcp__cpln__install_template`) rather than hand-building.
+Run an actual container image, not an inline/base64/heredoc app on a generic base image. An app the user asks you to write is built into an image first and run as `//image/NAME:TAG`: with a filesystem and a working `cpln` CLI, from a folder on the machine with `cpln image build --remote --dir`; otherwise, from files stored with `mcp__cpln__write_app_files` and built with `mcp__cpln__build_image`. The full journey, and which of the two applies, is the `create-app` skill. For databases, caches, queues, brokers, search, gateways, or other common infrastructure, install a Template Catalog entry first (`mcp__cpln__browse_templates` → `mcp__cpln__install_template`) rather than hand-building.
 
 ## Health, readiness & verification
 
@@ -194,6 +195,7 @@ Load the matching skill (one or several) when you need more than the primary rul
 | Need | Skill |
 |---|---|
 | Image refs, builds, buildpacks, registries, pull secrets, cross-org sharing | `image` |
+| Write, build, and deploy an app the user asks for (no repo, no image yet) | `create-app` |
 | Autoscaling, Capacity AI, scale-to-zero, KEDA, custom-metric scaling | `autoscaling-capacity` |
 | Probes in depth, JWT/Envoy auth, security options, graceful termination | `workload-security` |
 | Firewall rules, inbound/outbound, header & geo filtering | `firewall-networking` |

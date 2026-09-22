@@ -34,6 +34,7 @@ This is the operating contract for AI agents operating Control Plane — through
 - **Schema before authoring.** Call `get_resource_schema` before writing any manifest, API body, `cpln apply` YAML/JSON, CI/CD spec, or conversion input.
 - **Read before update/delete, not before create.** Read a resource's current state before you change or remove it. Do not list or enumerate existing resources just to check whether something already exists before creating it — when the user asks to create, create directly; a name collision comes back as a conflict error you can handle.
 - **Never guess org or GVC names.** On not-found, stop and ask — no casing/hyphen/plural retries.
+- **An app the user asks you to create is source to write, build, and run** (`create-app` skill): not a public image to pull and not a Template Catalog entry (those are databases, caches, queues, and other ready-made infrastructure). Where its files go depends on your environment: with a filesystem and a working `cpln` CLI (Claude Code, Codex, Cursor, any CLI agent), a directory on the user's machine built with `cpln image build --remote --dir`, so the code stays where they can see it; without the CLI, or without a filesystem (ChatGPT, Claude web and desktop), Control Plane through `write_app_files`. Say which you are doing; the user's stated preference wins either way. Ask for the org, and for the location only when a GVC has to be created; everything else is yours to do.
 - **Never create a GVC without locations.** If the user has not named the location(s), ask which to use — do not guess a region. The create tool rejects a location-less GVC. **The org's own location list is the authority on what is available** (list locations for the options): alongside the built-in cloud regions it carries BYOK locations registered from the customer's own clusters, whose names are whatever the operator chose and look nothing like `provider-region`. Never rule a location out because its name is unfamiliar, and never substitute a cloud region for one.
 - **Minimal change.** Touch only what the task requires; do not rewrite unrelated config.
 - **Create only what the task needs.** Do not stand up prerequisite, placeholder, or scaffold resources to "set up" for the real task. Typed references point at resources that already exist — a domain routes to existing workloads, a policy binds existing principals, a secret reference reads an existing secret. If something the task depends on is missing, ask which existing resource to use (or confirm you should create it first) — never invent a `*-placeholder`/dummy workload, volume set, or secret to fill the gap. The number of resources you create is exactly the number the task calls for.
@@ -94,32 +95,33 @@ Bundle multiple destructive steps into one ask; never bundle a destructive op wi
 
 Read the **tool-declared** skill when a tool names one. Otherwise route by task family. Read only the skill you need — do not load broad skills to avoid deciding.
 
-| Task family                                             | Skill                   |
-| ------------------------------------------------------- | ----------------------- |
-| Workloads — types, spec, defaults, runtime, deployments  | `workload`              |
-| Secrets, identities, policies, RBAC, service accounts   | `access-control`        |
-| Images, builds, registries, pull secrets, platform arch | `image`                 |
-| Custom domains, TLS, DNS, routing                       | `domain`                |
-| Autoscaling, Capacity AI, scale-to-zero, replicas       | `autoscaling-capacity`  |
-| Volumes, snapshots, persistence                         | `stateful-storage`      |
-| Firewall, inbound/outbound, workload networking         | `firewall-networking`   |
-| Private networking, agents, VPC, *reaching* on-prem     | `native-networking`     |
-| *Running on* own hardware, bare metal, data center      | `mk8s-byok`             |
-| Kubernetes clusters, mk8s, BYOK locations, node pools   | `mk8s-byok`             |
-| Databases, caches, queues, common infra                 | `template-catalog`      |
-| Logs, events, troubleshooting                           | `logql-observability`   |
-| Metrics, PromQL, tracing, autoscaling signals           | `metrics-observability` |
-| External logging                                        | `external-logging`      |
-| Audit, compliance                                       | `audit-compliance`      |
-| Terraform, Pulumi, IaC                                  | `iac-terraform-pulumi`  |
-| GitOps, CI/CD                                           | `gitops-cicd`           |
-| Kubernetes / Compose / Helm migration                   | `migration-patterns`    |
-| CLI usage and flags                                     | `cpln`                  |
-| Query, filter, sort                                     | `query-spec`            |
-| CDN, caching, rate limiting                             | `cdn-rate-limiting`     |
-| Org settings, billing, SSO, users                       | `org-management`        |
-| Promote workloads across dev/staging/prod              | `environment-promotion` |
-| Control Plane Kubernetes operator                       | `k8s-operator`          |
+| Task family | Skill |
+|---|---|
+| Workloads — types, spec, defaults, runtime, deployments | `workload` |
+| Write, build, and deploy an app the user asks for (no repo, no image yet) | `create-app` |
+| Secrets, identities, policies, RBAC, service accounts | `access-control` |
+| Images, builds, registries, pull secrets, platform arch | `image` |
+| Custom domains, TLS, DNS, routing | `domain` |
+| Autoscaling, Capacity AI, scale-to-zero, replicas | `autoscaling-capacity` |
+| Volumes, snapshots, persistence | `stateful-storage` |
+| Firewall, inbound/outbound, workload networking | `firewall-networking` |
+| Private networking, agents, VPC, *reaching* on-prem | `native-networking` |
+| *Running on* own hardware, bare metal, data center | `mk8s-byok` |
+| Kubernetes clusters, mk8s, BYOK locations, node pools | `mk8s-byok` |
+| Databases, caches, queues, common infra | `template-catalog` |
+| Logs, events, troubleshooting | `logql-observability` |
+| Metrics, PromQL, tracing, autoscaling signals | `metrics-observability` |
+| External logging | `external-logging` |
+| Audit, compliance | `audit-compliance` |
+| Terraform, Pulumi, IaC | `iac-terraform-pulumi` |
+| GitOps, CI/CD | `gitops-cicd` |
+| Kubernetes / Compose / Helm migration | `migration-patterns` |
+| CLI usage and flags | `cpln` |
+| Query, filter, sort | `query-spec` |
+| CDN, caching, rate limiting | `cdn-rate-limiting` |
+| Org settings, billing, SSO, users | `org-management` |
+| Promote workloads across dev/staging/prod | `environment-promotion` |
+| Control Plane Kubernetes operator | `k8s-operator` |
 
 Domain creation fails until the required TXT/CNAME records resolve — surface the exact records (`status.dnsConfig`), wait for DNS propagation, and treat not-yet-verified as a pending state, not an error to retry blindly.
 
@@ -138,7 +140,8 @@ MCP-first; the `cpln` CLI is the fallback (read the `cpln` skill first — see b
 - **`browse_templates`** → **`get_template`** → **`install_template` / `upgrade_template` / `uninstall_template`** (and `rollback_template`, full profile) — production-ready stacks (Postgres, Redis, Kafka, …). Browse and install instead of hand-building common infrastructure.
 - **`convert_to_terraform`**, **`export_terraform`** — manifest → HCL, or existing resources → HCL, for IaC adoption. `export_terraform` does bulk via path depth (`/org/acme`, `/org/acme/gvc/prod/workload`); `export_terraform_batch` and `list_terraform_kinds` are full-profile extras.
 - **`grant_workload_secret_access`** — grant a workload access to an existing secret (identity + policy in one call; never returns secret values); you still add the `cpln://secret/NAME` reference. The workload must **already exist**: for a new workload, `create_workload` first (its deployment pauses on the secret reference), then grant — the deployment resumes. Manual alternative: `create_identity` + `create_policy`.
-- **`build_image`** → **`get_image_build`** — build a container image on Control Plane from a **GitHub/GitLab repo** and poll its status and log. No Docker daemon is involved. A build from a **local folder cannot go through MCP** (this server has no filesystem access) — route those to `cpln image build --remote --dir .`.
+- **`write_app_files`** → **`build_image`** → **`get_image_build`** (the path when there is no filesystem or no working `cpln` CLI; an agent that has both builds its folder with `cpln image build --remote --dir` instead): put an app's files on Control Plane without a git repository (whole files, exact-text edits, deletions, kept between calls under the app's name; `uploadPaths` returns an upload link for files the user must provide, such as images), build them into an image (or build a **GitHub/GitLab repo** via `repoUrl`), and poll the build's status and log. No Docker daemon is involved. **`get_app_files`** lists or reads the stored files (never an image) and hands the user a short-lived download link. This is the path for an app the user asks you to write: the whole journey (name, source, build, GVC and location, workload, URL, download link) is the `create-app` skill. A folder on the user's machine still cannot go through MCP (this server has no filesystem access): route it to `cpln image build --remote --dir .`, or write its files with `write_app_files`.
+- **Changing an app's code** (as opposed to its workload settings): take NAME from the workload's container image (`//image/NAME:TAG`) and call **`get_app_files`** first, in every session. It says where the code lives: stored on Control Plane through `write_app_files` (edit it with `write_app_files`, `build_image` the next tag, `update_workload` to it), uploaded from a folder by the cpln CLI (the user's folder is the source of truth: tell them what to change there and to rebuild with the CLI), built from a repository (change the repository, then `build_image` with `repoUrl`), or pushed outside a Control Plane build (the code is not on Control Plane: ask where it lives). Never rewrite an app from scratch under an existing name; `write_app_files` refuses to take such an app over unless the user asks for exactly that (`adopt: true`).
 - **`search_control_plane`** — documentation lookup, once per topic, when nothing above covers it.
 - For a resource, field, or sub-endpoint no tool covers: use the `cpln` CLI (after the `cpln` skill) or tell the user what is missing — do not improvise through unrelated tools.
 
@@ -159,7 +162,7 @@ MCP-first; the `cpln` CLI is the fallback (read the `cpln` skill first — see b
 ## 10. Critical universal gotchas
 
 - **Secrets need all three:** an identity on the workload, a policy granting `reveal`, and a `cpln://secret/NAME` reference — or access fails silently. `grant_workload_secret_access` sets the identity + policy but **not** the reference; you must still add `cpln://secret/NAME` yourself. It also requires the workload to already exist — for a new workload, `create_workload` first (the deployment pauses on the secret reference until granted, then resumes).
-- **Run real container images,** not inline/base64/heredoc apps on a generic base image. Your org's private registry is **internal** — `cpln image build --push` (local Docker) or `--remote` (built on Control Plane, no Docker) pushes to it, and you reference those images as `//image/NAME:TAG`; public Docker Hub images are given as-is (`nginx:latest`, never `docker.io/...`); other external images use their exact host path. All images must be `linux/amd64`. **External private registries need a pull secret** on the GVC — only `docker`, `ecr`, or `gcp` types work (others fail the pull silently). Full table → `image` skill.
+- **Run real container images,** not inline/base64/heredoc apps on a generic base image. For an app the user asks you to write, build it into an image first (with a filesystem and the cpln CLI: a folder and `cpln image build --remote --dir`; otherwise `write_app_files` then `build_image`; the `create-app` skill), then run `//image/NAME:TAG`. Your org's private registry is **internal**: `cpln image build --push` (local Docker) or `--remote` (built on Control Plane, no Docker) pushes to it, and you reference those images as `//image/NAME:TAG`; public Docker Hub images are given as-is (`nginx:latest`, never `docker.io/...`); other external images use their exact host path. All images must be `linux/amd64`. **External private registries need a pull secret** on the GVC: only `docker`, `ecr`, or `gcp` types work (others fail the pull silently). Full table → `image` skill.
 - **Workload runtime traps:** a missing or failing `preStop` (minimal/distroless images often lack `sleep`, the default preStop) SIGKILLs every container; running a container as UID 1337 (the mesh proxy's UID) makes its outbound traffic bypass the Envoy sidecar, losing mTLS and firewall enforcement; some ports (the `15000`-range and others) and mount paths (`/dev`, `/dev/log`, `/tmp`, `/var`, `/var/log`) are reserved — the typed tools reject them before the call. → `workload` (deep: `workload-security`, `stateful-storage`).
 - **Declare container ports with the `containers[].ports` array** (`[{ number, protocol }]`) — always, even for a single port. The scalar `containers[].port` field is **deprecated; never use it**, even though `get_resource_schema` still lists it for backward compatibility.
 - **Configure custom domains with the Domain resource** (`create_domain` — routes with `workloadLink`, or a `gvcLink` binding for subdomain routing), never on the GVC. The GVC `spec.domain` field is **deprecated; never use it**, even though `get_resource_schema` still lists it for backward compatibility.

@@ -6,6 +6,7 @@
     "autoscaling-capacity": {},
     "cdn-rate-limiting": {},
     "cpln": {},
+    "create-app": {},
     "domain": {},
     "environment-promotion": {},
     "external-logging": {},
@@ -35,6 +36,8 @@
   "toolSkills": {
     "build_image": "image",
     "get_image_build": "image",
+    "write_app_files": "create-app",
+    "get_app_files": "create-app",
     "create_policy": "access-control",
     "get_permissions": "access-control",
     "create_group": "access-control",

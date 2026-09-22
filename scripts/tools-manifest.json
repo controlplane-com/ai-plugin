@@ -56,6 +56,7 @@
     "export_terraform_batch": "full",
     "get_agent_eventlog": "full",
     "get_agent_info": "full",
+    "get_app_files": "core",
     "get_command": "core",
     "get_cpln_rules": "core",
     "get_cpln_skill": "core",
@@ -131,6 +132,7 @@
     "update_workload": "core",
     "upgrade_template": "core",
     "workload_start_cron": "core",
-    "workload_stop_replica": "core"
+    "workload_stop_replica": "core",
+    "write_app_files": "core"
   }
 }

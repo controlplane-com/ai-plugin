@@ -51,6 +51,10 @@ cpln image build --name my-app:v1.0 --remote --detach                          #
 - **A private repo builds through the org's git connection, set up once.** The first build that needs it opens a browser to an authorization URL and then continues on its own; in a **non-interactive shell the CLI prints the URL and exits** — authorize, then re-run. The link is single-use and expires shortly. Later builds are silent.
 - **Watching is not the build.** Logs stream until the push. `Ctrl+C` stops watching and **the build keeps running remotely** — check it with `cpln image get NAME:TAG`. The CLI also gives up watching after 20 minutes, which is not a failure either.
 
+### App files written over MCP (no repository, no folder)
+
+For a client that cannot write files or run commands (ChatGPT, Claude web and desktop), or one that has a filesystem but no working `cpln` CLI: an app the assistant writes for the user is stored on Control Plane with `mcp__cpln__write_app_files` (whole files, exact-text edits, deletions; stored per org and app NAME between calls) and built with `mcp__cpln__build_image` **without** `repoUrl`, which produces `//image/NAME:TAG` under the same NAME. The build auto-detects the stack, or uses the `Dockerfile` when one is stored. `mcp__cpln__get_app_files` lists or reads the stored files and returns a short-lived download link. Every image the build service pushes carries provenance tags: `builder.cpln.io/source` (`app-files`, `folder`, or `repository`), `builder.cpln.io/repo`, `builder.cpln.io/build`, and `builder.cpln.io/digest`; an image without them was pushed outside a Control Plane build. `get_app_files` reads them, which makes it the first call when asked to change an app whose origin the session does not know. An agent with a filesystem and a working `cpln` CLI writes the folder on the machine and builds it with `cpln image build --remote --dir` instead, unless the user prefers the app on Control Plane. The end-to-end journey from the user's request to a running URL, including naming, GVC and location, workload sizing, and iteration, is the `create-app` skill.
+
 ### Local builds
 
 ```bash
@@ -143,8 +147,10 @@ For production, prefer immutable tags (commit SHA, semver) or digest pinning; re
 
 MCP tools — an image **record** is never created directly (no create-, update-, push-, or copy-image tool); a build is the one write path:
 
-- `mcp__cpln__build_image` — start a build **from a GitHub/GitLab HTTPS repo** and push to the org registry. A build **from a local folder is impossible over MCP** (the server cannot read your filesystem) — route it to `cpln image build --remote --dir PATH`.
-- `mcp__cpln__get_image_build` — poll a started build's status and log by the id `build_image` returned.
+- `mcp__cpln__write_app_files`: write or edit an app's files under an app NAME (whole files, exact-text edits, deletions, and `uploadPaths` for files the user must upload through a link because a chat cannot carry their bytes). They are stored on Control Plane between calls, so a larger app goes across several calls (200 files and 100 MB per call; 100 MB per file, 1 GB per app). The same NAME is the image name `build_image` produces. Never include credentials or a `.env` with values: reference secrets from the workload instead. A Dockerfile is optional (common stacks are auto-detected).
+- `mcp__cpln__build_image`: start a build **from a GitHub/GitLab HTTPS repo** (`repoUrl`) **or from the stored app files** (omit `repoUrl`) and push to the org registry. A build **from a folder on the user's machine is impossible over MCP** (the server cannot read their filesystem): route it to `cpln image build --remote --dir PATH`, or write the files with `write_app_files`.
+- `mcp__cpln__get_image_build`: poll a started build's status and log by the id `build_image` returned.
+- `mcp__cpln__get_app_files`: list an app's stored files, read one, or (`download: true`) get a short-lived tar.gz link so the user keeps the code. It returns files, never an image, and reports where each of the app's images was built from.
 - `mcp__cpln__list_resources` / `mcp__cpln__get_resource` (kind="image") — list, or inspect tags/digest/manifest.
 - `mcp__cpln__delete_resource` (kind="image", name="NAME:TAG") — removes that image record from the org (destructive).
 - `mcp__cpln__update_gvc` — attach existing pull secrets (`docker` / `ecr` / `gcp`, created by the user).
@@ -152,7 +158,7 @@ MCP tools — an image **record** is never created directly (no create-, update-
 
 ### Related skills
 
-- **workload** (container spec, where the image reference lives) and **gitops-cicd** (building and pushing from CI) are the usual next hops.
+- **workload** (container spec, where the image reference lives) and **gitops-cicd** (building and pushing from CI) are the usual next hops; **create-app** is the journey when the assistant writes the app itself.
 - Also: **environment-promotion** (cross-org sharing), **access-control** (policy mechanics), **cpln** (CLI conventions).
 
 ## Documentation
