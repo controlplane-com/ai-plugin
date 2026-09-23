@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Added
 
+### Changed
+
+### Fixed
+
+### Removed
+
+## [2.3.1] - 2026-09-23
+
+### Added
+
 - `create_app_files_upload_link`: an upload link for files the user has; attachments in the chat cannot be forwarded, and a binary never goes inline.
 
 ### Changed
