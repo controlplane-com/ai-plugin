@@ -8,7 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Added
 
+- `create_app_files_upload_link`: an upload link for files the user has; attachments in the chat cannot be forwarded, and a binary never goes inline.
+
 ### Changed
+
+- `write_app_files` is text only and takes `appends` to build a large file in parts; `get_app_files` reads a large file in slices with `offset` and `length`.
 
 ### Fixed
 

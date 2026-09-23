@@ -23,6 +23,7 @@
     "convert_to_terraform": "core",
     "cpln_api_request": "conditional",
     "create_agent": "full",
+    "create_app_files_upload_link": "core",
     "create_audit_context": "full",
     "create_cloud_account": "full",
     "create_domain": "core",

@@ -37,6 +37,7 @@
     "build_image": "image",
     "get_image_build": "image",
     "write_app_files": "create-app",
+    "create_app_files_upload_link": "create-app",
     "get_app_files": "create-app",
     "create_policy": "access-control",
     "get_permissions": "access-control",
