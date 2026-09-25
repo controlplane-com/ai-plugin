@@ -5,8 +5,6 @@ description: "Promotes workloads across dev/staging/production on Control Plane.
 
 # Environment Promotion
 
-> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads work on every profile via the generic `list_resources` / `get_resource` tools; `delete_resource` is on every profile except `readonly`.
-
 Control Plane has **no built-in promote or rollback primitive** — promotion is applying the same artifacts (image + manifests) to the next environment. Two topologies exist: **org-per-environment (the documented best practice)** and GVC-per-environment. The recurring failure is image access: a staging/prod org cannot pull the dev org's images until you either copy the image or wire up a cross-org pull secret.
 
 ## Choosing a topology
@@ -29,7 +27,8 @@ cpln apply --file ./manifests/ --org my-org --gvc staging-gvc --ready     # gvc-
 
 - Bootstrap manifests from a live environment with `cpln <resource> get REF -o yaml-slim` (plain `yaml` output breaks apply).
 - Environment differences (env vars, scaling, firewall) belong in the manifests per environment — or patch after apply with `mcp__cpln__update_workload` / `mcp__cpln__update_gvc` (both PATCH semantics).
-- For IaC-based promotion, export live resources to Terraform: `mcp__cpln__export_terraform` (one self link, or bulk by path depth — a whole GVC or org), `mcp__cpln__export_terraform_batch` (full profile, up to 100 explicit links), `mcp__cpln__convert_to_terraform` (manifest to HCL, dry-run validated). An unsupported kind is rejected with the supported list.
+- For IaC-based promotion, export live resources to Terraform: `mcp__cpln__export_terraform` (one self link, or bulk by path depth — a whole GVC or org), `mcp__cpln__convert_to_terraform` (manifest to HCL, dry-run validated). An unsupported kind is rejected with the supported list.
+- **One workload into another GVC:** `mcp__cpln__promote_workload` (`workload`, `gvc`, `targetGvc`, optional `image` and `env` overrides) copies the spec without its identity or `cpln/` tags, creates or updates the target, grants its secret references, and waits. A volume set mount is refused: create the storage in the target GVC first.
 
 ## Sharing images across orgs
 
@@ -46,7 +45,7 @@ CLI-only (no MCP tool) and **still requires a running Docker daemon — `copy` h
 
 The target org pulls directly from the source org's registry. Four steps:
 
-1. **Source org — puller credentials**: `mcp__cpln__add_key_to_service_account` (creates the service account if missing; the key is shown **once**).
+1. **Source org — puller credentials**: `mcp__cpln__add_key_to_service_account` (full profile; creates the service account if missing; the key is shown **once**).
 2. **Source org — grant pull**: `mcp__cpln__create_policy` with `targetKind: image`, `targetAll: true` (or `targetQuery` by repository), `addPermissions: ["pull"]`, `addServiceAccounts: [LINK]` — bindings go in the create call.
 3. **Target org — docker secret**: have the user create a `docker` secret with this `dockerConfigJson` — offer a manifest scaffold (`data` is this JSON as one string; `setup-secret` skill); the username is the **literal string `<token>`** (the registry rejects anything else; the password is the service-account key):
 
@@ -108,36 +107,7 @@ cpln workload update my-app --set spec.containers.main.image=//image/my-app:v1.1
 cpln workload get-deployments my-app --gvc my-gvc --org my-org    # verify every location reports ready
 ```
 
-- MCP path: `mcp__cpln__get_resource` (kind="workload") to record the current image, `mcp__cpln__update_workload` (`containers: [{name, image}]` — merged by container name), then poll `mcp__cpln__list_deployments` until ready.
+- MCP path: `mcp__cpln__rollback_workload` (`name`, optional `image`) re-points the first container at the newest earlier image the deployments recorded, or at the image passed, and waits.
 - Org-per-environment: confirm the older image still exists in **this** org's registry first (`mcp__cpln__list_resources` kind="image") — it may only have been copied forward once.
-- **Restart without changing the image**: `cpln workload force-redeployment my-app --gvc GVC` — it PATCHes a `cpln/deployTimestamp` tag with the current time, producing a rolling restart. No MCP equivalent; `mcp__cpln__update_workload` setting that same tag replicates it.
+- **Restart without changing the image**: `mcp__cpln__restart_workload`, or `cpln workload force-redeployment my-app --gvc GVC`; both stamp the `cpln/deployTimestamp` tag, a rolling restart.
 - Helm-managed releases are the exception with real revision history: `cpln helm rollback RELEASE [REVISION]`.
-
-## Quick reference — MCP tools
-
-| Tool | Purpose |
-|---|---|
-| `mcp__cpln__create_gvc` / `mcp__cpln__create_workload` | Stand up the target environment |
-| `mcp__cpln__update_workload` / `mcp__cpln__update_gvc` | Patch image, env, scaling, `pullSecretLinks` (PATCH semantics) |
-| `mcp__cpln__add_key_to_service_account` | Puller credentials in the source org (auto-creates the SA; key shown once) |
-| `mcp__cpln__create_policy` | Grant `pull` on images, binding included in the create call |
-| `mcp__cpln__get_resource` (kind `secret`) | Verify the docker pull secret exists before attaching |
-| `mcp__cpln__list_deployments` | Verify a promotion or rollback is ready per location |
-| `mcp__cpln__export_terraform` / `_batch` / `mcp__cpln__convert_to_terraform` | Export live environments to IaC |
-
-**CLI fallback** (read the `cpln` skill first; CI/CD uses `CPLN_TOKEN` + `cpln apply --ready`): `cpln image copy` is CLI-only and needs a local Docker daemon. `cpln image build --remote` needs none; over MCP a build starts from a **repo** or from app files written with `mcp__cpln__write_app_files`. A folder on the user's machine must go through the CLI (`image` skill).
-
-## Related skills
-
-| Need | Skill |
-|---|---|
-| Image building, registries, pull-secret detail | `image` |
-| Pipeline setup, runners, service-account auth | `gitops-cicd` |
-| Terraform / Pulumi promotion | `iac-terraform-pulumi` |
-| Per-environment secrets and RBAC | `access-control` |
-
-## Documentation
-
-- [Environment Promotion Guide](https://docs.controlplane.com/guides/environment-promotion.md)
-- [Copy an Image Guide](https://docs.controlplane.com/guides/copy-image.md)
-- [cpln apply Guide](https://docs.controlplane.com/guides/cpln-apply.md)

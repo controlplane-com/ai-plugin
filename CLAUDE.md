@@ -12,17 +12,17 @@ End-user install and capability docs live in `README.md`. Development principles
 | `plugins/cpln/skills/<name>/SKILL.md` | One domain skill per folder. Companion files (`*.md`) load on demand. |
 | `plugins/cpln/agents/<name>.md` | One self-contained guided workflow per file. |
 | `plugins/cpln/commands/<name>.md` | Slash command for Claude / Codex / Cursor. |
-| `plugins/cpln/rules/*.md` | Guardrails and manifest references. Files with `alwaysApply: true` are injected by the `SessionStart` hook in `plugins/cpln/hooks/hooks.json` (Claude / Codex) and read by Cursor as native rules. Antigravity has no SessionStart hook and does not load a plugin `rules/` dir (its rules live in `AGENTS.md`), so it gets the same guardrails via the MCP server (`get_cpln_rules`). |
+| `plugins/cpln/rules/*.md` | `cpln-core.md` (`alwaysApply: true`) is the short core rule set: the `SessionStart` hook in `plugins/cpln/hooks/hooks.json` injects it (Claude / Codex), Cursor loads it in every chat, and the MCP server sends it in its handshake. `cpln-guardrails.md` (`alwaysApply: false`) is the operating guide, read on demand: Cursor applies it by its description and the MCP server serves it through `get_cpln_rules`. Antigravity has no SessionStart hook and does not load a plugin `rules/` dir (its rules live in `AGENTS.md`), so it gets the core through the MCP handshake. |
 | `plugins/cpln/.claude-plugin/plugin.json` | Claude plugin manifest. |
 | `plugins/cpln/.codex-plugin/plugin.json` + `mcp.json` | Codex manifest and MCP config. |
 | `plugins/cpln/.cursor-plugin/plugin.json` + `mcp.json` | Cursor manifest and MCP config. |
-| `plugins/cpln/plugin.json` + `mcp_config.json` | Native Antigravity CLI (`agy`) manifest and MCP config (remote server uses `serverUrl`, not `httpUrl`). Antigravity has no `SessionStart` hook event (its hooks are PreToolUse/PostToolUse/PreInvocation/PostInvocation/Stop), so guardrails reach it through the MCP server (`get_cpln_rules` + server-side skill gate), not a hook. `agy plugin validate ./plugins/cpln` gates it; install with `agy plugin install https://github.com/controlplane-com/ai-plugin/plugins/cpln`. |
+| `plugins/cpln/plugin.json` + `mcp_config.json` | Native Antigravity CLI (`agy`) manifest and MCP config (remote server uses `serverUrl`, not `httpUrl`). Antigravity has no `SessionStart` hook event (its hooks are PreToolUse/PostToolUse/PreInvocation/PostInvocation/Stop), so the core rules reach it through the MCP handshake and the operating guide through `get_cpln_rules`, not a hook. `agy plugin validate ./plugins/cpln` gates it; install with `agy plugin install https://github.com/controlplane-com/ai-plugin/plugins/cpln`. |
 | `plugins/cpln/.claude-mcp.json` | Claude MCP config. |
 | `.claude-plugin/marketplace.json` | Claude marketplace entry. Source: `"./plugins/cpln"`. |
 | `.agents/plugins/marketplace.json` | Codex marketplace entry. |
 | `.cursor-plugin/marketplace.json` | Cursor marketplace entry. |
 
-Each per-client MCP config (`.claude-mcp.json`, `.mcp.json`, `.cursor-plugin/mcp.json`, and `plugins/cpln/mcp_config.json` for Antigravity) points at the hosted server `https://mcp.cpln.io/mcp?toolsets=full` — every client uses the `?toolsets=full` profile so they all expose the same complete tool set. Keep them in sync when changing URL or auth shape. The remote-URL field name differs per client: Claude/Codex/Cursor/generic use `url`, Antigravity uses `serverUrl`.
+Each per-client MCP config points at the hosted server with a profile chosen for that client. Claude Code (`.claude-mcp.json`) and Cursor (`.cursor-plugin/mcp.json`) use `https://mcp.cpln.io/mcp?toolsets=full&skills=plugin`, because both load tools on demand. Codex (`.mcp.json`) and Antigravity (`plugins/cpln/mcp_config.json`) use `https://mcp.cpln.io/mcp?toolsets=core&skills=plugin`, because Codex sends every tool on models without tool search. `skills=plugin` tells the server the plugin supplies the skills, so it does not advertise `get_cpln_skill`; the MCP handshake still carries the core rules for every client, since Antigravity loads no plugin rules and Codex runs the rules hook only when `plugin_hooks` is on. Keep them in sync when changing URL or auth shape. The remote-URL field name differs per client: Claude/Codex/Cursor/generic use `url`, Antigravity uses `serverUrl`.
 
 ## Plugin id vs display name
 
@@ -84,17 +84,17 @@ jq empty \
 
 Codex has no CLI validator; install the plugin and check `~/.codex/log/codex-tui.log` for `cpln`/`controlplane` warnings (there should be none).
 
-## Knowledge map (tool → skill gate)
+## Knowledge map (tool to skill)
 
-`plugins/cpln/knowledge-map.json` maps MCP tools to the skill an agent must read before calling them. The hosted MCP server fetches this file at runtime (with a bundled fallback), so gating a tool behind a skill is a one-line edit here — no server redeploy. Schema:
+`plugins/cpln/knowledge-map.json` maps each MCP tool to the skill that covers it. It is a reference, never a precondition: no tool requires reading a skill first. The hosted MCP server fetches this file at runtime (with a bundled fallback), so a mapping change is a one-line edit here, with no server redeploy. Schema:
 
 - `skills`: the valid skill names.
-- `toolSkills`: `"<tool_name>": "<skill-name>"` — the skill required before that tool runs (the skill must exist in `skills`).
+- `toolSkills`: `"<tool_name>": "<skill-name>"`, the skill that covers that tool (the skill must exist in `skills`).
 
-To gate a tool behind a skill, add an entry to `toolSkills`. The server validates entries on load and drops any that reference an unknown skill or tool, so a typo can never lock a tool.
+The server validates entries on load and drops any that reference an unknown skill or tool.
 
 ## Versioning
 
-Driven by `scripts/bump-version.sh <X.Y.Z>`. It updates every plugin manifest and the marketplace entries in lockstep, then promotes the CHANGELOG `[Unreleased]` block. Don't edit version strings by hand.
+Work lands on `develop`, which the test MCP server reads; `main` is the released line that installs and the production MCP server read. A release is `scripts/bump-version.sh <X.Y.Z>` run on `develop`: it updates every plugin manifest and the marketplace entries in lockstep, promotes the CHANGELOG `[Unreleased]` block, commits, tags, and pushes `develop`, `main`, and the tag together. Don't edit version strings by hand. Details: `CONTRIBUTING.md`.
 
 In the CHANGELOG, keep only the headings that have entries — omit empty `Added` / `Changed` / `Fixed` / `Removed` sections (including under `[Unreleased]`). Keep each entry as short as possible — one customer-facing line that summarizes rather than enumerates; specifics and internal refactors live in git history, not the changelog. Avoid arrow characters like `→` — write `to`, `-`, or `/` instead.

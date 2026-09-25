@@ -3,212 +3,100 @@ name: workload
 description: "Primary skill for creating, updating, running, and debugging workloads on Control Plane; routes to a deeper skill per subject. Use when the user asks to deploy or run a container, app, API, service, worker, or job, or to change, scale, expose, secure, or diagnose one."
 ---
 
-# Workloads — Primary Skill & Router
+# Workloads
 
-> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads work on every profile via the generic `list_resources` / `get_resource` tools; `delete_resource` is on every profile except `readonly`.
+> **Tool availability:** the `configure_workload_*` tools need `?toolsets=full`; `create_workload`, `update_workload`, and the job tools are core.
 
-A **workload** is Control Plane's unit of deployment: one or more containers plus how they scale, get exposed, store data, and stay healthy. This skill carries the must-know primary rules for safely creating, updating, and running a workload.
+A workload is the unit of deployment: one to eight containers plus how they scale, get exposed, store data, and stay healthy. `mcp__cpln__deploy_app` covers a single-container HTTP app, image, or repository on a standard workload, including a data directory (`storage`). `create_workload` and `update_workload` cover the rest: serverless, several containers, cron, non-HTTP ports, custom firewall rules, probes and scaling tuned in depth. `restart_workload`, `rollback_workload`, `promote_workload`, and `allow_workload_access` do those jobs in one call.
 
-**Need more detail on one subject?** This skill covers the common case; for depth on a single topic, load the matching skill from the **Deep-dive router** at the end — you may load one or several, as the task spans. If this plugin is installed in your agent, the skill files are already available — open the relevant skill(s) directly. If you are using the Control Plane MCP server without the plugin, call `get_cpln_skill` with the skill name instead.
+## Workload type (immutable, standard by default)
 
-## Workload type — the first decision (standard is the default)
-
-`create_workload` defaults the type to **`standard`** when you don't specify one and covers all four types — **serverless / standard / stateful**, and **cron** by setting **`type: cron`** (which makes `schedule` required). Type is chosen at creation and is **immutable** (see Immutability below). Pick from:
-
-| | **standard** (default) | serverless | stateful | cron |
+| | **standard** | serverless | stateful | cron |
 |---|---|---|---|---|
-| Use for | long-running services, APIs, workers | request/event-driven HTTP that scales on demand | databases & anything needing stable disk or per-replica identity | scheduled jobs |
-| Autoscaling metrics | cpu, memory, latency, rps, multi, keda, disabled | concurrency, cpu, memory, rps, disabled | cpu, memory, latency, rps, multi, keda, disabled | n/a — runs on a `schedule` |
+| Use for | long-running services, APIs, workers | request-driven HTTP that scales on demand | databases, stable disk or per-replica identity | scheduled jobs |
+| Autoscaling metrics | cpu, memory, latency, rps, multi, keda, disabled | concurrency, cpu, memory, rps, disabled | cpu, memory, latency, rps, multi, keda, disabled | none: runs on `schedule` |
 | Capacity AI | on by default | on by default | supported | on by default; lands at the next run |
-| Probes | define readiness + liveness | define readiness + liveness | define readiness + liveness | ignored |
-| `ext4`/`xfs` volumes | no | no | **yes (only here)** | no |
+| Default probes | none | TCP readiness and liveness | none | ignored |
+| `ext4`/`xfs` volumes | no | no | **only here** | no |
 | `shared` volumes | yes | yes | yes | yes |
-| Scale to zero | KEDA only | yes | KEDA only | n/a |
-| Default `minScale` | 1 | 1 | 1 | n/a |
+| Scale to zero | KEDA only | yes | KEDA only | no |
 
-The intended scaling metric can decide the type: `concurrency` scaling exists **only on serverless** — if that's the intent, create the workload as serverless (type is immutable); on standard/stateful the closest equivalent is `rps`. Never pair a metric with a type that rejects it.
+`concurrency` scaling exists only on serverless; on standard or stateful the closest is `rps`. Since type cannot change, pick it for the metric the user wants.
 
-A workload has **1–8 containers**.
+## Which tool sets what
 
-## The spec at a glance — which tool sets what
+| Spec block | Set with |
+|---|---|
+| `containers[]`: image, ports, cpu/memory, env, command/args, probes, metrics, volumes | `create_workload` / `update_workload` |
+| `autoscaling`, `capacityAI`, `timeoutSeconds`, `suspend`, `debug` | `create_workload` / `update_workload` |
+| `firewallConfig`, or the `public` shortcut | `create_workload` / `update_workload` |
+| `schedule` and job policy (`concurrencyPolicy`, `historyLimit`, `restartPolicy`, `activeDeadlineSeconds`) | the same tools with `type: cron` |
+| `loadBalancer` (direct, geo, replicaDirect) | `configure_workload_load_balancer` |
+| `sidecar.envoy` (JWT auth, Envoy filters) | `configure_workload_sidecar` |
+| `extras` (BYOK affinity, tolerations, topology) | `configure_workload_extras` |
+| `localOptions` (per-location overrides, `multiZone`, `capacityAIUpdateMinutes`) | `configure_workload_local_options` |
+| `rolloutOptions` (termination grace, surge) | `configure_workload_rollout` |
+| `securityOptions` (`runAsUser`, `filesystemGroupId`) | `configure_workload_security` |
+| `requestRetryPolicy` | `configure_workload_retry` |
 
-There is ONE way to express each concept. Containers always go in the typed `containers[]` array (there are no flat `image`/`cpu`/`port` fields), scaling always goes in the single `autoscaling` block, and cron is **`create_workload` / `update_workload` with `type: cron`** — the `schedule` + job policy become available (and required), while autoscaling/`timeoutSeconds`/`debug` do not apply to cron and are rejected (`capacityAI` does apply). The advanced blocks below were split into dedicated `configure_workload_*` tools to keep the common path lean.
+`update_workload` merges `containers[]` by name: send only the containers that change; an unknown name adds a container. On cron it patches the schedule, job policy, `suspend`, `capacityAI`, and containers, and rejects autoscaling, `timeoutSeconds`, and `debug`; schedule and job fields are rejected on other types.
 
-| Spec block | What it controls | Set with |
-|---|---|---|
-| `containers[]` — `image`, `ports`, `cpu`/`memory`, `env`, `command`/`args`, probes, `metrics`, `volumes` | the container(s) — the only way to define them | `create_workload` / `update_workload` (all types, cron included) |
-| `autoscaling` (→ `spec.defaultOptions.autoscaling`) + `capacityAI` / `timeoutSeconds` / `suspend` / `debug` scalars | scaling & resource optimization | `create_workload` / `update_workload` |
-| `firewallConfig` (or the `public` shortcut) | inbound/outbound/internal exposure | `create_workload` / `update_workload` (all types, cron included) |
-| `schedule` + cron policy (`concurrencyPolicy`, `historyLimit`, `restartPolicy`, `activeDeadlineSeconds`) | cron schedule & job policy | `create_workload` / `update_workload` **with `type: cron`** |
-| `loadBalancer` (direct / geo / replicaDirect) | custom ports, static IPs, geo headers | `configure_workload_load_balancer` |
-| `sidecar.envoy` | Envoy filter chain (e.g. JWT auth) | `configure_workload_sidecar` |
-| `extras` | BYOK-only affinity / tolerations / topology | `configure_workload_extras` |
-| `localOptions` (incl. `multiZone`, `capacityAIUpdateMinutes`) | per-location overrides of `defaultOptions` | `configure_workload_local_options` |
-| `rolloutOptions` | graceful termination, surge/unavailable | `configure_workload_rollout` |
-| `securityOptions` | `runAsUser`, `filesystemGroupId` | `configure_workload_security` |
-| `requestRetryPolicy` | request retry attempts / conditions | `configure_workload_retry` |
+## Production defaults beyond the core rules
 
-`update_workload` merges `containers[]` **by name** — send only the container(s) you want to change; others are preserved (an unknown name adds a container). On a cron workload, `update_workload` patches the `schedule` / job policy / `suspend` / `capacityAI` / containers (and rejects autoscaling/`timeoutSeconds`/`debug`); schedule/job fields are rejected against a non-cron workload. Always call `get_resource_schema` for the workload kind before authoring a spec — never hand-write fields from memory.
-
-## Production-grade defaults
-
-Platform defaults are not a production design. For any real workload:
-
-- **`minScale ≥ 2`** for user-facing services (HA — no single point of failure). The schema default is `1`; use `1` only with a named reason (single-writer DB, leader election, dev/staging). `stateful` is often correct at `1`.
-- **`maxScale`**: leave it at the default of **5** unless the user gives an explicit maximum. If the user says "max 10 replicas" (or names any number), set exactly that. Do not invent a different cap.
-- **Never set `minScale: 0` (scale-to-zero)** unless the user asks for it by name. `serverless` scales to zero directly; `standard`/`stateful` only with `metric: keda`; `cron` cannot.
-- **Define both `readinessProbe` and `livenessProbe`** — none are configured by default.
-- **Size `cpu`/`memory` to the runtime**, not the platform defaults (`50m` / `128Mi`). Floors: CPU ≥ `25m`, memory ≥ `32Mi`. Keep `memory(MiB) / cpu(millicore) ≤ 8` (raise to 32 with the tag `cpln/relaxMemoryToCpuRatio`).
-- **Pick an autoscaling metric that fits the traffic shape** (see Autoscaling).
-- **Set the firewall to match intended exposure IN THE CREATE CALL** — it is deny-by-default (see Networking). Decide reachability before creating (`public: true` or `firewallConfig`); creating closed and patching the firewall open afterward is a spec error, not a workflow.
-- **Never silently downgrade** an incompatible request to `disabled` / `none` / `1` / public — surface the conflict with realistic alternatives and a recommendation.
+- `minScale: 1` only with a named reason: a single writer, leader election, dev or staging. Stateful is often right at 1.
+- `maxScale` stays at its default of 5 unless the user names a maximum; then use exactly that number.
+- Define `readinessProbe` and `livenessProbe` yourself on standard, stateful, and cron.
+- Size CPU and memory to the runtime, not the platform defaults of `50m` and `128Mi`. Floors: `25m` and `32Mi`. Memory in MiB at most 8 times CPU in millicores; the tag `cpln/relaxMemoryToCpuRatio` raises that to 32.
+- Never silently downgrade a request the type rejects to `disabled`, one replica, or a weaker firewall: say what conflicts and offer alternatives.
 
 ## Images
 
-- Your org's private registry, in a spec: **`//image/NAME:TAG`** (e.g. `//image/api:v1.0`) — the preferred form.
-- **Another Control Plane org's registry: `OTHER-ORG.registry.cpln.io/NAME:TAG`** — this hostname form is valid in a workload spec for cross-org pulls.
-- Public images: the **exact string** (`nginx:latest`) — **never** add a `docker.io/` prefix. ECR/GCR/etc. use their full host path.
-- The `<your-org>.registry.cpln.io/NAME:TAG` form also resolves, but for your own org prefer `//image/NAME:TAG`; the hostname form is mainly used by `docker login` / `docker push`.
-- **All images must be `linux/amd64`** — a wrong-arch image fails with `exec format error`.
-- **Private external registries need a pull secret on the GVC** (`spec.pullSecretLinks`); only `docker`, `ecr`, and `gcp` secret types work as pull secrets. Same-org `//image/...` needs none.
-- **Build and push:** `cpln image build --name NAME:TAG --remote` builds on Control Plane and pushes for you (no Docker daemon); `--push` builds locally. Over MCP, `mcp__cpln__build_image` builds **a GitHub/GitLab repo** (`repoUrl`) **or app files stored with `mcp__cpln__write_app_files`** (no `repoUrl`); a folder on the user's machine has no path through MCP and must use the CLI.
-- Image **records** over MCP are list/get/delete (`mcp__cpln__list_resources` / `mcp__cpln__get_resource` / `mcp__cpln__delete_resource`, kind="image"). Detail: `image` skill.
-- **Changing the code behind a workload's image:** take NAME from `//image/NAME:TAG` and call `mcp__cpln__get_app_files` first. It says whether the code is stored on Control Plane (edit it, build the next tag, `mcp__cpln__update_workload`), sits in a folder on the user's machine, lives in a repository, or is not on Control Plane at all. Never rewrite it from scratch under the same name (`create-app` skill, "Changing an app that already exists").
+- Another Control Plane org's registry: `OTHER-ORG.registry.cpln.io/NAME:TAG` works in a spec for cross-org pulls. For your own org prefer `//image/NAME:TAG`; the hostname form is for `docker login` and `docker push`.
+- A wrong-architecture image fails with `exec format error`.
+- A private external registry needs a pull secret on the GVC (`spec.pullSecretLinks`); same-org `//image/...` needs none. Detail: `image` skill.
+- An app you write for the user is built first (`create-app` skill); to change an existing app's code, `get_app_files` with its image NAME says where the code lives.
 
-## Run real images
+## Health
 
-Run an actual container image, not an inline/base64/heredoc app on a generic base image. An app the user asks you to write is built into an image first and run as `//image/NAME:TAG`: with a filesystem and a working `cpln` CLI, from a folder on the machine with `cpln image build --remote --dir`; otherwise, from files stored with `mcp__cpln__write_app_files` and built with `mcp__cpln__build_image`. The full journey, and which of the two applies, is the `create-app` skill. For databases, caches, queues, brokers, search, gateways, or other common infrastructure, install a Template Catalog entry first (`mcp__cpln__browse_templates` → `mcp__cpln__install_template`) rather than hand-building.
+- `readinessProbe` gates traffic: it may check request-path dependencies (database, auth, cache).
+- `livenessProbe` restarts a hung process: it checks only the process itself, never a dependency, or one outage restarts every replica.
+- Each probe uses exactly one handler: `exec`, `grpc`, `tcpSocket`, or `httpGet`. Defaults: readiness `initialDelaySeconds` 10, liveness 60, `periodSeconds` 10. Tune the delay to the real cold start.
+- `list_deployments` with `location` shows one location's deployment in full detail.
 
-## Health, readiness & verification
+## Autoscaling
 
-- **`readinessProbe` gates traffic** — the load balancer only routes to a ready replica. It should check request-path dependencies (DB, auth, cache).
-- **`livenessProbe` restarts a hung process** — it must check **only** the process itself, never downstream dependencies (a dependency outage must not cycle every replica).
-- Each probe is exactly one of `exec` / `grpc` / `tcpSocket` / `httpGet`. Tune `initialDelaySeconds` to real cold-start time (readiness default 10s, liveness default 60s; `periodSeconds` default 10s).
-- **Verify every create/update automatically — without asking:** poll `mcp__cpln__list_deployments` until all locations report ready (it surfaces per-location errors **and** the workload's canonical public URL). Then give the user that **canonical** URL — never construct one or report a per-location deployment URL as the address. **For a public workload, do not stop at "ready" — confirm it actually serves:** make a real HTTP GET of the canonical endpoint (when you have that capability) and read the result — never claim reachability without a real response you received; if you cannot make a request, report readiness confirmed but external reachability not independently verified. A ready deployment can still be unreachable — firewall inbound unset, or TLS/DNS still propagating. Treat 2xx/3xx/401/403 as serving; a timeout/refused points first at firewall inbound, a TLS/DNS error at propagation (wait, don't redeploy). On failure, diagnose with `mcp__cpln__get_workload_events` (probe/scheduling reasons) then `mcp__cpln__get_workload_logs` (app error); pass the optional `location` to `list_deployments` (e.g. `aws-us-east-1`) to inspect ONE location's deployment in full detail. **Never re-apply an unchanged failing spec**, and don't poll in a tight loop.
+Match the metric to the traffic: `rps` or `concurrency` for HTTP, `cpu` or `memory` for compute, `latency` for SLO-driven APIs, `keda` for queues. On standard with Capacity AI on, an omitted metric resolves to `disabled`, so name it. Capacity AI is rejected with the `cpu` metric and with GPUs. The metric table, KEDA, and Capacity AI: `autoscaling-capacity` skill.
 
-## Autoscaling & capacity
+## Networking
 
-Set via `spec.defaultOptions.autoscaling.metric`; the system keeps the metric near but below `target` (default `95`; capped at 100 for cpu/memory). If `metric` is omitted, serverless defaults to `concurrency` and standard/stateful default to `cpu`. Picker:
+- Blocked CIDRs beat allowed ones, and CIDR rules beat hostname rules.
+- Hostname outbound rules allow ports 80, 443, and 445 by default; `outboundAllowPort` replaces that set. Private RFC1918 and CGNAT ranges in `outboundAllowCIDR` are ignored on managed locations; reaching a private network takes an agent (`native-networking` skill).
+- Same-GVC internal traffic is free; cross-GVC traffic needs the caller admitted (`allow_workload_access`) and pays egress.
+- The canonical URL serves one port: the first container port. Standard and stateful may expose more ports across containers, reachable internally or through a direct or dedicated load balancer; serverless allows one container with one port.
+- Load balancers: shared is the default (HTTP and HTTPS on 80 and 443). **Direct** gives a workload custom TCP or UDP ports 22 to 32768, optional static IPs, and geo headers (`configure_workload_load_balancer`). **Dedicated** is a GVC setting for custom domains and wildcard hosts (`update_gvc`). Toggling either needs the `configureLoadBalancer` permission, which `edit` does not include. Detail: `ipset-load-balancing` and `firewall-networking` skills.
 
-- **concurrency** — HTTP with variable request duration (**serverless only**).
-- **rps** — HTTP with consistent response times.
-- **cpu** / **memory** — compute- or memory-bound work.
-- **latency** — SLO-driven APIs (**standard / stateful**; set `metricPercentile`).
-- **multi** — several signals, highest replica count wins (**standard / stateful**; entries limited to `cpu`/`memory`/`rps`; mutually exclusive with `metric`/`target`).
-- **keda** — event-driven (queues/streams; **standard / stateful**); requires `spec.keda.enabled: true` on the GVC; `target` is rejected with `keda`.
-- **disabled** — fixed replicas at `minScale`.
+## Storage
 
-The metric must be valid for the workload type (the matrix above) or the spec is rejected — e.g. `concurrency` on a `standard` workload is rejected (it is serverless-only). Match the metric to the workload's traffic shape: `rps`/`concurrency` for HTTP, `cpu`/`memory` for compute-bound work, `latency` for SLO-driven APIs. For tuning targets/percentiles, multi-metric, KEDA, scale-to-zero, or Capacity AI, load the `autoscaling-capacity` skill.
+- Durable disk or a stable per-replica identity means a stateful workload with a volume set. A volume set's filesystem and performance class cannot change.
+- `ext4` and `xfs` mount on stateful only; `shared` mounts on any type. At most 15 volumes per container; no two mounts may share or nest a path; `/dev`, `/dev/log`, `/tmp`, `/var`, and `/var/log` are rejected.
+- Snapshot before a shrink, restore, or delete; snapshots exist for `ext4` and `xfs` only. Detail: `stateful-storage` skill.
 
-**Capacity AI** auto-tunes CPU/memory between `minCpu`/`minMemory` and `cpu`/`memory`. It works on **every** type: on by default for standard, serverless, and cron (on cron the new reservation lands at the next execution). It is **rejected with the `cpu` metric** (when explicitly enabled) and **with GPUs**.
+## Env, names, and the workload's own API access
 
-## Networking, firewall & exposure
+- Env names cannot start with `CPLN_` or be `K_SERVICE`, `K_CONFIGURATION`, or `K_REVISION`; they match `^[-._a-zA-Z][-._a-zA-Z0-9]*$`, at most 120 characters. The platform injects `CPLN_TOKEN`, `CPLN_ENDPOINT`, `CPLN_GLOBAL_ENDPOINT`, `CPLN_ORG`, `CPLN_GVC`, `CPLN_GVC_ALIAS`, `CPLN_LOCATION`, `CPLN_PROVIDER`, `CPLN_WORKLOAD`, `CPLN_WORKLOAD_VERSION`, `CPLN_IMAGE`, `CPLN_NAME`, `CPLN_MAIN` on the first container, and `PORT` on standard when unset.
+- A workload calls the Control Plane API as its identity: `curl -H "Authorization: Bearer $CPLN_TOKEN" $CPLN_ENDPOINT/org/$CPLN_ORG/...`. `CPLN_ENDPOINT` is plain HTTP, and a call succeeds only where a policy grants the attached identity the permission; otherwise it returns 403.
+- Container names are lowercase `^[a-z]([-a-z0-9])*[a-z0-9]$`, at most 64 characters, and cannot start with `cpln-` or `debugger-`. A workload name is at most 49 characters and cannot end with `-headless`.
 
-- **Deny-by-default:** external inbound, external outbound, and internal (`inboundAllowType: none`) are all blocked until configured. Blocked CIDRs beat allowed; CIDR rules beat hostname rules.
-- **Public exposure needs BOTH** an external inbound and an external outbound CIDR — one without the other ships a half-broken workload. Infer intent: a user-facing app/site/game → public; an internal API/DB/worker → restricted. Confirm when ambiguous or sensitive — and decide BEFORE creating: exposure belongs in the create call itself, never a follow-up firewall patch.
-- Hostname outbound rules allow only ports **80/443/445** by default; `outboundAllowPort` **replaces** that set (re-list 80/443 if still needed). Private RFC1918/CGNAT ranges in `outboundAllowCIDR` are silently ignored on managed locations — reaching private networks takes a wormhole agent (`native-networking`).
-- **Internal service-to-service** uses plain HTTP over the internal hostname: `http://WORKLOAD.GVC.cpln.local:PORT` (the sidecar adds mTLS — never `https://`). Same-GVC is free; cross-GVC needs `inboundAllowType: same-org` (or an explicit `workload-list`) and incurs egress.
-- **One public canonical port.** `WORKLOAD.GVC.cpln.app` serves a **single** port — the first container port. `standard`/`stateful` may expose **more** ports across containers (unique numbers), reachable at `WORKLOAD.GVC.cpln.local:PORT` or via a **direct/dedicated load balancer**; `serverless` is limited to one container / one port. `WORKLOAD.GVC.cpln.app` is the URL *shape* only — always report the **actual** canonical URL from `list_deployments` / the workload's `status.canonicalEndpoint`; never construct or guess it (custom domains, BYOK, and alias suffixes make the literal form wrong).
-- **Always declare ports with the `containers[].ports` array** — e.g. `ports: [{ number: 80, protocol: "http" }]`; for a single port use a one-element array. The legacy scalar `containers[].port` field is **deprecated — never use it**, even if `get_resource_schema` still lists it (the platform keeps it for backward compatibility, but new specs must use `ports[]`).
-- **Load balancer picker:** shared (default, HTTP/HTTPS on 80/443, no config) · **direct** — per-workload custom TCP/UDP `externalPort` 22–32768, optional static IPs via an IP set, geo headers; set with `configure_workload_load_balancer` · **dedicated** — per-GVC custom domains and wildcard hosts; a GVC setting, enabled with `update_gvc`. `firewallConfig` stays on `create_workload` / `update_workload`. Toggling direct/dedicated needs the `configureLoadBalancer` permission — `edit` does not imply it (`ipset-load-balancing` skill).
+## Ports and runtime traps
 
-## Persistent storage
+- Reserved container ports: 8012, 8022, 9090, 9091, 15000, 15001, 15006, 15020, 15021, 15090, 41000. Valid ports run from 80 to 65535 and must be unique across containers.
+- Termination grace is `spec.rolloutOptions.terminationGracePeriodSeconds`, 0 to 900, default 90. The shutdown sequence and its traps: `workload-security` skill.
 
-- Need durable disk or stable per-replica identity → a **`stateful`** workload with a mounted **volume set**.
-- A volume set's **filesystem** (`ext4` / `xfs` / `shared`) and **performance class** are **immutable** — set at creation.
-- `ext4`/`xfs` mount on **stateful only**; `shared` mounts on any type. Up to **15 volumes per container**, and no two mounts in a container may share a path or nest (one mount path cannot be a parent of another). Reserved mount paths (rejected): `/dev`, `/dev/log`, `/tmp`, `/var`, `/var/log`.
-- **Snapshot before any destructive volume op** (shrink/restore/delete); snapshots exist for `ext4`/`xfs` only.
-- Attach with `mcp__cpln__mount_volumeset_to_workload`.
+## Renames and recreates
 
-## Secrets, env vars & naming rules
+Changing a workload's type or name means delete and recreate. Recreating under the same name keeps its public URL and internal DNS name; a new name breaks every domain route, policy link, internal caller, and external client that used the old one.
 
-- **Secrets** can be consumed two ways: as an **environment variable value** — `cpln://secret/NAME` (or `cpln://secret/NAME.key` for a keyed/dictionary secret) — or **mounted as a volume** with `uri: cpln://secret/NAME`. Either way the workload still needs **all three pieces**: an identity on the workload, a policy granting `reveal`, and the reference — or access fails silently. `mcp__cpln__grant_workload_secret_access` sets the identity + policy but not the reference, and it requires the workload to **already exist** — for a new workload, `create_workload` first (its deployment pauses on the secret reference until access is granted, then resumes).
-- **Environment variable names cannot start with `CPLN_`** (reserved). The platform injects these at runtime: `CPLN_TOKEN`, `CPLN_ENDPOINT`, `CPLN_GLOBAL_ENDPOINT`, `CPLN_ORG`, `CPLN_GVC`, `CPLN_GVC_ALIAS`, `CPLN_LOCATION`, `CPLN_PROVIDER`, `CPLN_WORKLOAD`, `CPLN_WORKLOAD_VERSION`, `CPLN_IMAGE`, `CPLN_NAME` (plus `CPLN_MAIN` on the first container, and `PORT` on standard when unset). `K_SERVICE` / `K_CONFIGURATION` / `K_REVISION` are also disallowed. Names match `^[-._a-zA-Z][-._a-zA-Z0-9]*$` (max 120 chars).
-- **A workload can call the Control Plane API as its identity:** `curl -H "Authorization: Bearer $CPLN_TOKEN" $CPLN_ENDPOINT/org/$CPLN_ORG/...` — `CPLN_ENDPOINT` is plain **http** (the sidecar secures and signs it in transit). Requests act as the attached `spec.identityLink` identity and succeed only where a policy grants that identity the permission — no identity attached or no policy means 403. The token works **only from inside that workload, against `CPLN_ENDPOINT`**: it does not authenticate to `api.cpln.io`, `metrics.cpln.io`, or `logs.cpln.io` (use a service-account key there).
-- **Container names cannot start with `cpln-` or `debugger-`** (and a few exact names like `istio-proxy` are reserved). Names are lowercase `^[a-z]([-a-z0-9])*[a-z0-9]$`, max 64.
-- **Workload name** is max **49** characters, cannot end with `-headless`, and is immutable.
+## Metrics and live replicas
 
-## Runtime traps
-
-- **Graceful shutdown:** the default `preStop` runs `sh -c "sleep N"`. Minimal/distroless images often lack `sleep` — if it (or a custom `preStop`) fails in **any** container, **all** containers are SIGKILL'd immediately. Grace period is `spec.rolloutOptions.terminationGracePeriodSeconds` (0–900, default 90).
-- **Reserved container ports** (rejected): `8012, 8022, 9090, 9091, 15000, 15001, 15006, 15020, 15021, 15090, 41000`. Valid container port range is 80–65535; **port numbers must be unique across all containers**. A **serverless** workload must expose **exactly one port, on exactly one container**. Declare every port in the `containers[].ports` array (`[{ number, protocol }]`) — the scalar `containers[].port` field is deprecated; do not use it.
-- **Don't run as UID 1337** — that is the mesh proxy's UID. A container with `runAsUser: 1337` has its outbound traffic excluded from the Envoy sidecar redirect, so it bypasses the mesh — losing mTLS and firewall enforcement (it gets *unfiltered* egress, not "no networking").
-
-## Immutability & destructive changes
-
-- **Workload `type` and `name` are immutable.** Changing either = **delete + recreate**, which is **destructive**: it drops the public URL `WORKLOAD.GVC.cpln.app`, the internal DNS `WORKLOAD.GVC.cpln.local`, and policy `targetLinks` / identity bindings. Recreating with the **same name** preserves the URL/DNS; a different name silently breaks every external reference.
-- The same applies to a volume set's filesystem and performance class.
-- Before any delete or immutable-forcing change, present **Action · Affected · Blast radius · Data / Traffic / Access impact · Reversibility · Mitigation** and wait for explicit confirmation (see the root rules).
-
-## Metrics & observability
-
-- Built-in metrics (CPU/memory reserved-vs-used, request rate/latency, replica count, restarts) exist for every workload with no config.
-- Custom Prometheus: add `spec.containers[].metrics` with `port` (required) and `path` (default `/metrics`).
-- Query with `mcp__cpln__list_metrics` (discover real names/labels) → `mcp__cpln__query_metrics` (PromQL). Confirm a signal exists before changing scaling.
-
-## Running commands in a live replica
-
-Use `mcp__cpln__list_workload_replicas` for replica discovery. When in-container inspection is essential, read the `cpln` skill and use its verified CLI workflow. Any state-changing command needs explicit user confirmation after stating the exact command, impact, and risk; never surface resolved secret values.
-
-## Standard create / update flow
-
-1. Read this skill once per session before authoring (you are doing that now); `mcp__cpln__get_cpln_rules` has the cross-cutting operating guide if you have not read it this session.
-2. Confirm the target **org / GVC** — never guess; on not-found, stop and ask.
-3. `mcp__cpln__get_resource_schema` for the workload kind before authoring.
-4. Discover current state: `mcp__cpln__list_resources` (kind="workload") / `mcp__cpln__get_resource` (kind="workload").
-5. Prepare the smallest valid change; if destructive, confirm.
-6. `mcp__cpln__create_workload` / `mcp__cpln__update_workload` (for a scheduled job, pass `type: cron` with a `schedule`; PATCH — only sent fields change, containers merged by name), plus `configure_workload_*` for load balancer / sidecar / extras / local options / rollout / security / retry.
-7. Verify automatically — do not ask permission: poll `mcp__cpln__list_deployments` until every location is ready; on failure diagnose with events → logs and fix.
-8. Report exactly what changed and the resulting status — and for an exposed workload, give the user its **canonical** public URL (read from `list_deployments` or the workload's `status.canonicalEndpoint`; never construct/guess it or report a per-location URL as the address).
-
-## Quick reference — MCP tools
-
-| Tool | Purpose |
-|---|---|
-| `mcp__cpln__create_workload` | Create any workload (typed `containers[]`, single `autoscaling` block) — including a scheduled job with `type: cron` + a required `schedule`. |
-| `mcp__cpln__update_workload` | Update a workload (PATCH; containers merged by name) — on a cron workload, patches `schedule` / job policy / `suspend`. |
-| `mcp__cpln__get_resource` (kind="workload") / `mcp__cpln__list_resources` (kind="workload") | Read one / list in a GVC (capture state before changes). |
-| `mcp__cpln__delete_resource` (kind="workload") | Delete a workload (destructive — confirm blast radius first). |
-| `mcp__cpln__configure_workload_load_balancer` | Set/clear `spec.loadBalancer` (direct, geo headers, replicaDirect). |
-| `mcp__cpln__configure_workload_sidecar` | Set/clear `spec.sidecar.envoy` (Envoy filters, JWT auth). |
-| `mcp__cpln__configure_workload_extras` | Set/clear `spec.extras` (BYOK affinity/tolerations/topology). |
-| `mcp__cpln__configure_workload_local_options` | Set/clear `spec.localOptions` (per-location overrides). |
-| `mcp__cpln__configure_workload_rollout` | Set/clear `spec.rolloutOptions` (graceful termination, surge/unavailable). |
-| `mcp__cpln__configure_workload_security` | Set/clear `spec.securityOptions` (`runAsUser`, `filesystemGroupId`). |
-| `mcp__cpln__configure_workload_retry` | Set/clear `spec.requestRetryPolicy` (retry attempts/conditions). |
-| `mcp__cpln__list_deployments` | PRIMARY post-deploy readiness monitor (all locations); per-location errors **and** the canonical public URL to report. Pass the optional `location` (e.g. `aws-us-east-1`) for ONE deployment's full detail — version chain, per-container readiness, full JSON. |
-| `mcp__cpln__get_workload_events` | Probe/scheduling failures after a bad deploy. |
-| `mcp__cpln__get_workload_logs` | App-side logs (LogQL) for runtime/startup errors. |
-| `mcp__cpln__list_workload_replicas` | List running replicas. |
-| `mcp__cpln__workload_start_cron` | Trigger an out-of-band run of a cron workload. |
-| `mcp__cpln__grant_workload_secret_access` | Grant an **existing** workload secret access (identity + `reveal` policy; you still add the reference — create the workload first). |
-| `mcp__cpln__mount_volumeset_to_workload` | Attach a volume set to a stateful workload. |
-
-**CLI fallback** (read the `cpln` skill first): use when MCP is unavailable/unauthenticated, for live container commands and interactive work, a local-folder image build or an image copy, or as the primary interface in CI/CD (`CPLN_TOKEN` + `cpln apply --ready`).
-
-**Raw API escape hatch:** for a spec field no typed `create_workload` / `update_workload` / `configure_workload_*` tool exposes, use `mcp__cpln__cpln_api_request` (raw GET/POST/PATCH/DELETE; disabled by default — only when advertised) — call `mcp__cpln__get_resource_schema` first for the exact path and body, and prefer the typed tools whenever they cover the field. If it is not advertised, apply the full manifest with the `cpln` CLI instead.
-
-## Deep-dive router
-
-Load the matching skill (one or several) when you need more than the primary rules above — open it directly if this plugin is installed, otherwise fetch it with `get_cpln_skill`:
-
-| Need | Skill |
-|---|---|
-| Image refs, builds, buildpacks, registries, pull secrets, cross-org sharing | `image` |
-| Write, build, and deploy an app the user asks for (no repo, no image yet) | `create-app` |
-| Autoscaling, Capacity AI, scale-to-zero, KEDA, custom-metric scaling | `autoscaling-capacity` |
-| Probes in depth, JWT/Envoy auth, security options, graceful termination | `workload-security` |
-| Firewall rules, inbound/outbound, header & geo filtering | `firewall-networking` |
-| Static IPs, direct & dedicated load balancers, custom ports | `ipset-load-balancing` |
-| CDN caching, request rate limiting, DDoS protection | `cdn-rate-limiting` |
-| Volumes, volume sets, snapshots, persistence, expansion | `stateful-storage` |
-| Metrics, PromQL, Grafana, Prometheus federation | `metrics-observability` |
-| Logs, LogQL, events, per-execution cron logs | `logql-observability` |
-| Private networking, agents, VPC, on-prem connectivity | `native-networking` |
-| Running workloads on own hardware, bare metal, data center, mk8s, BYOK | `mk8s-byok` |
-| Databases, caches, queues, brokers, common infra | `template-catalog` |
-| Secrets, identities, policies, RBAC, service accounts | `access-control` |
-
-## Documentation
-
-- [Workload Reference](https://docs.controlplane.com/reference/workload/general.md)
+- Custom Prometheus metrics: `containers[].metrics` with `port` and `path` (default `/metrics`). Query with `list_metrics`, then `query_metrics`; measure before changing scaling.
+- `list_workload_replicas` lists replicas; a command inside one goes through the CLI (`cpln` skill), with confirmation for anything that changes state.

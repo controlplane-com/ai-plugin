@@ -5,16 +5,12 @@ description: "Workload metrics, PromQL, Grafana, and tracing on Control Plane. U
 
 # Metrics, Tracing & Observability
 
-> **Tool availability:** every metric and trace tool named here is advertised on all toolset profiles, `readonly` included. Reads work on every profile via the generic `list_resources` / `get_resource` tools; `delete_resource` is on every profile except `readonly`.
-
 Control Plane stores every workload's metrics as Prometheus-compatible time series in a managed backend (Mimir), queryable in PromQL through the per-org managed Grafana or the MCP tools. The org is the tenant — it comes from the endpoint path, so there is no `org=` label and no cross-org queries. Two traps dominate. **Series names are short:** memory is `mem_used` / `mem_reserved` / `mem_billable`, not `memory_*` — a `memory_used` query returns nothing, so ground names with `list_metrics` first. **Rate-shaped metrics are pre-rated:** `egress`, `requests_per_second`, and the latency buckets are already rated by the platform's recording rules, so you query them bare — wrapping them in `rate()` again returns garbage. Finally, a workload's in-pod `CPLN_TOKEN` cannot authenticate to the metrics endpoint; querying from outside the mesh needs a user or service-account token.
 
 ## Two ways to query
 
 - **MCP (primary for agents):** `mcp__cpln__query_metrics` runs a PromQL query — a range query over the last `1h` at `60s` step by default; pass `resolution: "instant"` for a single point, or `since` / `from` / `to` / `step` to adjust. `mcp__cpln__list_metrics` discovers the metric names and real label values present in the org right now (built-in, `kube_`/`node_`, and custom); pass `metric:` to ground one metric's live labels before filtering. Reach for it whenever a query returns no series. Measure first, then change scaling settings.
 - **Grafana:** the managed per-org instance — open **Metrics** in the Console sidebar (or the **Metrics** link on any workload), use **Explore** for ad-hoc PromQL, and dashboards/alerting for the rest. The `grafanaAdmin` org permission grants the Grafana Admin role; everyone else is Viewer.
-
-`list_metrics`' built-in catalog still spells memory `memory_*`; trust the live names it returns (and this skill) — the queryable series is `mem_*`.
 
 ## PromQL: query the right shape
 
@@ -147,15 +143,7 @@ This skill covers only which scaling metrics each workload type allows; for stra
 
 `vm` workloads allow only `disabled`; `cron` has no autoscaling. (`memory` here is the scaling keyword — distinct from the `mem_used` series.)
 
-## Quick reference
-
-| Tool | Use |
-|:---|:---|
-| `mcp__cpln__list_metrics` | Discover real metric names and label values (built-in + custom) before querying |
-| `mcp__cpln__query_metrics` | Run a PromQL query against the org's metrics |
-| `mcp__cpln__query_traces` | Search traces (TraceQL) — slow (`minDuration`) or failed (`errorsOnly`) requests |
-| `mcp__cpln__get_trace` | Read one trace's span tree to locate the slow/failed span |
-| `mcp__cpln__get_workload_logs` | Correlate a metric spike with logs (see `logql-observability`) |
+## Reference
 
 - **Metrics endpoint:** `https://metrics.cpln.io/metrics/org/{ORG}` (federation adds `/api/v1/federate`).
 - **Permission:** `readMetrics` (federation endpoint + Grafana data source).
@@ -172,22 +160,3 @@ This skill covers only which scaling metrics each workload type allows; for stra
 | 403 at `metrics.cpln.io` | Principal lacks `readMetrics`, or an in-pod `CPLN_TOKEN` was used — use a user/SA token |
 | `query_traces` empty | Tracing not enabled on the GVC, sampling too low, or no traffic in the window |
 | Alert never notifies | Rules evaluate but need a contact point — set `defaultAlertEmails` or add one in Grafana (`domain-warnings` also ships paused) |
-
-## Related skills
-
-| Skill | Owns |
-|:---|:---|
-| `workload` | Deploy/diagnose flow, injected `CPLN_*` env vars, the spec that holds `metrics` |
-| `autoscaling-capacity` | Scaling strategy, per-metric YAML, percentiles, KEDA, Capacity AI |
-| `logql-observability` | Log queries (LogQL), `cpln logs`, correlating spikes with log events |
-| `org-management` | Org-spec edits — the `observability` retention block |
-| `external-logging` | Shipping logs to S3, Datadog, Coralogix, and other providers |
-
-## Documentation
-
-- [Default Metrics](https://docs.controlplane.com/guides/default-metrics.md)
-- [Custom Metrics](https://docs.controlplane.com/reference/workload/custom-metrics.md)
-- [Export Metrics (federation)](https://docs.controlplane.com/guides/export-metrics.md)
-- [Centralized Metrics](https://docs.controlplane.com/guides/centralized-metrics-management.md)
-- [Autoscaling](https://docs.controlplane.com/reference/workload/autoscaling.md)
-- [PromQL (upstream Prometheus reference)](https://prometheus.io/docs/prometheus/latest/querying/basics/)

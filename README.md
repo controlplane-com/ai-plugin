@@ -64,11 +64,13 @@ Point any other MCP client at the hosted server:
   "mcpServers": {
     "cpln": {
       "type": "http",
-      "url": "https://mcp.cpln.io/mcp?toolsets=full"
+      "url": "https://mcp.cpln.io/mcp"
     }
   }
 }
 ```
+
+The bare URL serves the default `core` tool set. A client that loads tools on demand can add `?toolsets=full` for every tool.
 
 ## Authentication
 
@@ -105,14 +107,14 @@ Two workflows also have slash commands in Claude Code — `/cpln:troubleshoot WO
 
 - Domain skills across CLI usage, access control, autoscaling, networking, observability, migration, templates, stateful storage, and security.
 - Two guided agents: workload troubleshooting and Kubernetes / Compose / Helm migration.
-- An always-on guardrail rule the assistant applies in every session.
+- A short always-on rule set the assistant applies in every session, with the full operating guide read on demand.
 - Pre-configured access to the hosted Control Plane MCP server.
 
 ## Security
 
 - MCP access is production access — scoped to the orgs you grant and your own RBAC.
 - Destructive actions (deleting resources, shrinking/deleting volumes, replacing workloads, applying to production) require explicit confirmation.
-- Secret values are never exposed through the MCP tools — secrets surface as metadata only.
+- Secret values never pass through the chat: Control Plane generates the values nobody needs to know, the user types their own values into the Console, and tools return secret metadata only.
 - The plugin stores no logs, secrets, prompts, or telemetry; your AI client and model provider process prompts per their own policies.
 
 Report vulnerabilities per [SECURITY.md](SECURITY.md).

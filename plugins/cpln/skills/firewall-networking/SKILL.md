@@ -5,8 +5,6 @@ description: "Firewall rules and service-to-service communication on Control Pla
 
 # Firewall & Networking
 
-> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads work on every profile via the generic `list_resources` / `get_resource` tools; `delete_resource` is on every profile except `readonly`.
-
 Deep detail for `spec.firewallConfig` and the enforcement model behind it; the `workload` skill owns the summary (deny-by-default, exposure decided at create time, LB picker). Set `firewallConfig` with `create_workload` / `update_workload` — or `public: true`, the shortcut that opens inbound AND outbound to `0.0.0.0/0` (mutually exclusive with an explicit `firewallConfig`). A firewall change creates a new deployment version — a rolling replace, live in about a minute (`vm` workloads are the exception: firewall updates apply in place without restarting the VM).
 
 ## How rules are enforced
@@ -106,6 +104,7 @@ firewallConfig:
       - //agent/DC-AGENT                 # inbound from behind a wormhole agent (native-networking)
 ```
 
+- `mcp__cpln__allow_workload_access` admits named callers without hand-editing this block.
 - `inboundAllowWorkload` is honored under `same-gvc` too — add specific cross-GVC callers without going `same-org`.
 - Links are validated for shape only, never existence — a typo silently denies the caller.
 - Internal calls use `http://WORKLOAD.GVC.cpln.local:PORT` (the container port) — plain `http://`, the sidecar adds mTLS. Cross-GVC calls may span locations and then incur egress charges.
@@ -149,29 +148,3 @@ Direct LB does not terminate TLS (the workload owns its certificates), and its t
 | `workload-list` caller still denied | Link is missing the GVC segment, or has a typo (existence is never validated) |
 | KEDA scaler cannot reach its workload trigger source | Add `cpln://internal/keda` to that workload's `inboundAllowWorkload` |
 | Firewall seems ignored for one container | `runAsUser: 1337` escapes the mesh and its firewall (see `workload`) |
-
-## Quick reference
-
-| Tool | Purpose |
-|---|---|
-| `mcp__cpln__update_workload` | Patch `firewallConfig` (send it complete) or `public` |
-| `mcp__cpln__create_workload` | Decide exposure in the create call: `public: true` or an explicit `firewallConfig` |
-| `mcp__cpln__configure_workload_load_balancer` | Set `spec.loadBalancer` (direct, geo headers, replicaDirect); `remove: true` clears it |
-| `mcp__cpln__update_gvc` | Dedicated LB, `trustedProxies`, GVC-level `ipSet` |
-| `mcp__cpln__get_resource` (kind="workload") / `mcp__cpln__list_deployments` | Read back config; confirm the rollout |
-
-CLI fallback (no MCP, or CI/CD with `CPLN_TOKEN`): `cpln workload get WORKLOAD --gvc GVC -o yaml > w.yaml`, edit `spec.firewallConfig`, then `cpln apply --file w.yaml --gvc GVC`.
-
-## Related skills
-
-- **workload** — start here: types, spec shape, exposure defaults, internal DNS, LB picker
-- **ipset-load-balancing** — static IPs, direct/dedicated LB detail, replicaDirect
-- **native-networking** — wormhole agents, PrivateLink/PSC: the answer for private-network traffic
-- **cdn-rate-limiting** — CDN in front of workloads, rate limiting
-- **workload-security** — JWT authentication, mTLS hardening, direct-LB security
-
-## Documentation
-
-- [Firewall Reference](https://docs.controlplane.com/reference/workload/firewall.md)
-- [Load Balancing Reference](https://docs.controlplane.com/reference/workload/load-balancing.md)
-- [Service-to-Service Guide](https://docs.controlplane.com/guides/service-to-service.md)

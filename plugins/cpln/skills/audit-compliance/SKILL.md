@@ -5,7 +5,7 @@ description: "Audit trail and compliance on Control Plane. Use when the user ask
 
 # Audit Trail & Compliance
 
-> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads work on every profile via the generic `list_resources` / `get_resource` tools; `delete_resource` is on every profile except `readonly`.
+> **Tool availability:** `create_audit_context` and `edit_audit_context` need `?toolsets=full`.
 
 Every mutation on every Control Plane resource — via Console, CLI, API, Terraform, Pulumi, or MCP — is recorded automatically in an append-only, tamper-proof audit trail; nothing to configure. Most tasks are answering **"who changed what, when"** with `mcp__cpln__query_audit_events`. Custom audit contexts exist for one purpose only: letting your own workloads write their own audit events.
 
@@ -101,28 +101,3 @@ curl -H "Content-Type: application/json" \
 ## Compliance
 
 Control Plane is **PCI DSS Level 1** and **SOC 2 Type II** certified (audited by Prescient Assurance). For the SOC 2 report or PCI Attestation of Compliance, contact support on Slack or [support@controlplane.com](mailto:support@controlplane.com); the [PCI Responsibility Matrix](https://controlplane.com/downloads/Control_Plane_PCI_Responsibilities_Matrix.pdf) is public. Billing and payments are processed externally by Stripe — Control Plane stores no cardholder data.
-
-## Quick reference — MCP tools
-
-| Tool | Purpose | Key params |
-|---|---|---|
-| `mcp__cpln__query_audit_events` | Query events for a kind | `kind`, `name`/`names`, `gvc`, `subject`, `context`, `since`/`from`/`to`, `limit` |
-| `mcp__cpln__create_audit_context` | Create a custom context (permanent) | `name`, `description`, `tags` |
-| `mcp__cpln__list_resources` (kind="auditctx") / `get_resource` (kind="auditctx") | List / read contexts | `name` |
-| `mcp__cpln__edit_audit_context` | Update description / tags | `name`, `description`, `tags`, `removeTagKeys` |
-
-**CLI fallback** (read the `cpln` skill first; verify with `cpln auditctx --help`): `cpln RESOURCE audit [ref]`, `cpln auditctx create / get / update / query / access-report / permissions`. There is no delete.
-
-## Related skills
-
-| Need | Skill |
-|---|---|
-| Policy and binding shape for `writeAudit` / `readAudit` grants | `access-control` |
-| Ship runtime logs to external destinations for retention | `external-logging` |
-| CLI setup and command reference | `cpln` |
-
-## Documentation
-
-- [Audit Trail](https://docs.controlplane.com/core/audittrail.md)
-- [Audit Context Reference](https://docs.controlplane.com/reference/auditctx.md)
-- [Compliance](https://docs.controlplane.com/compliance.md)

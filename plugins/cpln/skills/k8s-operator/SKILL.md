@@ -5,8 +5,6 @@ description: "Manages Control Plane resources as Kubernetes CRDs. Use when the u
 
 # Kubernetes Operator
 
-> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads work on every profile via the generic `list_resources` / `get_resource` tools; `delete_resource` is on every profile except `readonly`.
-
 The operator (Helm chart `cpln-operator`) runs in any Kubernetes cluster and reconciles `cpln.io/v1` custom resources, plus labeled native Secrets, against the platform on a 30-second loop. Reach for it only when resources must live in Git and be reconciled from a cluster (ArgoCD/Flux); for direct provisioning prefer the typed MCP tools, and for pipeline-driven YAML prefer `cpln apply` (`gitops-cicd` skill). The recurring failure is manifest shape: `org`, `gvc`, and `description` sit at the **top level next to `spec`**, not inside it — author the `spec` block with `mcp__cpln__get_resource_schema`, or skip hand-writing entirely by exporting with `-o crd`.
 
 ## Install
@@ -147,26 +145,3 @@ spec:
 | Console edits keep reverting | ArgoCD `selfHeal` working as designed — Git is the source of truth; change the manifest instead |
 | CRD validation errors on apply | `kubectl explain workload.spec` shows the schema the cluster accepts; regenerate the manifest with `-o crd` |
 | `mk8scluster` CR errors with 404 | Expected — the platform API has no mk8scluster path; manage mk8s via `mk8s-byok` instead |
-
-## Quick reference
-
-| Task | Command / tool |
-|---|---|
-| Author a CRD `spec` block | `mcp__cpln__get_resource_schema` (kind=workload, gvc, ...) |
-| Inspect resources before export | `mcp__cpln__list_resources` / `mcp__cpln__get_resource` |
-| Configure / remove operator auth | `cpln operator install -s SA --org ORG [--export]` / `cpln operator uninstall --org ORG` |
-| Export as CRD manifest | `cpln KIND get [NAME] [--gvc GVC] -o crd`, or console Export / Preview "K8s CRD" |
-| Restrict managed kinds | Helm value `env.MANAGE_KINDS: workload,volumeset` |
-
-### Related skills
-
-- **gitops-cicd** — pipelines with `CPLN_TOKEN` + `cpln apply`; choose it over the operator when no cluster-side reconciler is wanted.
-- **iac-terraform-pulumi** — the Terraform/Pulumi alternative for declarative management.
-- **mk8s-byok** — provisioning a Kubernetes cluster to host the operator (and managing mk8s itself).
-- **workload** — the primary skill for what goes inside a workload `spec`.
-
-## Documentation
-
-- [Kubernetes Operator Reference](https://docs.controlplane.com/core/kubernetes-operator.md)
-- [Operator Install Guide](https://docs.controlplane.com/guides/cli/cpln-operator.md)
-- [Operator source and issues](https://github.com/controlplane-com/k8s-operator)

@@ -156,7 +156,3 @@ memberQuery:
 - Boolean tag values become strings — query `"true"`, not `true`.
 - `targetQuery` is retroactive: tag a new resource and matching policies cover it automatically — a scope to watch when granting permissions.
 - `memberQuery` ignores service accounts.
-
-## Related
-
-**access-control** (policy `targetQuery` / group `memberQuery` in context) · **cpln** (CLI command surface).

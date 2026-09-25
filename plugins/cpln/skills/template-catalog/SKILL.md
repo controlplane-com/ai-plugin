@@ -5,9 +5,17 @@ description: "Recommends and installs templates from the Control Plane Template 
 
 # Template Catalog
 
-> **Tool availability:** `preview_template` (dry-run) and `rollback_template` are in the `full` MCP toolset; `browse_templates`, `get_template`, `install_template`, `upgrade_template`, `uninstall_template`, `list_installed_templates`, and `get_installed_template` are in `core`. If a `full` tool is not advertised, reconnect the MCP server with `?toolsets=full` or use the `cpln helm` CLI fallback.
+Production-tested charts (Helm under the hood) for databases, caches, queues, brokers, search, and gateways, with storage, firewall, and HA variants wired. A catalog template is the default for any common component; a custom workload needs a hard reason, such as an extension or image the template cannot take.
 
-The Template Catalog ships production-tested charts (Helm under the hood) for databases, caches, queues, brokers, search, gateways, and more — persistent storage wired up, credentials generated as Control Plane secrets, a sane firewall posture, and HA variants where they matter. For any common component the catalog template is the **default recommendation, not the fallback**: hand-rolled workload + volumeset + secret + firewall stacks routinely ship without backups, with a public database, or single-replica. Lead with the template, and move to a custom workload only when the user has a hard reason — an unusual extension, a legacy image they must reuse, or a feature the template doesn't expose. Template-first is also enforced by the operating guide's skill router.
+**Postgres, MySQL, MariaDB, MongoDB, or Redis: `add_database`,** not the steps below. Calling it again with a new `allowWorkloads` changes only who can connect; the password, version, and storage stay as installed. The HA and multi-location variants (`postgres-highly-available`, `mongodb-cluster`, and the rest) go through the install steps.
+
+## Credentials: create the prerequisite secret first
+
+- Most templates name a secret in their `values` that **must exist before the install**: `postgres`, `mongodb`, and `pgvector` read `config.credentialsSecretName` (a `dictionary` with `username`, `password`, and `database`); `mysql` and `mariadb` read `credentialsSecretName` (the same three keys) and `rootPasswordSecretName` (an `opaque` secret). The `get_template` example values mark each one.
+- A missing secret does not fail the install: the release installs and the workload **wedges silently**, with no logs.
+- `values` key names differ per template (secret names, resources, access scope): copy them from `get_template`, never from memory.
+- Create it with `create_secret` before installing: `values: "generate"` for passwords nobody needs to know, `values: "user"` for a key the user already has (they type it into the Console). Then put its name in `values`.
+- Never write a password or key into `values`: values pass through the chat and are stored in the release. A template that still takes a secret value directly in `values` is installed from the Console, or with `cpln helm install -f` and a values file the user fills in locally.
 
 ## Find the right template
 
@@ -39,16 +47,16 @@ This is the choice the catalog can't make for you:
 
 ## Install (MCP)
 
-1. `get_template <name>` — copy the example `values.yaml`; edit credentials, replica count, resources, storage size, and access scope.
-2. `preview_template` (full profile) — dry-run render the resources the install would create, without applying anything.
-3. `install_template` — pass `org`, a unique `name` (the release id, immutable), `template`, the `values` YAML (required, max 128 KiB), an optional `version` (latest if omitted), and `gvc`. **Omit `gvc` for templates that create their own** (the `createsGvc` flag in `browse_templates` / `get_template`; e.g. `cockroach`, `tidb`, `nats`, `clickhouse`, `airflow`, `mongodb-cluster`, `redis-multi-location`, `pgedge`).
-4. Installs are asynchronous — confirm with `get_installed_template <name>`.
+1. `get_template <name>`: copy the example `values.yaml`; set the prerequisite secret names, replica count, resources, storage size, and access scope.
+2. `install_template` with `dryRun: true`: renders the resources the install would create, without applying anything.
+3. `install_template` with a unique release `name` (immutable) and the `values` YAML (at most 128 KiB). **Omit `gvc` for templates that create their own** (the `createsGvc` flag: `cockroach`, `tidb`, `nats`, `clickhouse`, `airflow`, `mongodb-cluster`, `redis-multi-location`, `pgedge`); every other template needs an existing `gvc`.
+4. Installs are asynchronous: wait with `get_installed_template` and `waitSeconds`. Its token needs `reveal` on the release's state secret.
 
 ## Configure and upgrade
 
 Reconfigure with `upgrade_template`: pass `name` plus the new `version` and/or `values`. **`values` REPLACES the release's values entirely — there is no reuse-merge** — so start from the current values, never a partial. `template` and `gvc` are immutable and read from the installed release, so you don't pass them. Roll back with `rollback_template` (full profile) or `cpln helm rollback`.
 
-Access scope lives in the template's `values` — but the **key name varies per template** (e.g. `internal_access.type`, `internalAccess.type`, `internalAllowType`, or `firewall.internal_inboundAllowType`). Values are `same-gvc` (default), `same-org`, `workload-list` (with an explicit `workloads:` list), and `none` on a few. Copy the example from `get_template` rather than writing keys from memory.
+Access scope lives in `values` under a per-template key (`internal_access.type`, `internalAccess.type`, `internalAllowType`, or `firewall.internal_inboundAllowType`), with values `same-gvc` (default), `same-org`, `workload-list` plus a `workloads:` list, and `none` on a few.
 
 ## CLI fallback (CI/CD)
 
@@ -69,64 +77,22 @@ cpln helm rollback <RELEASE> [<REVISION>]        # previous revision if omitted
 cpln helm uninstall <RELEASE>
 ```
 
-**The four `--state-tag` flags are not optional.** `install_template` and the Console apply them for you; a raw `cpln helm install` does not. They go on the release state secret, and without them the release is an ordinary Helm release: the Console lists it under **Helm Releases** rather than the Template Catalog's **Releases** page, and neither the Terraform `cpln_catalog_template` resource nor the Pulumi `CatalogTemplate` resource will manage it (both require `cpln/marketplace`, `cpln/marketplace-template`, and `cpln/marketplace-template-version` to exist). Omit `cpln/marketplace-gvc` for a `createsGvc` template. State tags carry over between revisions, so an upgrade only needs to restate `cpln/marketplace-template-version`. Pin `--version` on a tagged install: omitting it resolves to latest, which leaves you with no version to put in `cpln/marketplace-template-version`.
+**The four `--state-tag` flags are not optional.** `install_template` and the Console apply them; a raw `cpln helm install` does not. They go on the release state secret, and without them the release is an ordinary Helm release: the Console lists it under **Helm Releases** rather than the Template Catalog's **Releases** page, and neither the Terraform `cpln_catalog_template` resource nor the Pulumi `CatalogTemplate` resource will manage it (both require `cpln/marketplace`, `cpln/marketplace-template`, and `cpln/marketplace-template-version` to exist). Omit `cpln/marketplace-gvc` for a `createsGvc` template. State tags carry over between revisions, so an upgrade only needs to restate `cpln/marketplace-template-version`. Pin `--version` on a tagged install: omitting it resolves to latest, which leaves you with no version to put in `cpln/marketplace-template-version`.
 
 Reference `values.yaml` for any template lives in the [templates repo](https://github.com/controlplane-com/templates) at `<template>/versions/<version>/values.yaml`.
 
-## Verify
+## Connection details and backups
 
-After install, `get_installed_template <name>` shows the release status, revision, and every resource it created (it decodes the release secret, so the token needs secret **reveal** permission). Then confirm the workloads are healthy with `list_deployments`, and check the generated secrets with `list_resources` (kind `secret`). Add firewall rules or a domain for any workload that needs external access.
-
-**Connection details:** an installed service is reachable inside its GVC at `<release>-<component>.<gvc>.cpln.local:<port>` (e.g. `my-pg-postgres.<gvc>.cpln.local:5432`); credentials live in the generated dictionary secret — the user reads them in the Console; reference them in workloads as `cpln://secret/NAME.KEY`. The exact workload name, port, and secret keys are in `get_installed_template` (created resources) and the `get_template` example values.
-
-## Traps
-
-- `upgrade_template` **replaces** values — there is no partial merge, so start from the current values, not a fragment.
-- Templates with `createsGvc` make their own GVC — **omit `gvc`** on install; others require an existing `gvc`.
-- Uninstall removes the resources the release created, **including volume data** — confirm the blast radius first.
-- `values` key names (credentials, resources, access scope) differ across templates — copy from `get_template`, don't hand-write from memory.
-- Backups (e.g. `postgres`, `mongodb`) need a **Cloud Account + storage IAM policy** to exist first, referenced in the `values` backup block — see the `get_template` prerequisites.
-- A raw `cpln helm install` needs the four `cpln/marketplace*` `--state-tag` flags. Leave them off and the release installs fine but is invisible to the Console's Template Catalog, Terraform, and Pulumi.
+- An installed service is reachable in its GVC at `<release>-<component>.<gvc>.cpln.local:<port>`, for example `my-pg-postgres.<gvc>.cpln.local:5432`; the exact names are in the `get_installed_template` resources. Workloads read the credentials as `cpln://secret/NAME.KEY` from the prerequisite secret.
+- Backups (`postgres`, `mongodb`) need a cloud account and a storage IAM policy first, referenced in the `values` backup block.
 
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `preview_template` / `rollback_template` not found | core profile | reconnect `?toolsets=full` or use the `cpln helm` equivalent |
-| Install fails: GVC required | template installs into an existing GVC | pass `gvc` (or check `createsGvc` — self-GVC templates omit it) |
-| Upgrade lost settings | `values` replaces, not merges | re-supply full values from `get_template` / `cpln helm get values --all` |
-| `get_installed_template` permission denied | token lacks secret reveal | grant `reveal` on the release secret via a policy |
+| `rollback_template` (full profile) not found | core profile | reconnect `?toolsets=full` or use `cpln helm rollback` |
+| Upgrade lost settings | `values` replaces, not merges | re-supply full values from `cpln helm get values --all` |
 | Install failed / release stuck | partial apply, bad values, or unready workloads | inspect `get_installed_template` and `cpln helm history`; fix values and `upgrade_template`, or `uninstall` and reinstall |
-| Workloads pending after install | image pull / firewall / resources | see the `workload` skill's troubleshooting |
+| Workloads pending after install | image pull / firewall / resources | `diagnose_workload`, then the `workload-troubleshooting` skill |
+| Install succeeded, database never starts, logs empty | the prerequisite secret did not exist at install | create it with `create_secret` (or use `add_database`), then `upgrade_template` or reinstall |
 | CLI-installed release missing from the Console's Template Catalog | `cpln/marketplace*` state tags never set | re-run the upgrade with the chart and all four tags: `cpln helm upgrade <RELEASE> oci://ghcr.io/controlplane-com/templates/<T> --version <V> -f values.yaml --state-tag cpln/marketplace=true --state-tag cpln/marketplace-template=<T> --state-tag cpln/marketplace-template-version=<V> --state-tag cpln/marketplace-gvc=<GVC>` (the chart argument is mandatory; `cpln helm upgrade <RELEASE>` alone is rejected) |
-
-## Quick reference
-
-| Tool | Purpose | Tier |
-|---|---|---|
-| `mcp__cpln__browse_templates` | Live catalog (filter by substring) | core |
-| `mcp__cpln__get_template` | Versions, prerequisites, example values | core |
-| `mcp__cpln__preview_template` | Dry-run render, no apply | full |
-| `mcp__cpln__install_template` | Install a release | core |
-| `mcp__cpln__upgrade_template` | Change version/values (replaces values) | core |
-| `mcp__cpln__rollback_template` | Roll back to a prior revision | full |
-| `mcp__cpln__uninstall_template` | Remove a release and its resources | core |
-| `mcp__cpln__list_installed_templates` | Inventory of releases in the org | core |
-| `mcp__cpln__get_installed_template` | One release's status + created resources | core |
-
-CLI fallback (CI/CD via a service-account `CPLN_TOKEN`): `cpln helm install|template|list|get|upgrade|rollback|uninstall|history` against `oci://ghcr.io/controlplane-com/templates/<TEMPLATE>`. Every CLI install must carry the four `cpln/marketplace*` `--state-tag` flags; see [CLI fallback (CI/CD)](#cli-fallback-cicd).
-
-## Related skills
-
-| Skill | For |
-|---|---|
-| `workload` | Custom workloads when no template fits; deploy-and-verify; pending-replica troubleshooting |
-| `stateful-storage` | Volumesets the database templates provision; snapshots and expansion |
-| `firewall-networking` | Exposing an installed service; outbound rules |
-| `access-control` | Identities and policies for backup cloud accounts and secret reveal |
-| `iac-terraform-pulumi` | Installing templates through Terraform or Pulumi |
-
-## Documentation
-
-- [Template Catalog Overview](https://docs.controlplane.com/template-catalog/overview.md)
-- [Install via CLI](https://docs.controlplane.com/template-catalog/install-manage/cli.md) · [Terraform](https://docs.controlplane.com/template-catalog/install-manage/terraform.md) · [Pulumi](https://docs.controlplane.com/template-catalog/install-manage/pulumi.md) · [UI](https://docs.controlplane.com/template-catalog/install-manage/ui.md)

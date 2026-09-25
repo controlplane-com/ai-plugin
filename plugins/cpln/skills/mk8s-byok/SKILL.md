@@ -5,7 +5,7 @@ description: "Runs workloads on your own hardware and provisions managed Kuberne
 
 # Managed Kubernetes (mk8s) & BYOK
 
-> **Tool availability:** the `create_mk8s_*` / `update_mk8s_*` tools live in the `mk8s` toolset profile (`?toolsets=mk8s`; `full` includes it). If an mk8s tool is not advertised, tell the user to reconnect with `?toolsets=mk8s`. Provider credential secrets (opaque token, gcp, keypair) must already exist — created by the user; offer to draft the manifest for them to fill and apply (`setup-secret` skill). Reads work on every profile via `list_resources` / `get_resource` (kind `mk8s` or `location`); `delete_resource` is on every profile except `readonly`.
+> **Tool availability:** the mk8s tools need `?toolsets=mk8s` (or `full`); reconnect with it or use the CLI.
 
 Control Plane has three separate "Kubernetes" stories people routinely conflate — get the right one first:
 
@@ -22,7 +22,7 @@ Bare metal in a data center or colo, on-prem VMs (VMware/vSphere), a Dell or Sup
 | They have | Route |
 |:---|:---|
 | A Kubernetes cluster already (EKS, GKE, AKS, k3s, self-managed) | Register it as a **BYOK location** (below) |
-| Servers but no cluster | Build one with the **`generic`** provider (`create_mk8s_generic`, then `cpln mk8s join` per node), then register it |
+| Servers but no cluster | Build one with the **`generic`** provider (`create_mk8s` with `provider: generic`, then `cpln mk8s join` per node), then register it |
 
 Both end at a location. From there it is ordinary workload work: add the location to a GVC (`update_gvc` with `addLocations`), deploy, verify. **The BYOK prerequisites are the binding constraint, not the mk8s ones** — a generic node needs only 1 CPU / 512 MB, but a cluster serving as a *location* needs ≥ 2 nodes, ≥ 2 CPU and 8 GB each, and a working LoadBalancer controller. Say so before the user buys hardware.
 
@@ -80,9 +80,9 @@ Exactly one provider per cluster (the schema enforces XOR). For every provider e
 
 ## Create & update (MCP)
 
-Pick the provider's tool — `mcp__cpln__create_mk8s_<provider>` for any provider in the table above (e.g. `create_mk8s_aws`, `create_mk8s_generic`). Supply `version` and at least one node pool. Read with `mcp__cpln__get_resource` / `list_resources` (kind `mk8s`); delete with `mcp__cpln__delete_resource` (destructive — confirm the blast radius).
+`mcp__cpln__create_mk8s` takes `provider` (any row of the table above) and `spec`, the provider block; the tool names the fields the provider requires, and `get_resource_schema` (kind `mk8s`, path `spec.provider.<provider>`) has the exact shape. Supply `version` and at least one node pool. Read with `mcp__cpln__get_resource` / `list_resources` (kind `mk8s`); delete with `mcp__cpln__delete_resource` (destructive — confirm the blast radius).
 
-`mcp__cpln__update_mk8s_<provider>` is a **merge-patch**: send only what changes. Provided **arrays** (`nodePools`, `firewall`) **replace the previous values wholesale** — include the full set you want to keep. `addOns` merge-patches per key, so the update tool **cannot disable a toggle add-on by passing `false`** — remove one with `cpln apply` (set the key to `null`). `region`/`networking` and the provider/name are unmodifiable after creation.
+`mcp__cpln__update_mk8s` (same `provider`, `spec` with the changed fields, `removeSpecFields` to delete one) is a **merge-patch**: send only what changes. Provided **arrays** (`nodePools`, `firewall`) **replace the previous values wholesale** — include the full set you want to keep. `addOns` merge-patches per key, so the update tool **cannot disable a toggle add-on by passing `false`** — remove one with `cpln apply` (set the key to `null`). `region`/`networking` and the provider/name are unmodifiable after creation.
 
 Fallback (MCP unavailable, or CI/CD): author a YAML manifest from `get_resource_schema` (kind `mk8s`) and `cpln apply --file mk8s.yaml`.
 
@@ -101,7 +101,7 @@ There is **no `cpln mk8s create`** — create via the MCP tools above or `cpln a
 | `cpln mk8s clone <ref>` | duplicate the spec (alias `copy`) |
 | `cpln mk8s edit / patch / update / delete` | edit YAML / patch metadata / `--set` / remove |
 
-`cpln mk8s update --set` accepts only `description`, `tags.<key>`, and `spec.version`. For provider, node-pool, or add-on changes use `update_mk8s_<provider>`, `cpln mk8s edit`, or `cpln apply`.
+`cpln mk8s update --set` accepts only `description`, `tags.<key>`, and `spec.version`. For provider, node-pool, or add-on changes use `update_mk8s`, `cpln mk8s edit`, or `cpln apply`.
 
 ## BYOK location (register an existing cluster)
 
@@ -146,34 +146,3 @@ Once the location exists, prefer MCP for the GVC and workload work: `mcp__cpln__
 - **Air-gapped or no egress.** Nodes require egress access; air-gapped installs are a support conversation, not a self-service path.
 - **Managing Control Plane from `kubectl`.** That is `k8s-operator`, the opposite direction.
 - **They just want a container running somewhere.** If the user never asked for their own hardware, a cloud location is simpler — do not route them through a cluster build.
-
-## Quick reference
-
-### MCP tools
-
-- `mcp__cpln__create_mk8s_<provider>` / `update_mk8s_<provider>` — create/merge-patch a cluster (mk8s profile)
-- `mcp__cpln__get_resource` (kind `secret`) — verify the provider credential secret exists (created by the user)
-- `mcp__cpln__get_resource` / `list_resources` / `delete_resource` (kind `mk8s` or `location`) — read/delete on any profile
-- `mcp__cpln__get_resource_schema` (kind `mk8s`) — exact shape and the live `version` set before authoring YAML
-- `mcp__cpln__add_gvc_locations` / `list_deployments` — attach a BYOK location to a GVC and verify workloads
-
-BYOK *location* create/install/uninstall and `cpln mk8s kubeconfig|join|dashboard|health` are **CLI-only**. In CI/CD, `CPLN_TOKEN` + `cpln apply -f mk8s.yaml` provisions a cluster headlessly.
-
-### Related skills
-
-| Skill | Use for |
-|:---|:---|
-| workload | deploying workloads onto the cluster once its location is in a GVC |
-| cpln | the CLI behind `mk8s` and `location` (kubeconfig, join, install) and `cpln apply` |
-| stateful-storage | volumesets and the BYOK volumeset storage-class settings |
-| access-control | policies and grantable permissions on cluster/location objects |
-| image | pull secrets behind the ECR/ACR add-ons |
-| k8s-operator | the opposite direction — managing Control Plane resources from `kubectl` |
-
-## Documentation
-
-- [Deploy a Workload to Your Own Hardware](https://docs.controlplane.com/guides/deploy-to-your-own-hardware.md)
-- [mk8s Overview](https://docs.controlplane.com/mk8s/overview.md)
-- [mk8s on AWS](https://docs.controlplane.com/mk8s/aws.md) · [GCP](https://docs.controlplane.com/mk8s/gcp.md) · [Hetzner](https://docs.controlplane.com/mk8s/hetzner.md) · [Triton](https://docs.controlplane.com/mk8s/triton.md) · [Generic](https://docs.controlplane.com/mk8s/generic.md)
-- [BYOK Overview](https://docs.controlplane.com/byok/overview.md)
-- [CLI mk8s Commands](https://docs.controlplane.com/cli-reference/commands/mk8s.md)

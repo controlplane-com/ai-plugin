@@ -7,7 +7,7 @@ description: "Production hardening for Control Plane workloads. Use when asked a
 
 Deep-dive companion to the `workload` skill, which owns workload types, the spec shape, and the readiness-vs-liveness model. Everything below is production-hardening detail for an existing workload.
 
-**Where settings live.** Health probes go inline in `containers[]` via `create_workload` / `update_workload`. Every other block here — `sidecar.envoy`, `loadBalancer`, `securityOptions`, `rolloutOptions` — is set by its own `configure_workload_*` tool, a set-or-clear PATCH on that one field (`remove: true` clears it). **Tool availability:** these tools live in the `full` toolset profile; if one isn't advertised, reconnect with `?toolsets=full` or use the CLI. Reads/deletes work on any profile (`list_resources` / `get_resource` / `delete_resource`).
+**Where settings live.** Health probes go inline in `containers[]` via `create_workload` / `update_workload`. Every other block here — `sidecar.envoy`, `loadBalancer`, `securityOptions`, `rolloutOptions` — is set by its own `configure_workload_*` tool, a set-or-clear PATCH on that one field (`remove: true` clears it). **Tool availability:** these tools live in the `full` toolset profile; if one isn't advertised, reconnect with `?toolsets=full` or use the CLI.
 
 ## Health Probes
 
@@ -163,13 +163,13 @@ Each direct-LB location also gets a public Geo DNS address with latency-based ro
 1. The load balancer removes the replica from the pool (up to ~10s) so new requests route elsewhere.
 2. The Control Plane sidecar drains in parallel: it holds for `grace - 10` seconds (default 80), then waits for in-flight connections to complete before shutting down.
 3. Containers run their `preStop` hook. With no custom hook, a default `sh -c "sleep N"` runs where `N` = half the grace period (45s at the 90s default), giving the LB time to stop routing.
-4. After `preStop`, the container receives **SIGINT** and has the remaining grace to exit, then **SIGKILL**. Handle the termination signal to drain cleanly.
+4. After `preStop`, the container receives **SIGTERM** and has the remaining grace to exit, then **SIGKILL**. Handle the termination signal to drain cleanly.
 
 **Trap — immediate SIGKILL of *all* containers** if `sleep`/`sh` is missing in *any* container (common with distroless/minimal images) or a custom `preStop` errors in *any* container. A custom `preStop` must include a delay or connection check, and must be tested — an error there force-kills the whole replica.
 
 ## Verify
 
-- After any change, poll `mcp__cpln__list_deployments` until each location reports ready — it surfaces probe failures per location.
+- After any change, wait with `mcp__cpln__list_deployments` and `waitSeconds` until each location reports ready: it surfaces probe failures per location.
 - `mcp__cpln__get_workload_events` gives the probe/liveness failure reason and message; `mcp__cpln__get_workload_logs` shows app-side errors.
 - For JWT, send a request with and without a valid token (expect 401 without) and confirm the `claim_to_headers` header arrives at the workload.
 
@@ -183,45 +183,3 @@ Each direct-LB location also gets a public Geo DNS address with latency-based ro
 | Replica SIGKILL'd instantly on rollout | `sleep`/`sh` missing, or custom `preStop` errors | use a `sleep`-capable image, or a native-sleep `preStop`; test the hook |
 | Direct LB port rejected | `containerPort` is reserved, or `externalPort` outside 22-32768 | pick a non-reserved container port; keep `externalPort` in range |
 | `securityOptions` / `replicaDirect` rejected | `type: vm` (securityOptions) or non-stateful (replicaDirect) | remove the field or change the workload type |
-
-## Quick reference
-
-### MCP tools
-
-All `configure_workload_*` tools are `full`-profile, set-or-clear PATCH (`remove: true` clears).
-
-| Tool | Purpose |
-|---|---|
-| `mcp__cpln__configure_workload_sidecar` | Set/clear `spec.sidecar.envoy` — JWT / Envoy filter chain |
-| `mcp__cpln__configure_workload_load_balancer` | Set/clear `spec.loadBalancer` — direct LB, geo headers, replicaDirect |
-| `mcp__cpln__configure_workload_security` | Set/clear `spec.securityOptions` — `runAsUser`, `filesystemGroupId` |
-| `mcp__cpln__configure_workload_rollout` | Set/clear `spec.rolloutOptions` — termination grace, surge/unavailable |
-| `mcp__cpln__create_workload` / `mcp__cpln__update_workload` | Probes go inline in `containers[]` (update is PATCH, merges containers by name) |
-| `mcp__cpln__list_deployments` | Poll per-location readiness; surfaces probe failures |
-| `mcp__cpln__get_workload_events` | Probe / liveness failure reason + message |
-| `mcp__cpln__get_workload_logs` | App-side logs for security / probe issues |
-
-### CLI (fallback)
-
-Use the CLI when the MCP server is unavailable or unauthenticated, or in CI/CD (service-account `CPLN_TOKEN`).
-
-```bash
-cpln workload get WORKLOAD --gvc GVC -o yaml-slim > workload.yaml
-# edit, then apply (CI/CD: add --ready to block until deployed)
-cpln apply -f workload.yaml --gvc GVC
-```
-
-### Related skills
-
-- `workload` — primary skill (types, defaults, spec shape, tool division); start here.
-- `firewall-networking` — CIDR / header rules, geo-filtering, LB types.
-- `access-control` — policies, principals, the full permission model.
-- `autoscaling-capacity` — scaling and Capacity AI settings.
-- `stateful-storage` — volume sets (pair with `filesystemGroupId`).
-
-## Documentation
-
-- [Workload Security](https://docs.controlplane.com/reference/workload/security.md)
-- [JWT Auth](https://docs.controlplane.com/reference/workload/jwt-auth.md)
-- [Termination](https://docs.controlplane.com/reference/workload/termination.md)
-- [Load Balancing](https://docs.controlplane.com/reference/workload/load-balancing.md)

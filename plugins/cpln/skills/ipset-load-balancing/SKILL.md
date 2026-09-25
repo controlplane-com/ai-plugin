@@ -5,7 +5,7 @@ description: "Static IPs and load balancers on Control Plane. Use when the user 
 
 # IP Sets & Load Balancing
 
-> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads work on every profile via the generic `list_resources` / `get_resource` tools; `delete_resource` is on every profile except `readonly`.
+> **Tool availability:** `update_ipset` and `configure_workload_load_balancer` need `?toolsets=full`; reconnect with it or use the CLI.
 
 An IP set reserves one static public IPv4 address per location and attaches it to a **direct** (per-workload) or **dedicated** (per-GVC) load balancer. The linking is bidirectional, and the recurring failure is configuring only one side: the IP set's `spec.link` must point at the workload/GVC AND that target's load balancer must reference the IP set back — otherwise addresses sit `unbound` and the IP set carries `status.warning: Cross-link misconfiguration`. The `workload` skill is primary for the LB-type picker and routing basics; this skill carries the full configuration.
 
@@ -108,31 +108,6 @@ Required before domains can use custom ports or the TCP protocol (without it tho
 | API rejects `containerPort` | It is a plain number (80-65535 minus reserved ports); the docs' `containerPort: {port: N}` object form is wrong |
 | Deploy warning "TCP access can only be restricted to specific ip addresses when using a custom domain and the GVC has dedicated loadBalancer enabled" | Inbound CIDR rules on a TCP port need the dedicated LB (custom domain) or a direct LB — the shared LB cannot enforce them |
 
-## Quick reference
+## CLI fallback
 
-| Tool | Purpose |
-|---|---|
-| `mcp__cpln__create_ipset` | Create with optional `link` and `locations[]` (`retentionPolicy` defaults to `keep`); friendly location names resolve server-side |
-| `mcp__cpln__update_ipset` | Description, tags, replace `link`, or `removeLink: true` to detach |
-| `mcp__cpln__add_ipset_location` | Add locations or overwrite an existing location's `retentionPolicy` |
-| `mcp__cpln__remove_ipset_location` | Drop location entries (releases only IPs whose location is no longer active in the GVC) |
-| `mcp__cpln__list_resources` / `mcp__cpln__get_resource` / `mcp__cpln__delete_resource` (kind="ipset") | Read, and delete (releases every IP; blocked while bound) |
-| `mcp__cpln__configure_workload_load_balancer` | Workload side: `direct`, `geoLocation`, `replicaDirect` (`remove: true` clears) |
-| `mcp__cpln__update_gvc` | GVC side: `loadBalancer` (dedicated, ipSet, trustedProxies, multiZone, redirect) |
-
-CLI fallback: `cpln ipset create --name NAME --link LINK --location LOC,POLICY`, plus `add-location` / `update-location` / `remove-location REF --location ...` and `get` / `delete`. `cpln gvc update --set` cannot reach `spec.loadBalancer` — use `cpln gvc edit` or `cpln apply`.
-
-### Related skills
-
-- **workload** — the primary skill: LB-type picker, container ports, endpoints, the `configure_workload_*` tools.
-- **domain** — custom domains, custom ports and TCP routes on the dedicated LB, per-replica routing.
-- **firewall-networking** — inbound/outbound CIDR rules, header filtering on geo headers.
-- **workload-security** — TLS on the workload behind a direct LB, JWT auth, mTLS.
-- **stateful-storage** — replica identities and replica-direct with databases.
-
-## Documentation
-
-- [IP Set Reference](https://docs.controlplane.com/reference/ipset.md)
-- [Load Balancing Reference](https://docs.controlplane.com/reference/workload/load-balancing.md)
-- [GVC Reference (Dedicated LB)](https://docs.controlplane.com/reference/gvc.md)
-- [Domain Reference](https://docs.controlplane.com/reference/domain.md)
+`cpln ipset create --name NAME --link LINK --location LOC,POLICY`, plus `add-location` / `update-location` / `remove-location REF --location ...` and `get` / `delete`. `cpln gvc update --set` cannot reach `spec.loadBalancer`: use `cpln gvc edit` or `cpln apply`.

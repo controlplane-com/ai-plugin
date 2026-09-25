@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # SessionStart hook for the Control Plane plugin (Claude Code + Codex).
 #
-# Concatenates every `plugins/cpln/rules/*.md` whose YAML frontmatter sets
-# `alwaysApply: true`, then emits the hook payload that both clients
-# expect on stdout:
+# Concatenates the bodies of every `plugins/cpln/rules/*.md` whose YAML
+# frontmatter sets `alwaysApply: true`, without the frontmatter itself,
+# then emits the hook payload that both clients expect on stdout:
 #
 #   { "hookSpecificOutput": {
 #       "hookEventName": "SessionStart",
@@ -31,7 +31,17 @@ done
 
 [ "${#files[@]}" -eq 0 ] && exit 0
 
-cat "${files[@]}" | awk '
+# The frontmatter only tells a plugin loader how to apply the rule; the model needs the body.
+separator=''
+for f in "${files[@]}"; do
+  printf '%s' "$separator"
+  awk 'NR == 1 && /^---$/ { front = 1; next }
+       front && /^---$/ { front = 0; lead = 1; next }
+       front { next }
+       lead && /^[[:space:]]*$/ { next }
+       { lead = 0; print }' "$f"
+  separator=$'\n'
+done | awk '
 BEGIN {
   printf "{\"hookSpecificOutput\":{"
   printf "\"hookEventName\":\"SessionStart\","

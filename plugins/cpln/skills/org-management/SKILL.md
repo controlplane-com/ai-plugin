@@ -5,9 +5,9 @@ description: "Manages organizations, billing, users, and authentication on Contr
 
 # Organization & User Management
 
-An **org** is the top-level isolation boundary: every GVC, workload, secret, policy, image, domain, user, group, and service account lives inside one, with no cross-org sharing. An org **cannot be renamed or deleted** once created (every DELETE on `/org` returns 405) and its name is **globally unique** across all of Control Plane — so the first job is choosing a name you can live with permanently.
+> **Tool availability:** `update_org`, `configure_external_logging`, `invite_user_to_org`, `edit_group`, and `add_key_to_service_account` need `?toolsets=full`; reconnect with it or use the CLI.
 
-> **Tool availability:** the org-settings, group, service-account, and invite tools live in the `full` MCP toolset; only `list_quotas` and the generic `list_resources`/`get_resource`/`delete_resource` reads are in `core`. If a tool below is not advertised, reconnect with `?toolsets=full` or use the `cpln` CLI fallback.
+An **org** is the top-level isolation boundary: every GVC, workload, secret, policy, image, domain, user, group, and service account lives inside one, with no cross-org sharing. An org **cannot be renamed or deleted** once created (every DELETE on `/org` returns 405) and its name is **globally unique** across all of Control Plane — so the first job is choosing a name you can live with permanently.
 
 ## Organization
 
@@ -75,7 +75,7 @@ Read/delete users with the generic tools (no typed read tool): `mcp__cpln__get_r
 
 Groups aggregate **users and service accounts only** (member links `//user/EMAIL`, `//serviceaccount/NAME`; max 200). `mcp__cpln__edit_group` is the **single** mutation tool — it edits description/tags and adds/removes members; there is no separate add-member tool. Dynamic membership (`memberQuery`, `identityMatcher`) and policy mechanics live in **access-control**.
 
-Service-account **names are immutable** (rename = delete + recreate, which invalidates every key). `mcp__cpln__add_key_to_service_account` issues a key and **auto-creates the SA if absent** (`serviceAccountName`, `keyDescription` required ≤250 chars, optional `groupName`). There is no `create_service_account_key` tool. The key value is returned **once** — store it immediately. CLI fallback: `cpln serviceaccount create --name NAME` then `cpln serviceaccount add-key NAME --description "..."` (the CLI does **not** auto-create the SA; `--description` is required).
+Service-account **names are immutable** (rename = delete + recreate, which invalidates every key). `mcp__cpln__add_key_to_service_account` creates the SA if absent (`serviceAccountName`, optional `keyDescription` ≤250 chars and `groupName`) and returns the Console keys page, where the user adds the key and sees it **once**; the value never passes through the chat. CLI fallback: `cpln serviceaccount create --name NAME` then `cpln serviceaccount add-key NAME --description "..."` (the CLI does **not** auto-create the SA; `--description` is required).
 
 ## Profiles, tokens & auth
 
@@ -132,27 +132,3 @@ The Console signs in via **Google, GitHub, Microsoft, and SAML** (Firebase-backe
 | GVC missing after switching org | `--org` (or an SA `--token`) without `--gvc` clears it — re-pass `--gvc` |
 | Service-account key lost | Shown once; issue a new one with `add_key_to_service_account` / `add-key` |
 | `billing_admin` can't see workloads | Billing roles grant no org access — add an org policy |
-
-## Quick reference
-
-| MCP tool | Action |
-|:---|:---|
-| `mcp__cpln__get_resource` / `update_org` (kind `org`) | Read / change org-wide settings |
-| `mcp__cpln__invite_user_to_org` | Invite a user (optional group) |
-| `mcp__cpln__create_group` / `edit_group` | Create / edit a group and its members |
-| `mcp__cpln__create_service_account` / `add_key_to_service_account` | Create an SA / issue a key (auto-creates the SA) |
-| `mcp__cpln__list_quotas` / `get_quota` | Per-org resource limits (read-only; raising one is a support request); `nearLimit: true` shows ≥80%-used |
-| `mcp__cpln__list_resources` / `get_resource` / `delete_resource` | Generic read/delete for users, groups, service accounts |
-
-## Related skills
-
-- **access-control** — Policies, bindings, RBAC patterns, dynamic group membership, service-account scoping.
-- **external-logging** — Configure org `logging` / `extraLogging`.
-- **cpln** — CLI setup and the full resource-command map.
-- **audit-compliance** — Who changed what across the org.
-
-## Documentation
-
-- [Org Reference](https://docs.controlplane.com/reference/org.md) · [Org Concepts](https://docs.controlplane.com/concepts/org.md)
-- [Create Org](https://docs.controlplane.com/guides/create-org.md) · [Invite Users](https://docs.controlplane.com/guides/invite-users.md)
-- [Manage Profile](https://docs.controlplane.com/cli-reference/get-started/profiles.md) · [Authentication](https://docs.controlplane.com/core/authentication.md)

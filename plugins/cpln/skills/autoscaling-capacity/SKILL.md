@@ -5,8 +5,6 @@ description: "Workload autoscaling and Capacity AI on Control Plane. Use when th
 
 # Autoscaling & Capacity AI
 
-> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads work on every profile via the generic `list_resources` / `get_resource` tools; `delete_resource` is on every profile except `readonly`.
-
 Deep skill for scaling and resource optimization. Everything scaling lives in **one block** — `spec.defaultOptions.autoscaling` (with `capacityAI` beside it); `spec.localOptions[]` overrides it per location. The platform keeps the chosen metric near but below `target`. For workload types, production defaults, and the spec shape, start with the **`workload`** skill.
 
 ## Picking a metric
@@ -26,8 +24,6 @@ If `metric` is omitted, serverless defaults to `concurrency` and stateful to `cp
 
 **The metric constrains the type — decide them together.** Type is chosen at creation and is immutable, so a metric-type mismatch is a *type* problem, not a metric problem. The most common case: concurrency-style scaling on a standard workload — the fix is to create the workload as **serverless** (concurrency lives only there) or use **`rps`** on standard (the closest equivalent), not to retry with the same pairing.
 
-**Don't silently downgrade.** If a type constraint blocks the user's stated intent (concurrency scaling on stateful, Capacity AI on a CPU-scaled workload), surface the conflict with realistic alternatives and a recommendation — per the constraint-conflicts rule in `cpln-guardrails.md`. `disabled` with `min=max=1` is sometimes right (single-writer app), but say so explicitly.
-
 ## The autoscaling block
 
 Set with `mcp__cpln__create_workload` / `mcp__cpln__update_workload`, then verify with `mcp__cpln__list_deployments`. All fields:
@@ -46,7 +42,7 @@ spec:
     capacityAI: true
 ```
 
-- **Per-location overrides:** `spec.localOptions[]` (same fields + `location`) via `mcp__cpln__configure_workload_local_options`, the only MCP tool that sets `capacityAIUpdateMinutes` or `multiZone`; it replaces the full list. Both also exist on `spec.defaultOptions`, reachable with `cpln apply`.
+- **Per-location overrides:** `spec.localOptions[]` (same fields + `location`) via `mcp__cpln__configure_workload_local_options` (full profile), the only MCP tool that sets `capacityAIUpdateMinutes` or `multiZone`; it replaces the full list. Both also exist on `spec.defaultOptions`, reachable with `cpln apply`.
 - **`scaleToZeroDelay` is dual-purpose:** on serverless it is the idle period before scaling to 0; on standard/stateful it sets the **scale-down stabilization window** (default 300s) — scale-up is immediate.
 
 ### Multi-metric (standard/stateful)
@@ -64,11 +60,9 @@ autoscaling:
 
 Each entry is evaluated independently; the highest replica count wins. Only `cpu` / `memory` / `rps`, each at most once; targets go inside the entries (`metric`/`target` at the top level are rejected alongside `multi`). With `multi`, Capacity AI defaults to off.
 
-## minScale / maxScale & scale-to-zero
+## Scale to zero
 
-- **Production default is `minScale: 2`** for user-facing services; pick `1` only with a named reason (single-writer DB, leader election, dev/staging). `maxScale` stays at its default `5` unless the user names a maximum — set exactly what they name, never invent a cap.
-- **Scale-to-zero (`minScale: 0`) by type:** serverless — allowed freely; standard/stateful — **only with `metric: keda`** (anything else is rejected); cron — never. On serverless it reaches zero with `concurrency`/`rps`; `cpu`/`memory` ride an HPA that won't drop to zero.
-- **Never the AI's default** — even on serverless, even when the user said "auto-scale". Configure it only when the user asked for scale-to-zero by name; the next request after idle pays a cold start. Acceptable (still opt-in): rarely-used internal tools, dev/preview environments, KEDA workers behind a retry-tolerant queue. Full rule: `cpln-guardrails.md`.
+- **Scale to zero by type:** serverless freely; standard and stateful only with `metric: keda` (anything else is rejected); cron never. Serverless reaches zero with `concurrency` or `rps`; `cpu` and `memory` ride an HPA that never drops to zero. The first request after idle pays a cold start.
 
 ## KEDA (event-driven, standard/stateful)
 
@@ -126,20 +120,11 @@ spec:
 
 ### Resource bounds (all types)
 
-- Floors: CPU ≥ `25m`, memory ≥ `32Mi`; `minCpu ≤ cpu`, `minMemory ≤ memory`; `memory(MiB) / cpu(millicores) ≤ 8` (32 with tag `cpln/relaxMemoryToCpuRatio`).
+- Floors and the memory to CPU ratio: `workload` skill. `minCpu` and `minMemory` never exceed `cpu` and `memory`.
 - **With Capacity AI off:** `cpu`/`memory` are the fixed allocation and `minCpu`/`minMemory` are ignored — except on **stateful**, where `minCpu`/`minMemory` become the static **reserved** request and `cpu`/`memory` stay the burst ceiling.
 - **Stateful `minCpu`/`minMemory` are bounded** whether or not Capacity AI is on: max/min ratio ≤ **4** AND gap ≤ **4000m** CPU / **4096Mi** memory.
 - **GPU:** `nvidia` model `t4` (quantity up to 4) or `a10g` (exactly 1); strict per-model CPU/memory minimums — fetch exact numbers with `mcp__cpln__get_resource_schema` (`kind: workload`).
 - **Cost:** billing follows reserved resources, so Capacity AI (or stateful `minCpu`) directly lowers cost.
-
-## Type × scaling matrix
-
-| | standard | serverless | stateful | cron |
-|---|---|---|---|---|
-| Metrics | cpu, memory, latency, rps, multi, keda, disabled | concurrency, cpu, memory, rps, disabled | same as standard | none — autoscaling stripped |
-| Capacity AI | default on | default on | supported | default on; lands at the next run |
-| Scale to zero | keda only | yes (concurrency/rps) | keda only | no |
-| Resize without restart | yes | no (new revision) | yes | n/a — next run |
 
 ## Troubleshooting
 
@@ -151,32 +136,3 @@ spec:
 | KEDA not triggering | KEDA enabled on the GVC? Trigger auth secret listed in `gvc.spec.keda.secrets`? Source firewall allows `cpln://internal/keda`? |
 | Capacity AI not adjusting | Check the stored `spec.defaultOptions.capacityAI`; off with `metric: cpu` or `multi`; rejected with GPUs; a recent spec change pauses it; `capacityAIUpdateMinutes` throttle; on cron it only lands at the next execution |
 | Replicas stuck at `minScale` | The scaling metric never resolves — verify the PromQL/trigger returns data |
-
-## Quick reference — MCP tools
-
-| Tool | Purpose |
-|---|---|
-| `mcp__cpln__create_workload` / `mcp__cpln__update_workload` | The `autoscaling` block (incl. `multi`, `keda`) and `capacityAI` |
-| `mcp__cpln__configure_workload_local_options` | Per-location overrides; `capacityAIUpdateMinutes`, `multiZone` |
-| `mcp__cpln__update_gvc` | Enable KEDA on the GVC (`keda.enabled`, `identityLink`, `secrets`) |
-| `mcp__cpln__list_deployments` | Replica counts and readiness per location |
-| `mcp__cpln__get_workload_events` | Scaling/scheduling events and errors |
-| `mcp__cpln__list_metrics` / `mcp__cpln__query_metrics` | Discover metric names/labels, then verify the scaling signal — never guess |
-
-**CLI fallback** (read the `cpln` skill first): `cpln apply -f manifest.yaml` for the full spec incl. `capacityAIUpdateMinutes`; primary interface in CI/CD (`CPLN_TOKEN` + `cpln apply --ready`).
-
-## Related skills
-
-| Need | Skill |
-|---|---|
-| Workload types, production defaults, spec shape — start here | `workload` |
-| Custom `metrics` block, built-in metrics, PromQL | `metrics-observability` |
-| Scaling-event and per-execution cron logs | `logql-observability` |
-| Stateful sizing and volume sets | `stateful-storage` |
-
-## Documentation
-
-- [Autoscaling Reference](https://docs.controlplane.com/reference/workload/autoscaling.md)
-- [Capacity AI Reference](https://docs.controlplane.com/reference/workload/capacity.md)
-- [Custom Metrics Reference](https://docs.controlplane.com/reference/workload/custom-metrics.md)
-- [Export Metrics Guide](https://docs.controlplane.com/guides/export-metrics.md)

@@ -39,67 +39,67 @@ git config core.hooksPath .githooks
 
 For Markdown-only changes, review links, tables, frontmatter, and command examples manually. This repository currently has no package manifest, build script, or test suite.
 
+## Branches
+
+- `develop` is where work lands: open pull requests against it. The test MCP server reads it, so a merged change reaches the test environment within the hour.
+- `main` is the released line. Installs, the marketplaces, and the production MCP server read it, and only the release script updates it.
+
+A fix that must ship fast is a normal pull request to `develop` plus a patch release, so `main` never diverges from `develop`.
+
 ## Versioning
 
-This repo follows [Semantic Versioning](https://semver.org/). The version lives in several manifests that must stay aligned (the bump script updates them all):
+This repo follows [Semantic Versioning](https://semver.org/). The version lives in several manifests that must stay aligned (the release script updates them all):
 
-| File                                          | Path                          |
-| --------------------------------------------- | ----------------------------- |
-| `plugins/cpln/.claude-plugin/plugin.json`     | `.version`                    |
-| `.claude-plugin/marketplace.json`             | `.plugins[0].version`         |
-| `plugins/cpln/.codex-plugin/plugin.json`      | `.version`                    |
-| `plugins/cpln/plugin.json` (Antigravity CLI)  | `.version`                    |
+| File                                          | Path                                          |
+| --------------------------------------------- | --------------------------------------------- |
+| `plugins/cpln/.claude-plugin/plugin.json`     | `.version`                                    |
+| `.claude-plugin/marketplace.json`             | `.plugins[0].version`                         |
+| `plugins/cpln/.codex-plugin/plugin.json`      | `.version`                                    |
+| `plugins/cpln/.cursor-plugin/plugin.json`     | `.version`                                    |
+| `.cursor-plugin/marketplace.json`             | `.metadata.version` and `.plugins[0].version` |
+| `plugins/cpln/plugin.json` (Antigravity CLI)  | `.version`                                    |
 
 Pick the bump based on what changed since the last tag:
 
-- **Patch** (`1.0.0` → `1.0.1`) — bug fix in a skill, agent, hook, or rule that doesn't change behavior for existing users; doc or CHANGELOG-only changes; broken-link or typo fixes.
-- **Minor** (`1.0.0` → `1.1.0`) — new skill, new agent, new slash command, new hook, new always-on rule, new MCP capability, or any other backward-compatible feature.
-- **Major** (`1.0.0` → `2.0.0`) — removing or renaming a skill / agent / command, changing the MCP server URL or auth shape, breaking frontmatter schema, or any change that requires action from existing users.
+- **Patch** (`1.0.0` to `1.0.1`): a bug fix in a skill, agent, hook, or rule that doesn't change behavior for existing users; doc or CHANGELOG-only changes; broken-link or typo fixes.
+- **Minor** (`1.0.0` to `1.1.0`): a new skill, agent, slash command, hook, always-on rule, or MCP capability, or any other backward-compatible feature.
+- **Major** (`1.0.0` to `2.0.0`): removing or renaming a skill, agent, or command, changing the MCP server URL or auth shape, breaking the frontmatter schema, or any change that requires action from existing users.
 
-`CHANGELOG.md` follows [Keep a Changelog](https://keepachangelog.com/). Land changes under the top-level `[Unreleased]` block as you merge them; the bump script promotes that block into the released section.
+`CHANGELOG.md` follows [Keep a Changelog](https://keepachangelog.com/). Land changes under the top-level `[Unreleased]` block as you merge them; the release script promotes that block into the released section.
 
 ## Cutting a release
 
-Maintainers cut a release by running the bump script, filling in CHANGELOG notes, and pushing a tag. CI does the rest.
+Maintainers release from `develop` with one script; CI does the rest.
 
-1. **Make sure `main` is clean and up to date.**
+1. **Write the release notes as changes merge**, under `[Unreleased]` in `CHANGELOG.md`. Keep entries operational and user-facing: describe what changed for someone using the plugin, not what changed in the repo. Keep only the subsections that have entries.
+
+2. **Deploy the MCP server to production first** when the release names MCP tools production does not serve yet. The server refuses fetched content that names a tool it lacks and keeps its bundled copy, so the wrong order degrades instead of breaking, but the new content waits for the deploy.
+
+3. **Update `develop` and run the [local checks](#local-checks).**
    ```bash
-   git checkout main && git pull --ff-only
+   git switch develop && git pull --ff-only
    ```
 
-2. **Run the bump script** with the new semver.
+4. **Rehearse, then release.**
    ```bash
+   ./scripts/bump-version.sh 1.1.0 --dry-run
    ./scripts/bump-version.sh 1.1.0
    ```
-   This updates the manifests and rewrites `CHANGELOG.md` so `[Unreleased]` becomes `[1.1.0] - YYYY-MM-DD`, with a fresh empty `[Unreleased]` block above it. The script refuses to run on a dirty tree and verifies the manifests agree on the new version after the bump.
+   The script stops before changing anything when it is not on `develop`, the tree is dirty, `develop` is out of sync with `origin`, `main` cannot fast-forward, the tag exists, `[Unreleased]` is empty, or the tool-mention check fails. Otherwise it bumps every manifest, promotes `[Unreleased]` to `[1.1.0] - YYYY-MM-DD`, commits `Bump version to 1.1.0`, tags `v1.1.0`, and pushes `develop`, `main` (fast-forwarded to the release commit), and the tag in one atomic push. If the push is rejected, nothing changes on `origin`, and the script prints how to retry or undo.
 
-3. **Fill in the release notes** under the new `## [1.1.0]` heading in `CHANGELOG.md`. Keep entries operational and user-facing — describe what changed for someone using the plugin, not what changed in the repo. Drop unused subsections (`Added` / `Changed` / `Fixed` / `Removed`).
-
-4. **Run local checks** (the same ones in [Local Checks](#local-checks)).
-
-5. **Commit and tag.**
-   ```bash
-   git add -A
-   git commit -m "Bump version to 1.1.0"
-   git tag v1.1.0
-   git push origin main
-   git push origin v1.1.0
-   ```
-   Optionally run `claude plugin tag .` instead of `git tag` — the Claude Code CLI tags the commit *and* validates that `plugin.json` and the marketplace entry agree before tagging.
-
-6. **The release workflow takes over.** On the `v1.1.0` tag push, `.github/workflows/release.yml`:
-   - Verifies all manifests carry version `1.1.0` (catches drift if a manifest was hand-edited).
+5. **The release workflow takes over.** On the `v1.1.0` tag push, `.github/workflows/release.yml`:
+   - Verifies all manifests carry version `1.1.0`, which catches drift if a manifest was hand-edited.
    - Validates every JSON file parses.
    - Extracts the `## [1.1.0]` section from `CHANGELOG.md`.
-   - Creates a GitHub Release with the notes plus install/upgrade snippets for Claude Code, Codex, Antigravity CLI, and generic MCP clients, and a compare-link to the previous tag.
+   - Creates a GitHub Release with the notes plus install and upgrade snippets for Claude Code, Codex, Antigravity CLI, and generic MCP clients, and a compare link to the previous tag.
 
-   If any manifest is out of sync with the tag, the workflow fails and no release is published — fix the manifest, retag, and push again.
+   If any manifest is out of sync with the tag, the workflow fails and no release is published: fix the manifest on `develop` and release the next patch version.
 
 ## Pre-release checks
 
-Run before tagging:
+Run before releasing:
 
-- `CHANGELOG.md` `[Unreleased]` section is empty (everything moved into the new versioned section).
+- `CHANGELOG.md` `[Unreleased]` holds the release notes; the release script moves them into the versioned section.
 - `README.md` install instructions match the published marketplace IDs.
 - No real secrets, service account tokens, or org-specific values in the diff.
 - `plugins/cpln/.mcp.json` uses Codex MCP fields (`url`, `bearer_token_env_var`) and not raw auth headers.

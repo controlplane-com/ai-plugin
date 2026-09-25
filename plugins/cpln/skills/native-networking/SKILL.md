@@ -5,7 +5,7 @@ description: "Connects Control Plane workloads to private VPCs, on-prem networks
 
 # Native Networking & Agent Connectivity
 
-> **Tool availability:** the `create_agent` / `update_agent`, `get_agent_info` / `get_agent_eventlog`, and `add_identity_network_resource` / `add_identity_native_network_resource` / `remove_identity_network_resource` / `list_identity_network_resources` tools live in the **`full`** toolset profile. If one is not advertised, tell the user to reconnect the MCP server with `?toolsets=full`, or use the `cpln` CLI. Reads work on every profile via `list_resources` / `get_resource` (kind `agent` or `identity`); `delete_resource` is on every profile except `readonly`.
+> **Tool availability:** the agent and identity network-resource tools need `?toolsets=full`; reconnect with it or use the CLI.
 
 A Control Plane workload reaches a private or cross-cloud endpoint through an **identity** (gvc-scoped) carrying one of two resource arrays. Attach that identity to the workload (`spec.identityLink`) — without the attachment, nothing routes. Both paths are wired **independently of the workload's external egress firewall**: you do *not* open an `outboundAllow*` rule to reach them. The two options:
 
@@ -165,31 +165,8 @@ Global rules (Joi-enforced): each array holds **max 50** entries, and **`name` a
 | Agent shows inactive (`get_agent_info`) | No recent heartbeat — the deployed agent is down or cannot reach Control Plane; check `get_agent_eventlog`. |
 | Workload cannot reach the agent's network | The identity is not attached to the workload (`spec.identityLink`), or the resource ports are wrong. |
 | Agent will not delete | It is still referenced by an identity — remove the `networkResource` (or detach the identity) first. |
-| Bootstrap config lost | It is shown only at `create_agent` time and is immutable — delete and recreate the agent. |
+| Bootstrap config lost | It is shown only when the user creates the agent in the Console (the `create_agent` link) and is immutable — delete and recreate the agent. |
 
-## Quick reference
+## CLI fallback
 
-### MCP tools
-
-- `mcp__cpln__create_agent` / `update_agent` — create (returns the one-time bootstrap config) / patch description & tags (full profile)
-- `mcp__cpln__get_agent_info` / `get_agent_eventlog` — live status and event log (full profile)
-- `mcp__cpln__add_identity_native_network_resource` / `add_identity_network_resource` — attach a PrivateLink/PSC or agent resource (full profile)
-- `mcp__cpln__remove_identity_network_resource` / `list_identity_network_resources` — remove from either array / list both (full profile)
-- `mcp__cpln__get_resource` / `list_resources` / `delete_resource` (kind `agent` or `identity`) — read and delete on any profile
-
-CLI fallback (MCP unavailable, or CI/CD with `CPLN_TOKEN`): `cpln agent create|manifest|up|info|eventlog`. Network resources on an identity are **not** settable via `cpln identity create`/`update` (description and tags only) — edit the identity YAML with `cpln identity edit REF` or `cpln apply -f identity.yaml`.
-
-### Related skills
-
-| Skill | Use for |
-|:---|:---|
-| workload | attaching the identity to the workload (`spec.identityLink`) that needs the connectivity |
-| access-control | creating the identity, and policies/permissions on agents |
-| firewall-networking | the Internal firewall for the bi-directional proxy, and service-to-service rules |
-| cpln | the `cpln agent` CLI and `cpln apply` |
-
-### Documentation
-
-- [Native Networking Setup](https://docs.controlplane.com/guides/native-networking/native-networking-setup.md)
-- [Agent Reference](https://docs.controlplane.com/reference/agent.md) · [Agent Setup Guide](https://docs.controlplane.com/guides/agent.md)
-- [Identity Reference](https://docs.controlplane.com/reference/identity.md)
+Without MCP, or in CI/CD with `CPLN_TOKEN`: `cpln agent create|manifest|up|info|eventlog`. Network resources on an identity are **not** settable via `cpln identity create`/`update` (description and tags only); edit the identity YAML with `cpln identity edit REF` or `cpln apply -f identity.yaml`.

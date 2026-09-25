@@ -5,8 +5,6 @@ description: "Manages Control Plane resources with Terraform or Pulumi. Use when
 
 # Infrastructure as Code — Terraform & Pulumi
 
-> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads work on every profile via the generic `list_resources` / `get_resource` tools; `delete_resource` is on every profile except `readonly`.
-
 Control Plane has one Terraform provider, `controlplane-com/cpln`. The Pulumi provider (`@pulumiverse/cpln`, published by pulumiverse) is bridged from it, so coverage, semantics, and auth are identical — only the casing changes. The platform also runs a hosted terraform-exporter that converts live resources or schema-validated manifests into provider-correct HCL, reachable through MCP tools and `cpln KIND get -o tf`. The common failure is hand-writing HCL from memory: the nested block shapes are deep and version-specific, and resources that already exist get re-created instead of imported. Generate the HCL, then edit it.
 
 ## Choosing an approach
@@ -57,7 +55,6 @@ The hosted terraform-exporter produces provider-correct HCL. Route by what you h
 | You have | Use |
 |----------|-----|
 | Existing resource(s) | `mcp__cpln__export_terraform` — a single self link, or bulk by path depth: `/org/ORG` (whole org), `/org/ORG/KIND` (all of a kind), `/org/ORG/gvc/GVC/workload` (all workloads in the GVC) |
-| A known set of links | `mcp__cpln__export_terraform_batch` (full profile) — up to 100 links, merged and de-duplicated; on core, `export_terraform` with path-depth refs covers it |
 | A YAML/JSON manifest | `mcp__cpln__convert_to_terraform` — dry-run validated against the API first, so the returned HCL always matches a schema-valid resource; pass `gvc` for GVC-scoped kinds (workload, identity, volumeset) |
 | Nothing yet | author the manifest against `mcp__cpln__get_resource_schema`, then convert it |
 
@@ -65,7 +62,7 @@ Set `generateImports` on any of these to also get ready-to-run `terraform import
 
 The exporter emits HCL only. For a Pulumi program, convert the exported HCL with the Pulumi CLI: `pulumi convert --from terraform --language typescript --out DIR` (also python, go, csharp, java, yaml). Conversion translates config, not state — adopt the live resources afterwards per Importing below.
 
-The exporter covers 16 kinds: agent, auditctx, cloudaccount, domain (routes emitted as `cpln_domain_route`), group, gvc, identity, ipset, location, mk8s, org, policy, secret, serviceaccount, volumeset, workload. `mcp__cpln__list_terraform_kinds` (full profile) enumerates them; on core, just attempt the export — an unsupported kind is rejected with the supported list.
+The exporter covers 16 kinds: agent, auditctx, cloudaccount, domain (routes emitted as `cpln_domain_route`), group, gvc, identity, ipset, location, mk8s, org, policy, secret, serviceaccount, volumeset, workload. An unsupported kind is rejected with that list; just attempt the export — an unsupported kind is rejected with the supported list.
 
 **Secrets are never exported.** The upstream exporter would embed revealed values in the HCL, so the MCP tools refuse a ref that targets secrets and refuse wholesale any bulk export that pulled secrets in. Narrow the export to exclude secrets; the user authors secret resources in their own Terraform.
 
@@ -111,30 +108,3 @@ Each registry page has an Import section with the exact form (composite kinds di
 | Export refused mentioning plaintext secrets | Narrow the ref/export to exclude secrets — secret export is not supported |
 | Org create or `auth_config` update fails despite a valid token | Those two operations require `CPLN_REFRESH_TOKEN` |
 | Pulumi lacks a feature the Terraform provider just shipped | The bridge tracks Terraform provider releases — upgrade the `@pulumiverse/cpln` package version |
-
-## Quick reference
-
-### MCP tools
-
-- `mcp__cpln__export_terraform` — HCL for existing resources by self link; bulk via path-depth refs; `generateImports`, `includeDependencies`
-- `mcp__cpln__export_terraform_batch` (full profile) — several explicit links merged into one HCL set
-- `mcp__cpln__convert_to_terraform` — manifest to HCL, dry-run validated first
-- `mcp__cpln__list_terraform_kinds` (full profile) — exporter-supported kinds
-- `mcp__cpln__get_resource_schema` — exact API schema when authoring a manifest to convert
-
-CLI fallback: in CI/CD, `CPLN_TOKEN` + `CPLN_ORG` drive `terraform`/`pulumi` directly; `cpln KIND get -o tf` scaffolds HCL from live resources.
-
-### Related skills
-
-| Skill | Use for |
-|-------|---------|
-| gitops-cicd | pipelines, service account tokens, `cpln apply` workflows |
-| k8s-operator | managing resources as Kubernetes CRDs with ArgoCD |
-| template-catalog | which template and what values before `cpln_catalog_template` |
-| access-control | the service account and policy behind the CI/CD token |
-
-## Documentation
-
-- [IaC Overview](https://docs.controlplane.com/iac/overview.md), [Terraform Provider](https://docs.controlplane.com/iac/terraform.md), [Pulumi Provider](https://docs.controlplane.com/iac/pulumi.md)
-- [cpln apply Guide](https://docs.controlplane.com/guides/cpln-apply.md)
-- [Terraform examples](https://github.com/controlplane-com/examples/tree/main/terraform); pipeline examples for [GitHub Actions](https://github.com/controlplane-com/github-actions-example-terraform), [GitLab CI](https://gitlab.com/controlplane-com/gitlab-pipeline-example-terraform), and [Bitbucket](https://bitbucket.org/controlplane-com/bitbucket-pipeline-example-terraform)

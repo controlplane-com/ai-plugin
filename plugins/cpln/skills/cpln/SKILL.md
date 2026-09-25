@@ -5,7 +5,7 @@ description: "Writes cpln CLI commands and workflows for Control Plane. Use when
 
 # cpln CLI
 
-**MCP first; the CLI is the fallback** — use it when the MCP server is unavailable or unauthenticated, for the CLI-only operations below, and for interactive debugging or scripted GitOps. **In CI/CD the CLI is the primary interface** — pipelines authenticate with a service-account key in `CPLN_TOKEN`, build and push images (`cpln image build --push`, or `--remote` on a runner with no Docker daemon), and apply resources (`cpln apply --ready`). Platform rules (resource model, secrets, destructive ops, production defaults, scale-to-zero, firewall) live in `rules/cpln-guardrails.md`; this skill is the CLI mechanics.
+**MCP first; the CLI is the fallback** — use it when the MCP server is unavailable or unauthenticated, for the CLI-only operations below, and for interactive debugging or scripted GitOps. **In CI/CD the CLI is the primary interface** — pipelines authenticate with a service-account key in `CPLN_TOKEN`, build and push images (`cpln image build --push`, or `--remote` on a runner with no Docker daemon), and apply resources (`cpln apply --ready`). Platform rules (resource model, secrets, destructive ops, production defaults, scale-to-zero, firewall) live in the operating guide (`get_cpln_rules`); this skill is the CLI mechanics.
 
 **Never write a `cpln` command from memory.** Verify every verb and flag with `cpln <command> --help` before quoting it. If a command isn't in the resource command map below, assume it isn't real.
 
@@ -35,7 +35,7 @@ cpln profile update default --org ORG --gvc GVC  # set defaults ("update" create
 
 **CI/CD needs no profile.** With `CPLN_TOKEN` set (service-account key, from `cpln serviceaccount add-key`), the CLI runs a profile-less session against `api.cpln.io`. Add `CPLN_ORG` / `CPLN_GVC` for defaults and `CPLN_SKIP_UPDATE_CHECK=1` to silence update checks. Resolution everywhere is **flag, then env var, then profile**: `--org` beats `CPLN_ORG` beats the profile default — same for `--gvc`/`CPLN_GVC`, `--profile`/`CPLN_PROFILE`, `--endpoint`/`CPLN_ENDPOINT`, `--token`/`CPLN_TOKEN`. Profiles live in `~/.config/cpln` (override with `CPLN_HOME`).
 
-**Never pass `--token`** — it leaks into logs and shell history; use `CPLN_TOKEN` or a profile. Inspect context with `cpln profile get` — **there is no `cpln whoami`.** **`cpln profile token` (prints the profile's live access JWT) is break-glass** — it exposes a live credential: never suggest it or run it on your own; use it only when the user explicitly asks. **Secret data commands are off-limits entirely** — never run or suggest `cpln secret reveal`, `cpln secret create-*`, `cpln secret edit`, or `cpln secret delete`; the user manages secret values and lifecycle themselves. Explain any profile state changes so operators can revert them.
+**Never pass `--token`** — it leaks into logs and shell history; use `CPLN_TOKEN` or a profile. Inspect context with `cpln profile get` — **there is no `cpln whoami`.** **`cpln profile token` (prints the profile's live access JWT) is break-glass** — it exposes a live credential: never suggest it or run it on your own; use it only when the user explicitly asks. **Secret data commands belong to the user** — never run `cpln secret reveal`, `cpln secret create-*`, `cpln secret edit`, or `cpln secret delete` yourself; a user may run `cpln secret create-* --file` with a value they hold. Explain any profile state changes so operators can revert them.
 
 ## Command structure & shared flags
 
@@ -156,15 +156,16 @@ cpln logs '{gvc="GVC", workload="WORKLOAD"}' --org ORG --tail
 ### cpln workload create
 
 ```bash
-cpln workload create --name APP --image IMAGE --gvc GVC [flags]
+cpln workload create --name WORKLOAD --image IMAGE --gvc GVC [flags]
 ```
 
 `--type` (`serverless|standard`, default `standard`) — **`stateful` and `cron` CANNOT be created via CLI flags; use `cpln apply --file`.** Other flags: `--port` (default 8080 — must match the container's listening port), `--public`, `--identity`, `--env KEY=VALUE`, `--cpu` (default 50m), `--memory`/`--mem` (default 128Mi), `--volume`, `--container-name`, `--inherit-env`. Internal images: `//image/NAME:TAG`.
 
 ### Debugging — exec / connect / run / cron / replica
 
-- **exec** — one-shot command in an existing replica: `cpln workload exec APP --gvc GVC -- ls -la`. **The `-- CMD ARG1 ARG2...` part must be last on the line** — every cpln flag (`--container`, `--location`, `--replica`, `--stdin`/`-i`, `--tty`/`-t`, `--quiet`/`-q`) goes before the `--`; everything after it runs in the replica (same rule for `run` and `cron run`)
-- **connect** — interactive shell: `cpln workload connect APP --gvc GVC` (`--shell`, default `bash`; same targeting flags)
+- **exec** — one-shot command in an existing replica: `cpln workload exec WORKLOAD --gvc GVC -- ls -la`. **The `-- CMD ARG1 ARG2...` part must be last on the line** — every cpln flag (`--container`, `--location`, `--replica`, `--stdin`/`-i`, `--tty`/`-t`, `--quiet`/`-q`) goes before the `--`; everything after it runs in the replica (same rule for `run` and `cron run`)
+- **connect** — interactive shell: `cpln workload connect WORKLOAD --gvc GVC` (`--shell`, default `bash`; same targeting flags)
+- **Secret values:** output from inside a container (`env`, config files) holds the resolved values of its `cpln://secret` references, so never repeat it. The workload spec shows the references without values.
 - **run** — temporary workload + command: `cpln workload run --image IMAGE --gvc GVC -- CMD` (`--clone WORKLOAD`, `--rm`, `-i`, `--cpu`, `--memory`, `--command`/`-c`, `--arg`/`-a`, `--location`)
 - **cron run** — one-off execution of a cron workload: `cpln workload cron run --gvc GVC -- CMD` (`--background`/`-b`, `--timeout` default 600s, `--identity`, `--image`, `--env`)
 - **cron start** — trigger the job now, optionally overriding `--env`, `--command`, `--arg`, `--active-deadline-seconds`; **cron stop** REF needs `--replica-name` + `--location` (both required); **cron get** REF lists job executions
@@ -206,7 +207,7 @@ Dedicated verb per operation; the flags are **singular** — `--location`, `--vo
 | Delete volume | `cpln volumeset volume delete REF [--location LOC] [--volume-index N]` | Destructive (data loss) |
 | Shrink volume | `cpln volumeset shrink REF --new-size GIB [--location LOC]` | **DESTRUCTIVE — permanent data loss** |
 
-`shrink` provisions a new, smaller volume and removes the old one — data is **not** migrated. Safe only with built-in redundancy (Kafka replication; Cassandra/CockroachDB), on `ext4`/`xfs` (not `shared`). Apply the destructive-op confirmation from `rules/cpln-guardrails.md` first. Detail: `stateful-storage` skill.
+`shrink` provisions a new, smaller volume and removes the old one — data is **not** migrated. Safe only with built-in redundancy (Kafka replication; Cassandra/CockroachDB), on `ext4`/`xfs` (not `shared`). Apply the destructive-op confirmation from the operating guide (`get_cpln_rules`) first. Detail: `stateful-storage` skill.
 
 ## Commands that don't exist
 
@@ -262,7 +263,7 @@ cpln workload get-deployments my-app --gvc my-gvc   # verify readiness
 
 ## Workflow: Grant secret access (3 steps)
 
-The 3-step rule (identity + policy + reference) is owned by `rules/cpln-guardrails.md`. The secret must already exist (created by the user — offer to draft the manifest for them to fill and apply; `setup-secret` skill). CLI fallback:
+The 3-step rule (identity + policy + reference) is owned by the operating guide (`get_cpln_rules`). The secret must already exist (`create_secret`, or the manifest path in `setup-secret`). CLI fallback:
 
 ```bash
 cpln identity create --name my-app-identity --gvc my-gvc --org my-org
@@ -308,21 +309,4 @@ cpln port-forward my-app 8080:8080 --gvc my-gvc                          # probe
 
 ## Platform rules & integration
 
-Scale-to-zero/autoscaling, production defaults/probes, Template Catalog first, destructive ops, secrets, and firewall rules live in `rules/cpln-guardrails.md` and their dedicated skills — not duplicated here. Before authoring any apply YAML / CI manifest / API body, call `get_resource_schema`. IaC: Terraform (`controlplane-com/cpln` provider), Pulumi (`@pulumiverse/cpln`), K8s Operator (`cpln operator install`).
-
-## Related skills
-
-| Need | Skill |
-|---|---|
-| Remote vs local build detail, buildx fallback, pull secrets | `image` |
-| LogQL beyond the basics, per-execution cron queries | `logql-observability` |
-| Query language (`--match` / `--tag` / `--rel`) | `query-spec` |
-| Volumeset semantics and shrink safety | `stateful-storage` |
-| K8s / Compose / Helm migration | `migration-patterns` |
-| Pipelines and GitOps patterns | `gitops-cicd` |
-| Terraform / Pulumi / K8s operator | `iac-terraform-pulumi`, `k8s-operator` |
-
-## Documentation
-
-- Platform guardrails & resource model: `rules/cpln-guardrails.md`
-- [Control Plane Docs](https://docs.controlplane.com) · [AI page index](https://docs.controlplane.com/llms.txt) · [CLI Reference](https://docs.controlplane.com/cli-reference/overview.md)
+Scale-to-zero/autoscaling, production defaults/probes, Template Catalog first, destructive ops, secrets, and firewall rules live in the operating guide (`get_cpln_rules`) and their dedicated skills — not duplicated here. Before authoring any apply YAML / CI manifest / API body, call `get_resource_schema`. IaC: Terraform (`controlplane-com/cpln` provider), Pulumi (`@pulumiverse/cpln`), K8s Operator (`cpln operator install`). Docs index for agents: https://docs.controlplane.com/llms.txt

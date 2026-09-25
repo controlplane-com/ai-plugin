@@ -5,8 +5,6 @@ description: "Queries workload logs with LogQL on Control Plane. Use to troubles
 
 # LogQL & Log Observability
 
-> **Tool availability:** `get_workload_logs` is advertised on every toolset profile, `readonly` included. Some other MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads work on every profile via the generic `list_resources` / `get_resource` tools; `delete_resource` is on every profile except `readonly`.
-
 Control Plane stores workload stdout/stderr in Loki and queries it with LogQL. The org is the Loki tenant — it comes from the endpoint path, so `org` is never a query label and queries cannot cross orgs. Reading logs requires the org-level `readLogs` permission, and the in-pod `CPLN_TOKEN` cannot authenticate to the logs endpoint — use a user or service-account token (see the `workload` skill). The recurring agent failure is passing a raw `query` to the MCP tool alongside structured params: a raw query replaces them entirely (the tool rejects the combination), so a raw query must embed every label itself.
 
 ## Two ways to query
@@ -107,13 +105,7 @@ cpln logs '{gvc="GVC", workload="WORKLOAD", location="LOCATION", replica="REPLIC
 
 `jobExecutions` timestamps are ISO 8601 and pass straight through. Pad the window a minute or two on each side, and widen it before concluding logs do not exist. For a live run (`active`, no `completionTime`), drop `--to` and add `--tail`.
 
-## Quick reference
-
-| Tool | Use |
-|:---|:---|
-| `mcp__cpln__get_workload_logs` | LogQL queries — structured params or raw `query` |
-| `mcp__cpln__list_deployments` | Deployment health; cron `status.jobExecutions` (pass `location`) |
-| `mcp__cpln__get_workload_events` | Probe failures, scheduling, restarts — events, not app logs |
+## CLI fallback
 
 CI/CD and headless use: set `CPLN_TOKEN` and run `cpln logs` directly (no profile needed); the principal must hold org `readLogs`.
 
@@ -129,19 +121,3 @@ CI/CD and headless use: set `CPLN_TOKEN` and run `cpln logs` directly (no profil
 | Health checks absent from `_accesslog` | Filtered by design; probe failures surface in `mcp__cpln__get_workload_events` |
 | MCP rejects raw `query` combined with `workload` etc. | A raw query replaces the structured params — embed all labels in the query itself |
 | `cpln workload log` shows no app output | That is the eventlog alias; use `cpln logs` |
-
-## Related skills
-
-| Skill | Owns |
-|:---|:---|
-| `workload` | Deploy and diagnose flow, injected `CPLN_*` env vars, canonical URLs |
-| `metrics-observability` | PromQL, default metrics, Grafana alert rules, Prometheus federation |
-| `external-logging` | Shipping logs to S3, Datadog, Coralogix, and other providers |
-| `mk8s-byok` | mk8s cluster logs add-on (`cluster_name` / `namespace` labels) |
-
-## Documentation
-
-- [Logs Reference](https://docs.controlplane.com/core/logs.md)
-- [CLI logs Command](https://docs.controlplane.com/cli-reference/commands/logs.md)
-- [External Logging Overview](https://docs.controlplane.com/external-logging/overview.md)
-- [LogQL (upstream Grafana reference)](https://grafana.com/docs/loki/latest/query/)

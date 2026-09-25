@@ -5,8 +5,6 @@ description: "Sets up CI/CD pipelines and GitOps for Control Plane. Use when the
 
 # GitOps & CI/CD
 
-> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads work on every profile via the generic `list_resources` / `get_resource` tools; `delete_resource` is on every profile except `readonly`.
-
 In pipelines the **CLI is the primary interface**: authenticate with a service-account key in `CPLN_TOKEN` (no profile needed), push an image, `cpln apply --ready` the manifests. MCP tools do the work around the pipeline — `mcp__cpln__get_resource_schema` before authoring manifests, `mcp__cpln__list_deployments` to confirm a deploy landed. The usual failure is image builds: `cpln image build` runs the build **locally through Docker**, so a runner without a daemon needs a different flow — a daemonless builder, or `--remote` to build on Control Plane. Pick by runner capability, not by habit.
 
 ## Service-account authentication
@@ -16,7 +14,7 @@ cpln serviceaccount create --name ci-deployer --org ORG
 cpln serviceaccount add-key ci-deployer --description "ci key" --org ORG   # --description is required
 ```
 
-The JSON response's `key` value is the credential — store it as a masked/secret variable in the CI platform. MCP: `mcp__cpln__add_key_to_service_account` does both steps (and creates the service account if missing).
+The JSON response's `key` value is the credential — store it as a masked/secret variable in the CI platform. MCP: `mcp__cpln__add_key_to_service_account` (full profile) does both steps (and creates the service account if missing).
 
 Grant least privilege (`access-control` skill): pushing images needs `create` on the `image` kind; `cpln apply` needs create/edit on every kind the manifests contain. `cpln group add-member superusers --serviceaccount ci-deployer` works but grants full org access — prefer a scoped policy (`mcp__cpln__create_policy`).
 
@@ -116,7 +114,7 @@ Official starter repos (CLI): [GitHub Actions](https://github.com/controlplane-c
 ## Verify
 
 - In-pipeline: the `cpln apply --ready` exit code is the deploy gate.
-- Out-of-band: `mcp__cpln__list_deployments` for per-location readiness, `mcp__cpln__get_resource` (kind="image") to confirm the push landed. A workload that never goes ready: `workload` skill or the `/cpln:troubleshoot` command.
+- Out-of-band: `mcp__cpln__list_deployments` for per-location readiness, `mcp__cpln__get_resource` (kind="image") to confirm the push landed. A workload that never goes ready: `mcp__cpln__diagnose_workload`.
 
 ## Troubleshooting
 
@@ -134,31 +132,3 @@ Official starter repos (CLI): [GitHub Actions](https://github.com/controlplane-c
 | Pipeline pushed, workload kept the old code | Same tag re-pushed — use unique tags, `supportDynamicTags`, or `cpln workload force-redeployment` |
 | `--ready` exits non-zero after ~5 min | Workload never became ready — check `mcp__cpln__list_deployments` and workload events |
 | `exec format error` at runtime | Image isn't `linux/amd64` (`image` skill) |
-
-## Quick reference
-
-| Tool | Purpose |
-|---|---|
-| `mcp__cpln__get_resource_schema` | Manifest shape for any kind before authoring |
-| `mcp__cpln__add_key_to_service_account` | Pipeline service account + key in one call |
-| `mcp__cpln__create_policy` | Scope the pipeline service account's permissions |
-| `mcp__cpln__list_deployments` | Per-location readiness after a deploy |
-| `mcp__cpln__export_terraform` / `mcp__cpln__convert_to_terraform` | Seed IaC pipelines from live resources or manifests |
-
-## Related skills
-
-| Skill | When |
-|---|---|
-| `cpln` | CLI conventions — profile-less sessions, flag/env/profile precedence |
-| `image` | Build mechanics — the remote vs local table, buildpacks, registry auth, pull secrets |
-| `environment-promotion` | Moving images/configs across dev/staging/prod, rollback patterns |
-| `iac-terraform-pulumi` | Terraform/Pulumi pipelines instead of `cpln apply` |
-| `access-control` | Service accounts, groups, policies, least privilege |
-
-## Documentation
-
-- [CI/CD usage](https://docs.controlplane.com/cli-reference/ci-cd-development/ci-cd.md)
-- [Using the CLI in containers](https://docs.controlplane.com/cli-reference/ci-cd-development/container-image.md)
-- [CI/CD example repos](https://docs.controlplane.com/guides/gitops.md)
-- [cpln apply](https://docs.controlplane.com/guides/cpln-apply.md)
-- [Create a service account](https://docs.controlplane.com/guides/create-service-account.md)

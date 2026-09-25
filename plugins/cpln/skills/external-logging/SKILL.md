@@ -5,7 +5,7 @@ description: "Ships Control Plane org logs to external providers. Use when the u
 
 # External Logging
 
-> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads work on every profile via the generic `list_resources` / `get_resource` tools; `delete_resource` is on every profile except `readonly`.
+> **Tool availability:** the external logging tools need `?toolsets=full`.
 
 External logging lives on the **org** (`spec.logging` plus `spec.extraLogging`) and ships **every workload log in the org** — there is no per-GVC or per-workload filtering. One primary provider plus up to 3 extras (4 total); each logging block holds exactly one provider key. Logs stay queryable in built-in LogQL regardless (separate org retention, `spec.observability.logsRetentionDays`, default 30 days). The recurring failure is credentials: each provider needs a pre-created secret of the exact type below — a wrong-type secret passes configuration and the log router then **silently skips that provider**, so logs simply never arrive.
 
@@ -39,7 +39,7 @@ In YAML the variant is a nested object under `elastic`; the MCP tool flattens it
 
 ## Configure (MCP first)
 
-1. **Ensure the credential secret exists — but do not pull its value into the chat.** The provider key is the user's own confidential credential: never ask them to paste it here, never pass it as a tool argument, and never invent a placeholder value. Offer to draft the secret manifest with a placeholder for the user to fill and apply (type per the table — usually opaque, `payload` = the raw API key, `encoding: plain`; shapes in `setup-secret`), then **confirm it exists with `mcp__cpln__get_resource` (kind `secret`) before wiring anything** — referencing a secret that does not exist makes the log router silently skip the provider. No workload identity or policy is needed — the 3-step secret flow applies to workloads consuming secrets, not to org logging.
+1. **Ensure the credential secret exists — but do not pull its value into the chat.** The provider key is the user's own confidential credential: never ask them to paste it here, never pass it as a tool argument, and never invent a placeholder value. `create_secret` with the type from the table and `values: "user"` (usually opaque, `payload` = the raw API key, `encoding: plain`), then **confirm it exists with `mcp__cpln__get_resource` (kind `secret`) before wiring anything** — referencing a secret that does not exist makes the log router silently skip the provider. No workload identity or policy is needed — the 3-step secret flow applies to workloads consuming secrets, not to org logging.
 2. `mcp__cpln__get_external_logging` — see what is already configured and where.
 3. `mcp__cpln__configure_external_logging`, once per provider. Placement is automatic: with no primary it becomes `spec.logging`; additional providers append to `spec.extraLogging`; re-configuring a provider that is already present updates it in place; a 4th extra errors with "maximum 3 extra logging providers reached". `credentials` takes a bare secret name or `//secret/NAME`. Syslog `mode`/`format`/`severity` are optional here — the tool fills tcp / rfc5424 / 6.
 4. `mcp__cpln__remove_external_logging` is **destructive — confirm first**: shipping to that destination stops immediately, a compliance/retention gap until reconfigured. Removing the primary promotes the first extra to primary.
@@ -103,28 +103,3 @@ Every entry carries `time` and `log` plus the labels `org`, `gvc`, `workload`, `
 | "maximum 3 extra logging providers reached" | 4 providers total is the cap — remove one first |
 | xor validation error on a logging block | Exactly one provider key per block — extra providers are separate `extraLogging` entries |
 | Datadog/Coralogix/Logz.io value rejected | `host`/`cluster`/`listenerHost` are fixed enums — see the table |
-
-## Quick reference — MCP tools
-
-| Tool | Action |
-|---|---|
-| `mcp__cpln__get_external_logging` | Show primary + extra providers |
-| `mcp__cpln__configure_external_logging` | Add or update one provider (automatic primary/extra placement) |
-| `mcp__cpln__remove_external_logging` | Remove a provider (destructive; removing the primary promotes the first extra) |
-
-CLI fallback (CI/CD: `CPLN_TOKEN` + `cpln apply` — read the `cpln` skill first): edit the org manifest as shown above.
-
-## Related skills
-
-| Need | Skill |
-|---|---|
-| Query logs inside Control Plane (LogQL, Grafana) | `logql-observability` |
-| Metrics and tracing export | `metrics-observability` |
-| Creating credential secrets, RBAC | `access-control` |
-| Org settings: retention, tracing, auth | `org-management` |
-
-## Documentation
-
-- [External Logging Overview](https://docs.controlplane.com/external-logging/overview.md)
-- Per provider: [S3](https://docs.controlplane.com/external-logging/s3.md), [CloudWatch](https://docs.controlplane.com/external-logging/cloudwatch.md), [Coralogix](https://docs.controlplane.com/external-logging/coralogix.md), [Datadog](https://docs.controlplane.com/external-logging/datadog.md), [Logz.io](https://docs.controlplane.com/external-logging/logz-io.md), [Stackdriver](https://docs.controlplane.com/external-logging/stackdriver.md), [Syslog](https://docs.controlplane.com/external-logging/syslog.md)
-- Elastic, Fluentd, and OpenTelemetry have no docs pages — the MCP tool description is the reference.

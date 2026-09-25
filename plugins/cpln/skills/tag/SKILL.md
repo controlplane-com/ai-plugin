@@ -135,15 +135,3 @@ New workloads tagged `environment=production` fall under the policy automaticall
 
 - `cpln KIND get NAME -o yaml` — confirm the `tags:` block.
 - `cpln KIND query --tag key=value` — confirm the resource is selected by the tag a policy or group will use.
-
-## Related skills
-
-- **query-spec** — the query language: operators, match modes, and the three fields tags feed (`targetQuery`, `memberQuery`, `locationQuery`).
-- **access-control** — policy `targetQuery` and group `memberQuery` in context.
-- **workload-security** / **cdn-rate-limiting** — the `cpln/externalAuth*` and `cpln/rateLimit*` tag families.
-- **domain** — `cpln/clientCertificateValidation`, `cpln/skipDNSCheck`, `cpln/wildcard`.
-- **cpln** — the full CLI resource-command map.
-
-## Documentation
-
-- [Tags](https://docs.controlplane.com/core/misc.md) · [Query](https://docs.controlplane.com/core/query.md) · [Resource Protection](https://docs.controlplane.com/guides/resource-protection.md) · [Workload special tags](https://docs.controlplane.com/reference/workload/general.md)

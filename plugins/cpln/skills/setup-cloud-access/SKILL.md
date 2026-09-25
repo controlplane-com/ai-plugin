@@ -5,11 +5,13 @@ description: Credential-free cloud access (Universal Cloud Identity) for a Contr
 
 # Cloud Access Setup (Universal Cloud Identity)
 
-> **Tool availability:** the cloud-account tools (`create_cloud_account`, `update_cloud_account`, `how_to_create_<provider>_cloud_account`) live in the **`full`** profile. `create_identity` / `update_identity` and `update_workload` are **`core`**. If a full tool isn't advertised, reconnect with `?toolsets=full` or use the `cpln` CLI. The `nats-account` / `azure-connector` secret a cloud account references must already exist — created by the user; offer to draft the manifest for them to fill and apply (`setup-secret` skill). Reads work on every profile via `list_resources` / `get_resource`; `delete_resource` is on every profile except `readonly`.
+> **Tool availability:** `create_cloud_account`, `update_cloud_account`, and `how_to_create_cloud_account` need `?toolsets=full`; `grant_cloud_access` is core.
 
 A workload reads cloud resources with **no embedded keys**: a GVC-scoped **identity** carries a per-provider cloud-access block that federates with the provider's IAM, and Control Plane vends short-lived credentials at runtime. Cloud SDKs (boto3, google-cloud, @azure/sdk) pick them up automatically — no SDK config.
 
 ## The chain
+
+**One call once the cloud account exists:** `mcp__cpln__grant_cloud_access` (`workload`, `provider`, `cloudAccount`, and the provider block from step 3) ensures the workload's identity, attaches the cloud account to it, and waits for `status.<provider>.usable`. Steps 3 and 4 below are what it does, for hand-built setups.
 
 | Step | What must be true | Without it |
 |---|---|---|
@@ -30,10 +32,10 @@ Order is strict: the cloud account must exist **before** the identity's cloud bl
 
 Each provider needs IAM configured **on the provider side first** so Control Plane can assume a role / impersonate a service account. Run the per-provider how-to to get the org-specific values (Control Plane's AWS account ID + external ID, the GCP service-account email, the Azure Function-App connector steps) — **never guess these**:
 
-- `how_to_create_aws_cloud_account` — trust policy, account ID, external ID, the IAM permissions for the `cpln-connector` policy. Create an IAM role with that trust policy + connector policy + `ReadOnlyAccess`; note the **role ARN**.
-- `how_to_create_gcp_cloud_account` — add the shown service account as an IAM principal with **Viewer, Project IAM Admin, Service Account Admin, Service Account Token Creator** (plus the service Admin role, e.g. `roles/storage.admin`, for each resource type identities will use); note the **project ID**.
-- `how_to_create_azure_cloud_account` — create a Function App, deploy the connector, make it subscription **Owner**, capture the Function URL + `iam-broker` code into an `azure-connector` secret.
-- `how_to_create_ngs_cloud_account` — create a `nats-account` secret holding your NATS account credentials.
+- `how_to_create_cloud_account` with `provider: aws` (`cloudAccountName`, `awsAccountId`, `roleArn`) — trust policy, account ID, external ID, the IAM permissions for the `cpln-connector` policy. Create an IAM role with that trust policy + connector policy + `ReadOnlyAccess`; note the **role ARN**.
+- `how_to_create_cloud_account` with `provider: gcp` (`projectId`) — add the shown service account as an IAM principal with **Viewer, Project IAM Admin, Service Account Admin, Service Account Token Creator** (plus the service Admin role, e.g. `roles/storage.admin`, for each resource type identities will use); note the **project ID**.
+- `how_to_create_cloud_account` with `provider: azure` (`subscriptionId`, `resourceGroupName`, `storageAccountName`, `locationName`, `functionAppName`) — create a Function App, deploy the connector, make it subscription **Owner**, capture the Function URL + `iam-broker` code into an `azure-connector` secret.
+- `how_to_create_cloud_account` with `provider: ngs` (`secretName`) — create a `nats-account` secret holding your NATS account credentials.
 
 CLI fallback: `cpln cloudaccount create-<provider> --how --org ORG`.
 
@@ -87,29 +89,3 @@ Reaching a private VPC / on-prem endpoint is a different mechanism on the **same
 - **Not checking `status.<provider>.usable`** — verify `true` before linking to the workload.
 - **Confusing cloud access with secret access** — cloud access is the identity's `aws`/`gcp`/`azure`/`ngs` block; secret access is a `reveal` policy on a `cpln://secret/` reference (see **setup-secret**).
 - **Sharing an identity across GVCs** — recreate it per GVC.
-
-## Quick reference — MCP tools
-
-| Tool | Purpose |
-|---|---|
-| `how_to_create_<provider>_cloud_account` | Org-specific cloud-side IAM steps (run first) |
-| `create_cloud_account` / `update_cloud_account` | Register / edit a cloud account (provider immutable) |
-| `get_resource` (kind `secret`) | Verify the NGS / Azure connector secret exists before referencing it |
-| `create_identity` / `update_identity` | Create / edit the identity, including its cloud-access block |
-| `update_workload` | Set `spec.identityLink` |
-| `get_resource` / `list_resources` / `delete_resource` (kind `cloud_account` / `identity`) | Read / delete on any profile |
-
-## Related skills
-
-| Need | Skill |
-|---|---|
-| Private-VPC / on-prem connectivity, PrivateLink/PSC schema | native-networking |
-| Deploy the wormhole agent for a private network | setup-agent |
-| Identity, policy, and `reveal` for `cpln://secret/` refs | setup-secret |
-| Policy shape, permissions, principals | access-control |
-
-## Documentation
-
-- [Accessing Cloud Resources](https://docs.controlplane.com/core/accessing-cloud-resources.md)
-- [Create a Cloud Account](https://docs.controlplane.com/guides/create-cloud-account.md)
-- [Cloud Account Reference](https://docs.controlplane.com/reference/cloudaccount.md) · [Identity Reference](https://docs.controlplane.com/reference/identity.md)

@@ -5,8 +5,6 @@ description: "Builds, pushes, and manages container images on Control Plane. Use
 
 # Control Plane Images
 
-> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads work on every profile via the generic `list_resources` / `get_resource` tools; `delete_resource` is on every profile except `readonly`.
-
 Every org gets a private registry at `ORG.registry.cpln.io` — a standard Docker registry (`docker login`/`push`/`pull`/`search` all work). Pushing a tag automatically creates an **image resource** named `NAME:TAG` in the org (read-only `repository`, `tag`, `digest`, `manifest` fields; only metadata tags are editable). An image resource is never created directly — `POST /org/ORG/image` returns 403 "You can create an image only by pushing" — but a **build** can run on Control Plane instead of local Docker (`cpln image build --remote`), which is the answer whenever there is no Docker daemon. The recurring failures are a wrong reference form, a non-`linux/amd64` image (`exec format error`), and a missing or mismatched pull secret.
 
 ## Image references
@@ -51,9 +49,9 @@ cpln image build --name my-app:v1.0 --remote --detach                          #
 - **A private repo builds through the org's git connection, set up once.** The first build that needs it opens a browser to an authorization URL and then continues on its own; in a **non-interactive shell the CLI prints the URL and exits** — authorize, then re-run. The link is single-use and expires shortly. Later builds are silent.
 - **Watching is not the build.** Logs stream until the push. `Ctrl+C` stops watching and **the build keeps running remotely** — check it with `cpln image get NAME:TAG`. The CLI also gives up watching after 20 minutes, which is not a failure either.
 
-### App files written over MCP (no repository, no folder)
+### Builds over MCP
 
-For a client that cannot write files or run commands (ChatGPT, Claude web and desktop), or one that has a filesystem but no working `cpln` CLI: an app the assistant writes for the user is stored on Control Plane with `mcp__cpln__write_app_files` (whole text files, appends, exact-text edits, deletions; stored per org and app NAME between calls) and built with `mcp__cpln__build_image` **without** `repoUrl`, which produces `//image/NAME:TAG` under the same NAME. The build auto-detects the stack, or uses the `Dockerfile` when one is stored. `mcp__cpln__get_app_files` lists or reads the stored files and returns a short-lived download link. Every image the build service pushes carries provenance tags: `builder.cpln.io/source` (`app-files`, `folder`, or `repository`), `builder.cpln.io/repo`, `builder.cpln.io/build`, and `builder.cpln.io/digest`; an image without them was pushed outside a Control Plane build. `get_app_files` reads them, which makes it the first call when asked to change an app whose origin the session does not know. An agent with a filesystem and a working `cpln` CLI writes the folder on the machine and builds it with `cpln image build --remote --dir` instead, unless the user prefers the app on Control Plane. The end-to-end journey from the user's request to a running URL, including naming, GVC and location, workload sizing, and iteration, is the `create-app` skill.
+`deploy_app` and `build_image` build from a repository or from app files stored with `write_app_files` (the `create-app` skill); a folder on the user's machine needs the CLI. Every image the build service pushes carries provenance tags: `builder.cpln.io/source` (`app-files`, `folder`, or `repository`), `builder.cpln.io/repo`, `builder.cpln.io/build`, and `builder.cpln.io/digest`. An image without them was pushed outside a Control Plane build; `get_app_files` reads them to say where an app's code lives.
 
 ### Local builds
 
@@ -89,7 +87,7 @@ docker push my-org.registry.cpln.io/my-app:v1.0
 - **Private registries (including other Control Plane orgs):** attach a secret to the **GVC** at `spec.pullSecretLinks` — it applies to all workloads in the GVC; there is no per-workload attachment. Only three secret types work as pull secrets: `docker` (Docker Hub, GHCR, ACR, GAR, other Control Plane orgs — matched to images by registry host in its `auths`), `ecr` (its `repos` list must contain the image's repository; credentials are exchanged for ECR tokens and refreshed automatically), and `gcp` (matched only for images under its own project: `gcr.io/PROJECT/...` or `REGION-docker.pkg.dev/PROJECT/...`).
 - **Failures are silent:** a linked secret of the wrong type, or one that fails to materialize, is skipped at deploy with no configuration-time error — the symptom is only an image-pull failure on the replica.
 
-Attach with `mcp__cpln__update_gvc` (`pullSecretLinks` is **merged** with existing links; `removePullSecretLinks` removes; an empty list clears all). The registry secret (`docker` — single `dockerConfigJson` string, for another Control Plane org username is the literal `<token>` and the password a service-account key — `ecr`, or `gcp`) must already exist — if it doesn't, offer to draft the manifest for the user to fill and apply (`setup-secret` skill). CLI fallback: `cpln gvc update GVC --set 'spec.pullSecretLinks+=//secret/NAME' --org ORG`. The full cross-org setup (source-org service account, pull policy, target-org secret, GVC) is in the `environment-promotion` skill; `cpln image copy NAME:TAG --to-org ORG2 [--to-name NEW] [--to-profile P] [--cleanup]` is the one-time alternative — it docker-logins both orgs, then pulls, retags, and pushes through the **local Docker daemon** (needs `pull` on the source, `create` on the destination).
+Attach with `mcp__cpln__update_gvc` (`pullSecretLinks` is **merged** with existing links; `removePullSecretLinks` removes; an empty list clears all). The registry secret (`docker`, `ecr`, or `gcp`) comes from `create_secret` with `values: "user"`; for another Control Plane org the docker username is the literal `<token>` and the password a service-account key. CLI fallback: `cpln gvc update GVC --set 'spec.pullSecretLinks+=//secret/NAME' --org ORG`. The full cross-org setup (source-org service account, pull policy, target-org secret, GVC) is in the `environment-promotion` skill; `cpln image copy NAME:TAG --to-org ORG2 [--to-name NEW] [--to-profile P] [--cleanup]` is the one-time alternative — it docker-logins both orgs, then pulls, retags, and pushes through the **local Docker daemon** (needs `pull` on the source, `create` on the destination).
 
 ## Permissions
 
@@ -121,7 +119,7 @@ For production, prefer immutable tags (commit SHA, semver) or digest pinning; re
 
 - After a push: `mcp__cpln__get_resource` (kind="image", name="NAME:TAG") — check `digest` and `lastModified`; `mcp__cpln__list_resources` (kind="image") to list.
 - After a workload image change: `mcp__cpln__list_deployments` for per-location readiness; with dynamic tags, inspect `status.resolvedImages` via `mcp__cpln__get_resource` (kind="workload") for `errorMessages` and the resolved digest.
-- After a detached or interrupted remote build: `cpln image get NAME:TAG --org ORG` — the image appears only once the build pushes. `mcp__cpln__get_image_build` reads a build's status and log by id.
+- After a detached or interrupted remote build: `cpln image get NAME:TAG --org ORG`; the image appears only once the build pushes. `mcp__cpln__get_image_build` reads a build's status and log by id; pass `waitSeconds` to wait for it instead of reading it again and again.
 - CLI fallback (CI/CD): `CPLN_TOKEN` + `cpln image get NAME:TAG --org ORG -o json`.
 
 ## Troubleshooting
@@ -142,28 +140,3 @@ For production, prefer immutable tags (commit SHA, semver) or digest pinning; re
 | `status.resolvedImages.errorMessages`: "unable to parse image" | Resolver limitation for single-segment images with non-alphanumeric tags (`nginx:1.25`) — reference it as `library/nginx:1.25` |
 | `errorMessages`: "Backing off due to a rate-limit" | Upstream registry returned 429 to tag resolution — wait, or authenticate the registry via a pull secret |
 | Buildpack image builds but exits immediately | Missing `Procfile` (required for Python and PHP; no web-server auto-detection) |
-
-## Quick reference
-
-MCP tools — an image **record** is never created directly (no create-, update-, push-, or copy-image tool); a build is the one write path:
-
-- `mcp__cpln__write_app_files`: write or edit an app's files under an app NAME (whole text files, appends for a large file in parts, exact-text edits, deletions, and `mcp__cpln__create_app_files_upload_link` for files the user must upload through a link, because neither a chat attachment nor a binary can travel in the call). They are stored on Control Plane between calls, so a larger app goes across several calls (200 files and 100 MB per call; 100 MB per file, 1 GB per app). The same NAME is the image name `build_image` produces. Never include credentials or a `.env` with values: reference secrets from the workload instead. A Dockerfile is optional (common stacks are auto-detected).
-- `mcp__cpln__build_image`: start a build **from a GitHub/GitLab HTTPS repo** (`repoUrl`) **or from the stored app files** (omit `repoUrl`) and push to the org registry. A build **from a folder on the user's machine is impossible over MCP** (the server cannot read their filesystem): route it to `cpln image build --remote --dir PATH`, or write the files with `write_app_files`.
-- `mcp__cpln__get_image_build`: poll a started build's status and log by the id `build_image` returned.
-- `mcp__cpln__get_app_files`: list an app's stored files, read one (in slices for a large file), or (`download: true`) get a short-lived tar.gz link so the user keeps the code. It returns files, never an image, and reports where each of the app's images was built from.
-- `mcp__cpln__list_resources` / `mcp__cpln__get_resource` (kind="image") — list, or inspect tags/digest/manifest.
-- `mcp__cpln__delete_resource` (kind="image", name="NAME:TAG") — removes that image record from the org (destructive).
-- `mcp__cpln__update_gvc` — attach existing pull secrets (`docker` / `ecr` / `gcp`, created by the user).
-- `mcp__cpln__update_workload` — change a container's image; `mcp__cpln__get_resource_schema` (kind="image") for the exact resource shape.
-
-### Related skills
-
-- **workload** (container spec, where the image reference lives) and **gitops-cicd** (building and pushing from CI) are the usual next hops; **create-app** is the journey when the assistant writes the app itself.
-- Also: **environment-promotion** (cross-org sharing), **access-control** (policy mechanics), **cpln** (CLI conventions).
-
-## Documentation
-
-- [Image Reference](https://docs.controlplane.com/reference/image.md) — resource, permissions, dynamic tags
-- [Build options — local and remote](https://docs.controlplane.com/cli-reference/get-started/images.md#build-options) — the canonical remote-build reference
-- [Push an Image](https://docs.controlplane.com/guides/push-image.md) | [Pull an Image](https://docs.controlplane.com/guides/pull-image.md) | [Copy an Image](https://docs.controlplane.com/guides/copy-image.md)
-- [CLI Image Commands](https://docs.controlplane.com/cli-reference/commands/image.md) · [Buildpacks Guide](https://docs.controlplane.com/guides/buildpacks.md)

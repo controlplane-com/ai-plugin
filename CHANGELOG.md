@@ -8,11 +8,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Added
 
+- A short always-on core rule set (`cpln-core.md`); the full operating guide is read only when a task needs it.
+- `create_mk8s` and `update_mk8s` replace the 22 per-provider mk8s tools: pass `provider` and the provider block as `spec`; `how_to_create_cloud_account` replaces the four per-provider how-to tools; `install_template` takes `dryRun`.
+- Guidance for the new MCP tools `deploy_app`, `add_database`, `diagnose_workload`, `create_secret`, `rotate_secret`, `restart_workload`, `rollback_workload`, `promote_workload`, `allow_workload_access`, and `grant_cloud_access`; `create_domain` takes `workload` and `gvc` and derives the listener and route; `add_database` installs Redis.
+
 ### Changed
+
+- `add_key_to_service_account` and `create_agent` return a Console link where the user creates the key or agent and sees the credential once; nothing sensitive reaches the chat.
+- Secret values never pass through the chat: Control Plane generates values nobody needs to know, and the user types their own into the Console.
+- Each session starts with only the short core rules, without their frontmatter, instead of the full operating guide.
+- No rule or skill has to be read before a tool call, and skills drop the boilerplate that restated tool descriptions.
+- The operating guide (`get_cpln_rules`) keeps only the approval rule for high-impact actions, the platform facts the tools do not check, and failure handling; each rule has one home across the rules and skills.
+- The operating guide names the `cpln/managedByTerraform` tag that Terraform and Pulumi stamp on the resources they own, so a live change to one is raised with the user first.
+- The operating guide says to create only what a task needs, never a placeholder, and to call a tool rather than hand the user a command. The `cpln` skill warns that output from inside a container holds resolved secret values, and links the docs index for agents.
+- Claude Code and Cursor connect with `?toolsets=full&skills=plugin`, and Codex and Antigravity with `?toolsets=core&skills=plugin`. The flag leaves the skills to the plugin; the core rules still come with every MCP handshake.
 
 ### Fixed
 
+- The Template Catalog skill no longer claims templates generate credentials; a template's prerequisite secret is created before the install.
+- Corrected facts: containers receive SIGTERM at termination; an omitted autoscaling metric on a standard workload with Capacity AI resolves to `disabled`; the service account kind is `serviceaccount`; `create_domain` no longer requires `dnsMode` and `ports`.
+- The workload skill sends serverless workloads to `create_workload`: `deploy_app` creates standard ones.
+
 ### Removed
+
+- `preview_template` (now `install_template` with `dryRun: true`), `export_terraform_batch` and `list_terraform_kinds` (`export_terraform` exports by path depth and its errors list the kinds), and the per-provider mk8s and cloud-account how-to tools.
+- The Documentation and See also sections, the generic tool-availability banner (each skill now names the tools that need `?toolsets=full`), the CLI fallback sections that only restated the `cpln` skill, and the deep-dive router in the workload skill.
+- Secret manifest scaffolds as the default path: `create_secret` with `values: "user"` returns a prefilled Console link; the manifest stays for CLI and GitOps users.
 
 ## [2.3.1] - 2026-09-23
 

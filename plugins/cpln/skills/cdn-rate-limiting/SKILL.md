@@ -5,8 +5,6 @@ description: "CDN caching and request rate limiting for Control Plane workloads.
 
 # CDN & Rate Limiting
 
-> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads work on every profile via the generic `list_resources` / `get_resource` tools; `delete_resource` is on every profile except `readonly`.
-
 Two edge concerns, both built from existing primitives — there is no CDN or rate-limit resource kind. A **CDN** is bring-your-own (Cloudflare / CloudFront) pointed at the workload's canonical endpoint; **rate limiting** is an Envoy ratelimit service you deploy, enabled per workload by `cpln/rateLimit*` **tags**. Assumes the `workload` primer (firewall deny-by-default, canonical URL rules, create-then-verify).
 
 ## CDN
@@ -16,7 +14,7 @@ The pattern: the CDN proxies your domain and uses the workload's **canonical end
 ### Cloudflare
 
 1. **DNS at Cloudflare:** proxied CNAME (orange cloud on) from your subdomain to the canonical endpoint; SSL/TLS mode **Full (strict)**.
-2. **Origin certificate** (SSL/TLS, then Origin Server; RSA 2048) becomes a Control Plane **TLS secret** — created by the user with the cert and key (offer a manifest scaffold; `setup-secret` skill), **TLS chain left empty** (the origin cert is self-signed).
+2. **Origin certificate** (SSL/TLS, then Origin Server; RSA 2048) becomes a Control Plane **TLS secret** — `create_secret` type `tls` with `values: "user"` (the user types the cert and key in the Console), **TLS chain left empty** (the origin cert is self-signed).
 3. **Domain at Control Plane:** `mcp__cpln__create_domain` (CNAME DNS mode), `mcp__cpln__set_domain_tls` with the secret as the custom **server certificate**, `mcp__cpln__add_domain_route` to the workload. **The apex domain must be verified before configuring a subdomain.**
 
 ### Amazon CloudFront
@@ -127,23 +125,6 @@ Traffic passes, in order: the **CDN** (absorbs and caches), then the **firewall*
 | Redirect loop behind Cloudflare | SSL mode is Flexible — switch to Full (strict) |
 | Origin still reachable directly | `inboundAllowCIDR` not restricted to the CDN ranges |
 
-## Quick reference
+## CLI fallback
 
-- `mcp__cpln__update_workload` — `cpln/rateLimit*` tags; `inboundAllowCIDR` lock-down
-- `mcp__cpln__create_domain` / `set_domain_tls` / `add_domain_route` — CDN domain wiring (the TLS and ratelimit secrets are managed by the user)
-- `mcp__cpln__list_deployments` — canonical endpoint + readiness checks
 - CLI only: `cpln apply --file rate-limiting.yaml` (bundled manifest), `cpln workload force-redeployment` (config reload)
-
-## Related skills
-
-| Need | Skill |
-|---|---|
-| Workload types, defaults, canonical URL rules — start here | `workload` |
-| Firewall rules, CIDR allow-lists | `firewall-networking` |
-| TLS, probes, hardening | `workload-security` |
-
-## Documentation
-
-- [Configure CDN Guide](https://docs.controlplane.com/guides/configure-cdn.md)
-- [Rate Limiting Guide](https://docs.controlplane.com/guides/rate-limiting.md)
-- [Secret Reference (TLS)](https://docs.controlplane.com/reference/secret.md)

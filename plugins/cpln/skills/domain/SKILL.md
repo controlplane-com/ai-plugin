@@ -5,9 +5,7 @@ description: "Custom domains for Control Plane workloads. Use when the user asks
 
 # Custom Domains
 
-> **Tool availability:** the default `core` profile covers the entire domain workflow — `create_domain`, `update_domain`, the route-edit trio (`add_domain_route` / `update_domain_route` / `remove_domain_route`), listener ports (`add_domain_port` / `remove_domain_port`), TLS (`set_domain_tls` / `clear_domain_tls`), and the generic `list_resources` / `get_resource` / `delete_resource`. Only CORS edits (`set_domain_cors` / `clear_domain_cors`) live in the `full` profile — if one is not advertised, reconnect with `?toolsets=full` or use the `cpln` CLI fallback.
-
-A `domain` is an org-level resource that binds a DNS name to workloads in **one GVC**. **Created ≠ live:** after the resource exists, the user still adds records at their DNS provider — read exactly which from `status.dnsConfig` and hand them over verbatim, never guessed. Every shape decision below is platform-enforced and a wrong combination is a rejected mutation, so decide BEFORE calling `mcp__cpln__create_domain` (the tool requires `dnsMode` and `ports` explicitly). Never set `spec.domain` on a GVC — that legacy field is deprecated; the Domain resource is the only path.
+A `domain` is an org-level resource that binds a DNS name to workloads in **one GVC**. **Created ≠ live:** after the resource exists, the user still adds records at their DNS provider — read exactly which from `status.dnsConfig` and hand them over verbatim, never guessed. Every shape decision below is platform-enforced and a wrong combination is a rejected mutation, so decide BEFORE calling `mcp__cpln__create_domain` (pass `workload` and `gvc` and it derives the 443 listener, its route, and `cname`; pass `dnsMode` and `ports` for anything else). Never set `spec.domain` on a GVC — that legacy field is deprecated; the Domain resource is the only path.
 
 ## Decide the shape first
 
@@ -98,38 +96,16 @@ spec:
 | `hostPrefix or hostRegex can only be used if …` | Set `acceptAllHosts` or `acceptAllSubdomains` (and use a dedicated load balancer) |
 | `number of routes exceeds maximum of 150` | Consolidate routes, or add tag `cpln/routeLimitOverride` (raises to 200) |
 
+## Which tool changes what
+
+`create_domain` with `workload` and `gvc` derives the 443 listener, its route, and `cname` mode and returns the DNS records; pass `dnsMode` and `ports` for anything else. After creation, routes, ports, TLS, and CORS (full profile) each have their own tool; `update_domain` never changes ports, `dnsMode`, or `certChallengeType`. Domain names are FQDNs, passed as is.
+
 ## Verify
 
 1. `mcp__cpln__get_resource` (kind `domain`) — `status.status` progressing, `status.dnsConfig` matches what the user added.
 2. After the user adds records: `dig TXT _cpln.DOMAIN` / `dig CNAME DOMAIN` to confirm propagation before retrying or polling.
 3. Once `ready`: `curl -I https://DOMAIN/PATH` and confirm each prefix lands on the intended workload.
 
-## Quick reference — MCP tools
+## CLI fallback
 
-| Tool | Action |
-|---|---|
-| `mcp__cpln__create_domain` | Create — `dnsMode` and `ports` required; pre-validates apex/exclusivity rules; surfaces ownership TXT records on failure |
-| `mcp__cpln__update_domain` | Description/tags, `acceptAll*` flags, `gvcLink`/`workloadLink` bind or remove. CANNOT touch ports, dnsMode, certChallengeType |
-| `mcp__cpln__add_domain_port` / `remove_domain_port` | Add a listener (errors if the number exists) / remove one (destructive — live traffic on that port stops) |
-| `mcp__cpln__add_domain_route` / `update_domain_route` / `remove_domain_route` | Manage routes on a port; update/remove identify the route by `routeIdentifier` (`prefix` or `regex`); removal 404s matched traffic until re-routed |
-| `mcp__cpln__set_domain_tls` / `clear_domain_tls` | Overwrite or remove the whole TLS block on a port — on 443 with http/http2 the default TLS block comes back (TLS cannot be disabled there) |
-| `mcp__cpln__set_domain_cors` / `clear_domain_cors` | Overwrite or remove the whole CORS block on a port |
-| `mcp__cpln__get_resource` / `list_resources` / `delete_resource` (kind `domain`) | Read / list / delete — names are FQDNs, passed as-is; delete is destructive, confirm first |
-
-CLI fallback (read the `cpln` skill first; CI/CD = `CPLN_TOKEN` + `cpln apply`): `cpln domain create` takes only `--name`/`--description`/`--tag` — spec changes go through `cpln domain edit` or `cpln domain get -o yaml-slim` + `cpln apply`. There is no `cpln domain update`.
-
-## Related skills
-
-| Need | Skill |
-|---|---|
-| Workload ports, exposure, canonical URL | `workload` |
-| Dedicated load balancer (wildcard hosts, tcp ports) | `ipset-load-balancing` |
-| CDN/WAF in front, rate limiting | `cdn-rate-limiting` |
-| Keypair secrets for custom certificates | `setup-secret` |
-
-## Documentation
-
-- [Domain Reference](https://docs.controlplane.com/reference/domain.md)
-- [Configure a Domain Guide](https://docs.controlplane.com/guides/configure-domain.md)
-- [Custom Domain Quickstart](https://docs.controlplane.com/quickstart/quick-start-3-custom-domain.md)
-- [cpln domain CLI](https://docs.controlplane.com/cli-reference/commands/domain.md)
+Commands come from the `cpln` skill; CI/CD uses `CPLN_TOKEN` and `cpln apply`. `cpln domain create` takes only `--name`, `--description`, and `--tag`: spec changes go through `cpln domain edit`, or `cpln domain get -o yaml-slim` then `cpln apply`. There is no `cpln domain update`.

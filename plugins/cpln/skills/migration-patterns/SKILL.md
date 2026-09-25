@@ -5,8 +5,6 @@ description: "Migrate workloads from Kubernetes, Docker Compose, or Helm to Cont
 
 # Migrating to Control Plane
 
-> **Tool availability:** some MCP tools named here live in the `full` toolset profile — if one is not advertised on this connection, tell the user to reconnect the MCP server with `?toolsets=full` (or use the `cpln` CLI fallback). Reads work on every profile via the generic `list_resources` / `get_resource` tools; `delete_resource` is on every profile except `readonly`.
-
 Each source format has its own converter, and they are not interchangeable: Kubernetes through `cpln convert`, Docker Compose through `cpln stack`, a Helm chart of Control Plane resources through `cpln helm`. All three are **CLI-only — there is no MCP converter.** The dominant failure is hand-translating a Compose/k8s/Helm artifact into Control Plane YAML — even one "small enough to do by hand" — instead of running the tool and then reviewing what it left behind. The converter gets the mechanical translation right; your value is the gap analysis on top of it. If asked to translate by hand, push back: convert first, then work through the fix-ups.
 
 ## Pick the conversion path
@@ -120,12 +118,12 @@ Release-name rules, `--history-limit`, OCI charts, and `--wait` are general helm
 
 ## Exporting to Terraform / IaC
 
-When the target is Infrastructure-as-Code rather than live resources, turn the converted Control Plane YAML into HCL with `mcp__cpln__convert_to_terraform` (dry-run validated against the API first, so the HCL always matches a schema-valid resource), or capture already-created resources with `mcp__cpln__export_terraform`. `mcp__cpln__list_terraform_kinds` and `mcp__cpln__export_terraform_batch` are in the `full` profile. The `iac-terraform-pulumi` skill owns the full Terraform/Pulumi story, including `terraform import`.
+When the target is Infrastructure-as-Code rather than live resources, turn the converted Control Plane YAML into HCL with `mcp__cpln__convert_to_terraform` (dry-run validated against the API first, so the HCL always matches a schema-valid resource), or capture already-created resources with `mcp__cpln__export_terraform`. The `iac-terraform-pulumi` skill owns the full Terraform/Pulumi story, including `terraform import`.
 
 ## Verify
 
 - After `cpln convert`: confirm each workload's derived type, scaling (`maxScale` raised where needed), port protocols (gRPC/HTTP2), ingress-to-domain routes, and that any `{{GVC}}` placeholder is replaced.
-- After create/apply: `cpln apply -f cpln.yaml --ready`, or poll `mcp__cpln__list_deployments` until each workload reports ready. Pair every mutation with a read.
+- After create/apply: `cpln apply -f cpln.yaml --ready`, or wait with `mcp__cpln__list_deployments` and `waitSeconds` until each workload reports ready. Pair every mutation with a read.
 
 ## Troubleshooting
 
@@ -138,33 +136,3 @@ When the target is Infrastructure-as-Code rather than live resources, turn the c
 | App can't reach another service | The converters don't rewrite URLs — point them at `<workload>.<gvc>.cpln.local[:port]`. |
 | Private image won't pull | The image string is kept literal; create the pull secret it references and link it (image skill). |
 | Deployment stuck after converting | The workload references a secret without an identity/policy; the converter adds `identity-<wl>`/`policy-<wl>` — if you re-authored, wire `reveal` yourself (access-control skill). |
-
-## Quick reference
-
-### MCP tools
-
-- `mcp__cpln__create_workload` / `create_gvc` / `create_identity` / `create_volumeset` — author converted resources with production-grade defaults (secrets are created by the user — draft each manifest for them to fill and apply, `setup-secret` skill; verify with `get_resource` before referencing)
-- `mcp__cpln__get_resource_schema` — exact shape before hand-editing or re-authoring a converted manifest
-- `mcp__cpln__list_deployments` — poll converted workloads to ready
-- `mcp__cpln__convert_to_terraform` / `mcp__cpln__export_terraform` — converted YAML or live resources to HCL (`iac-terraform-pulumi` skill)
-
-The converters themselves (`cpln convert`, `cpln stack`, `cpln helm`, `cpln apply --k8s`) are CLI-only. In CI/CD, `CPLN_TOKEN` + `cpln apply -f` applies the converted manifest headlessly.
-
-### Related skills
-
-| Skill | Use for |
-|---|---|
-| workload | the spec the converter emits; deploy/diagnose flow, injected `CPLN_*` vars |
-| cpln | the CLI that runs every converter; `apply` ordering, `exec`/`logs` |
-| autoscaling-capacity | giving converted workloads scaling headroom and Capacity AI |
-| stateful-storage | volumeset shape for converted PVCs and compose named volumes |
-| iac-terraform-pulumi | turning converted YAML into Terraform or Pulumi |
-| template-catalog | deploy a database from a template instead of converting one |
-
-## Documentation
-
-- [cpln convert](https://docs.controlplane.com/guides/cli/cpln-convert.md)
-- [Compose Deploy](https://docs.controlplane.com/guides/compose-deploy.md)
-- [cpln helm](https://docs.controlplane.com/guides/cpln-helm.md)
-- [cpln apply](https://docs.controlplane.com/guides/cpln-apply.md)
-- [Workload Volumes](https://docs.controlplane.com/reference/workload/volumes.md)

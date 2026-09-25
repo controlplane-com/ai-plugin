@@ -5,11 +5,11 @@ description: "Creates persistent storage for stateful workloads on Control Plane
 
 # Stateful Storage & VolumeSets
 
-> **Tool availability:** the snapshot tools (`create_volumeset_snapshot`, `list_volumeset_snapshots`, `restore_volumeset_snapshot`, `delete_volumeset_snapshot`), `shrink_volumeset`, and `delete_volumeset_volume` are in the `full` MCP toolset; `create_volumeset`, `update_volumeset`, `mount_volumeset_to_workload`, `expand_volumeset`, and the generic `list_resources`/`get_resource`/`delete_resource` reads are in `core`. If a `full` tool is not advertised, reconnect the MCP server with `?toolsets=full` or use the `cpln` CLI fallback.
+> **Tool availability:** the snapshot tools, `shrink_volumeset`, and `delete_volumeset_volume` need `?toolsets=full`; reconnect with it or use the CLI.
 
 A **VolumeSet** is GVC-scoped persistent storage for workloads. The `workload` skill covers the basics (stateful type, reserved mount paths, the 15-volume limit, create-then-verify); this skill is the full volume-set detail. The one trap that drives most rework: **`fileSystemType` and `performanceClass` are immutable** (a PATCH that changes either returns HTTP 400) — to change either you must create a new volumeset, and the old data does not carry over. Choose both at creation.
 
-**Most databases don't need this skill:** `template-catalog` installs Postgres, Redis, MySQL, MongoDB, and more with the volumeset, snapshots, and credentials already wired — hand-build only for a custom app or an unsupported engine.
+**Most databases don't need this skill:** `mcp__cpln__add_database` installs Postgres, MySQL, MariaDB, MongoDB, or Redis with the volume set and generated credentials wired, and the `template-catalog` skill covers the rest. An app that only needs a data directory passes `storage` to `mcp__cpln__deploy_app`, which creates and mounts the volume set and picks the workload type. Hand-build only for anything else.
 
 ## Filesystem types and performance classes
 
@@ -103,11 +103,11 @@ Snapshots are **ext4/xfs only — never `shared`**. Automatic policy lives in `s
 
 ## Resize and delete volumes
 
-- **Expand** — live, no downtime, all filesystems. Throttled to **4 expansions per volume per rolling 24 hours**; the 5th returns **HTTP 429** and a brief wait does not help (the oldest expansion must age out of the window). `mcp__cpln__expand_volumeset`.
+- **Expand** is live, with no downtime, on every filesystem; `expand_volumeset` states its throttle.
 - **Shrink** (ext4/xfs only) — data is migrated to the new smaller volume via an online presync + final delta sync, and the replica restarts during the swap. The platform **rejects the shrink with HTTP 400 when known used bytes (+5% metadata headroom) would not fit**; data is only lost if used bytes genuinely exceed the new capacity. Floor is the class minimum (10 / 200 GB). `mcp__cpln__shrink_volumeset`.
 - **Delete a volume** (ext4/xfs only) — permanent loss of that volume's data. `mcp__cpln__delete_volumeset_volume`.
 
-Shrink, volume-delete, snapshot-delete, and restore are destructive: **snapshot first** as the recovery net, then confirm the blast radius (the destructive-ops guardrail returns an impact preview before executing).
+Shrink, volume-delete, snapshot-delete, and restore are destructive: **snapshot first** as the recovery net, then present the blast radius and get the user's approval before the call (it runs at once, with no server-side preview).
 
 ## Shared filesystem
 
@@ -154,7 +154,7 @@ Workload type is immutable, so adding an ext4/xfs volume to a serverless/standar
 ## Verify
 
 - `mcp__cpln__get_resource` (kind `volumeset`): `status.locations[].volumes[]` show per-volume `currentSize`, `currentBytesUsed`, `lifecycle` (expect `bound`), and snapshot counts; `status.usedByWorkload` names the bound workload.
-- After mounting, poll `mcp__cpln__list_deployments` until ready and confirm the container's volume is mounted at the expected path.
+- After mounting, wait with `mcp__cpln__list_deployments` and `waitSeconds` until ready, and confirm the container's volume is mounted at the expected path.
 
 ## Troubleshooting
 
@@ -168,36 +168,4 @@ Workload type is immutable, so adding an ext4/xfs volume to a serverless/standar
 | 400 "The ratio between maxCpu and minCpu must be less than 4:1" (same for memory) | `mountOptions.resources` spread past 4:1 or past 4000m / 4096Mi, counting the default that fills any bound you left out | Raise `minCpu` / `minMemory` or lower `maxCpu` / `maxMemory`, and always set both bounds of a pair |
 | 400 "Workload X references non-existent volume sets" | The volumeset in the same apply failed its own validation. `cpln apply` reports every failure and does not stop at the first, so the workload PUT still ran | Fix the volumeset error above it and re-apply the bundle; the ordering is already correct |
 | Snapshot fields rejected | Volumeset is `shared` | Snapshots need ext4/xfs |
-| Deployment stuck after mount | Volume provisioning (2-5 min on first deploy) | Poll `list_deployments`; check `get_workload_logs` if it stays unready |
-
-## MCP tools quick reference
-
-| Tool | Purpose | Tier |
-|---|---|---|
-| `mcp__cpln__create_volumeset` | Create a volumeset | core |
-| `mcp__cpln__update_volumeset` | Update mutable fields (capacity, autoscaling, snapshots, tags) | core |
-| `mcp__cpln__mount_volumeset_to_workload` | Mount to a workload (creates the volumeset if missing) | core |
-| `mcp__cpln__expand_volumeset` | Grow a volume (4 / 24 h limit) | core |
-| `mcp__cpln__shrink_volumeset` | Shrink a volume (ext4/xfs) | full |
-| `mcp__cpln__delete_volumeset_volume` | Delete one volume (ext4/xfs) | full |
-| `mcp__cpln__create_volumeset_snapshot` | Point-in-time snapshot | full |
-| `mcp__cpln__list_volumeset_snapshots` | List snapshots | full |
-| `mcp__cpln__restore_volumeset_snapshot` | Restore a snapshot to a new volume | full |
-| `mcp__cpln__delete_volumeset_snapshot` | Delete a snapshot | full |
-| `mcp__cpln__get_resource` / `list_resources` / `delete_resource` (kind `volumeset`) | Read / list / delete a volumeset | core |
-
-CLI fallback (CI/CD via a service-account `CPLN_TOKEN`): `cpln volumeset create|get|update|delete|expand|shrink`, `cpln volumeset snapshot create|get|restore|delete`, `cpln volumeset volume get|delete`; `expand`/`shrink` need `--new-size` (`--location`/`--volume-index` optional), and `cpln apply -f` for YAML.
-
-## Related skills
-
-| Skill | For |
-|---|---|
-| `workload` | Workload types, the deploy-and-verify flow, load-balancer/`replicaDirect` config |
-| `template-catalog` | Postgres, Redis, and other databases that provision volumesets for you |
-| `firewall-networking` | Outbound rules for cloud-bucket volumes (`s3://`, `gs://`, `azureblob://`) |
-
-## Documentation
-
-- [Volume Set Reference](https://docs.controlplane.com/reference/volumeset.md)
-- [Workload Volumes](https://docs.controlplane.com/reference/workload/volumes.md)
-- [CLI volumeset Commands](https://docs.controlplane.com/cli-reference/commands/volumeset.md)
+| Deployment stuck after mount | Volume provisioning (2 to 5 min on first deploy) | `list_deployments` with `waitSeconds`; `diagnose_workload` if it stays unready |

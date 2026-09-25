@@ -5,7 +5,7 @@ description: Deploys a Control Plane wormhole agent connecting workloads to priv
 
 # Agent Setup
 
-> **Tool availability:** the agent lifecycle tools — `create_agent` / `update_agent`, `get_agent_info` / `get_agent_eventlog`, and `add_identity_network_resource` / `add_identity_native_network_resource` / `remove_identity_network_resource` / `list_identity_network_resources` — live in the **`full`** toolset profile. `create_identity` / `update_identity` / `update_workload` and all reads/deletes (`list_resources`, `get_resource`, `delete_resource`) are `core`. If a `full` tool is not advertised, reconnect the MCP server with `?toolsets=full`, or use the `cpln agent` CLI.
+> **Tool availability:** the agent and identity network-resource tools need `?toolsets=full`; reconnect with it or use the CLI.
 
 A wormhole agent is a lightweight VM or container you run **inside the target network**. It opens a persistent **outbound** connection to Control Plane and tunnels workload traffic to any TCP/UDP endpoint on the private side — VPC, on-prem, data center, Azure VNet, cross-cloud, or a laptop. A workload reaches the endpoint by attaching an **identity** (gvc-scoped) that carries a `networkResources` entry pointing at the agent. No external egress firewall rule is needed.
 
@@ -17,7 +17,7 @@ Confirm with the user: what private resource the workload must reach (host/IP + 
 
 ## Step 1 — Create the agent
 
-If the user asked you to set one up, create it directly; only list first when they want to reuse an existing one. Call `create_agent` (`org`, `name`, optional `description` / `tags`). The response contains the **bootstrap config JSON** — copy it out immediately.
+If the user asked you to set one up, create it directly; only list first when they want to reuse an existing one. Call `create_agent` (`org`, `name`, optional `description`): it returns the Console link where the user creates the agent and downloads the **bootstrap config**; the config never passes through the chat.
 
 CLI fallback (pipes the bootstrap straight to a file):
 
@@ -25,7 +25,7 @@ CLI fallback (pipes the bootstrap straight to a file):
 cpln agent create --name AGENT --org ORG > AGENT-bootstrap.json
 ```
 
-> **Save the bootstrap config now.** It holds the registration token and is shown **only once, at creation**. Reads (`get_resource` kind="agent") return it with the token hidden. It is immutable — if lost, delete and recreate the agent. `update_agent` changes description / tags only.
+> **The bootstrap config is shown once, at creation, in the Console.** It holds the registration token; reads (`get_resource` kind="agent") return it with the token hidden. It is immutable — if lost, delete and recreate the agent. `update_agent` changes description / tags only.
 
 ## Step 2 — Deploy the agent
 
@@ -81,17 +81,3 @@ Key constraints (Joi-enforced; mirrored by the tool): `name` unique across **bot
 - **Missing `agentLink`, or `localhost` for a local agent's IP** — traffic cannot route.
 - **Forgetting `spec.identityLink`** — the identity is wired but never reaches the workload.
 - **Using `name` instead of `FQDN` for a TLS endpoint** — certificate validation fails.
-
-## Related skills
-
-| Need | Skill |
-|---|---|
-| PrivateLink/PSC vs agent, sizing, full identity schema, permissions | `native-networking` |
-| Credential-free AWS / GCP / Azure access (no agent) | `setup-cloud-access` |
-| The Internal firewall for the 3128 proxy, service-to-service rules | `firewall-networking` |
-| Creating the identity, policies on the agent | `access-control` |
-
-## Documentation
-
-- [Agent Reference](https://docs.controlplane.com/reference/agent.md) · [Agent Setup Guide](https://docs.controlplane.com/guides/agent.md)
-- [Identity Reference](https://docs.controlplane.com/reference/identity.md)
