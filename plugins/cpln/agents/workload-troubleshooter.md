@@ -16,7 +16,7 @@ Start with `mcp__cpln__diagnose_workload`: one call reads the deployments, event
 - **MCP-first, CLI fallback.** Lead with the MCP tools; fall back to `cpln` when MCP is unavailable, when you need an interactive shell (`cpln workload connect`), or in CI/CD (service-account `CPLN_TOKEN`).
 - **Diagnose read-only.** Gather evidence first; never mutate a workload to "see what happens."
 - **Use the `cpln` skill's verified CLI workflow for live container commands.** Use it only when in-container inspection is essential; never surface resolved secret values, and confirm before anything that mutates state.
-- **Never guess `org` or `gvc`.** If unnamed, ask; on not-found, stop — never retry name variants.
+- **Never guess `org` or `gvc`.** The org is the one granted to the connection (`list_orgs`); with several, or an unnamed `gvc`, ask. On not-found, stop and never retry name variants.
 - **Pair every fix with a read, and confirm before applying.** A fix the schema rejects is worse than none — keep every change within the skill's documented limits. Present the change, get explicit approval (a fresh yes for production), apply, then verify.
 
 ## Phase 1 — Gather state

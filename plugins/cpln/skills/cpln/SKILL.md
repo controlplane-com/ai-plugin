@@ -5,7 +5,7 @@ description: "Writes cpln CLI commands and workflows for Control Plane. Use when
 
 # cpln CLI
 
-**MCP first; the CLI is the fallback** — use it when the MCP server is unavailable or unauthenticated, for the CLI-only operations below, and for interactive debugging or scripted GitOps. **In CI/CD the CLI is the primary interface** — pipelines authenticate with a service-account key in `CPLN_TOKEN`, build and push images (`cpln image build --push`, or `--remote` on a runner with no Docker daemon), and apply resources (`cpln apply --ready`). Platform rules (resource model, secrets, destructive ops, production defaults, scale-to-zero, firewall) live in the operating guide (`get_cpln_rules`); this skill is the CLI mechanics.
+**MCP first; the CLI covers what the MCP cannot.** With the MCP connected, its tools do every operation they cover, reads included; the CLI is for the CLI-only operations below (building a folder on disk among them), interactive debugging, scripted GitOps, and sessions without the MCP. A connected MCP that is signed out means the user signs in again, not a switch to the CLI. **In CI/CD the CLI is the primary interface** — pipelines authenticate with a service-account key in `CPLN_TOKEN`, build and push images (`cpln image build --push`, or `--remote` on a runner with no Docker daemon), and apply resources (`cpln apply --ready`). Platform rules (resource model, secrets, destructive ops, production defaults, scale-to-zero, firewall) live in the operating guide (`get_cpln_rules`); this skill is the CLI mechanics.
 
 **Never write a `cpln` command from memory.** Verify every verb and flag with `cpln <command> --help` before quoting it. If a command isn't in the resource command map below, assume it isn't real.
 

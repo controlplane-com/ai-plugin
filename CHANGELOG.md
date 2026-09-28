@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 - A short always-on core rule set (`cpln-core.md`); the full operating guide is read only when a task needs it.
 - `create_mk8s` and `update_mk8s` replace the 22 per-provider mk8s tools: pass `provider` and the provider block as `spec`; `how_to_create_cloud_account` replaces the four per-provider how-to tools; `install_template` takes `dryRun`.
+- Guidance for the new MCP tool `list_orgs`, which lists the orgs a connection was granted with their GVCs and locations; with one org granted, tools default to it.
 - Guidance for the new MCP tools `deploy_app`, `add_database`, `diagnose_workload`, `create_secret`, `rotate_secret`, `restart_workload`, `rollback_workload`, `promote_workload`, `allow_workload_access`, and `grant_cloud_access`; `create_domain` takes `workload` and `gvc` and derives the listener and route; `add_database` installs Redis.
 
 ### Changed
@@ -17,6 +18,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 - `add_key_to_service_account` and `create_agent` return a Console link where the user creates the key or agent and sees the credential once; nothing sensitive reaches the chat.
 - Secret values never pass through the chat: Control Plane generates values nobody needs to know, and the user types their own into the Console.
 - Each session starts with only the short core rules, without their frontmatter, instead of the full operating guide.
+- The core rules say where things go: the granted org, the org's only GVC, or a first GVC that `deploy_app` and `add_database` create after asking where the users are (or picking, when the user leaves it open). Existing GVCs are never re-placed without a yes.
+- With the MCP connected, its tools do everything they cover, reads included. The `cpln` CLI only builds a folder on disk and runs what only it can (`connect`, `exec`, port-forward, `cp`, CI/CD); a signed-out MCP means signing in again, not switching to the CLI.
 - No rule or skill has to be read before a tool call, and skills drop the boilerplate that restated tool descriptions.
 - The operating guide (`get_cpln_rules`) keeps only the approval rule for high-impact actions, the platform facts the tools do not check, and failure handling; each rule has one home across the rules and skills.
 - The operating guide names the `cpln/managedByTerraform` tag that Terraform and Pulumi stamp on the resources they own, so a live change to one is raised with the user first.

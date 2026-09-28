@@ -33,7 +33,7 @@ The tag `cpln/managedByTerraform: "true"` marks a resource Terraform or Pulumi o
 
 ## Targets
 
-- Never create a GVC without locations the user chose. The org's location list is the authority: it includes BYOK locations with operator-chosen names, so never substitute a cloud region for one.
+- A GVC's locations come from the user. When they leave the choice to you, pick the enabled location that fits their users (one, unless they want more) and say which; `deploy_app` and `add_database` take `location: "auto"` for this. The org's location list is the authority: it includes BYOK locations with operator-chosen names, so never substitute a cloud region for one.
 - A production change needs a plan and a rollback stated before it runs.
 - Create only what the task needs. When something it depends on is missing (the workload a domain routes to, the secret a reference names), ask which existing one to use; never create a placeholder.
 
@@ -53,7 +53,7 @@ The tag `cpln/managedByTerraform: "true"` marks a resource Terraform or Pulumi o
 
 ## CLI and profiles
 
-Use the `cpln` CLI when MCP is unavailable, for CLI-only work (`cpln workload connect`, port-forward, `cpln cp`, a local-folder build, `cpln image copy`, `cpln convert`), and in CI/CD with a service-account `CPLN_TOKEN`. Every command comes from the `cpln` skill and `--help`, never from memory. When a tool covers the action, call it rather than handing the user a command; when none covers a field, use the CLI or say what is missing.
+With the MCP connected, its tools do everything they cover, reads included: never `cpln workload get` or `cpln gvc get` to look around. The `cpln` CLI is only for what the tools cannot do: building a folder on disk (`cpln image build --remote --dir PATH --name NAME:TAG --org ORG`, with the org the MCP uses), `cpln workload connect`, `cpln workload exec`, port-forward, `cpln cp`, `cpln image copy`, `cpln convert`, and CI/CD with a service-account `CPLN_TOKEN`. When the MCP is connected but signed out, ask the user to sign in again rather than switch to the CLI: the CLI acts as its own profile and can reach orgs the user never granted. Without the MCP, use the CLI. Every command comes from the `cpln` skill and `--help`, never from memory. When a tool covers the action, call it rather than running or handing the user a command; when none covers a field, use the CLI or say what is missing.
 
 `?toolsets=` on the MCP URL picks the tools: `core` (default), `mk8s`, `full`, or `readonly`. When a task needs a tool this connection lacks, tell the user which profile to reconnect with.
 

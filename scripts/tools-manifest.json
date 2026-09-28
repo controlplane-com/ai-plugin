@@ -76,6 +76,7 @@
     "list_identity_network_resources": "full",
     "list_installed_templates": "core",
     "list_metrics": "core",
+    "list_orgs": "core",
     "list_quotas": "core",
     "list_resources": "core",
     "list_volumeset_snapshots": "full",
