@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Changed
 
+- Guidance for finding a trace by HTTP method or request id, and reading each span's method, path, and status.
 - `add_key_to_service_account` and `create_agent` return a Console link where the user creates the key or agent and sees the credential once; nothing sensitive reaches the chat.
 - Secret values never pass through the chat: Control Plane generates values nobody needs to know, and the user types their own into the Console.
 - Each session starts with only the short core rules, without their frontmatter, instead of the full operating guide.
