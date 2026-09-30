@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 ### Changed
 
 - Apps are built production ready from the first deploy: two replicas, records in a database, and files on shared storage or in a bucket.
+- Content an app's owner changes after launch is added from the app instead of built into the image, and app plans offer choices such as how staff sign in, each with a recommendation.
 - `deploy_app` takes `timeoutSeconds` for slow requests and checks the replica quota before it builds; it and `add_database` warn when a GVC with several locations would split the data.
 - Upload links take named `files` and `folders` of up to 100 files (`max`, up to 200), and `write_app_files` `moves` renames an uploaded file.
 - Apps keep the user's personal details off public pages the user did not ask for.
