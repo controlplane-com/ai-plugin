@@ -22,8 +22,9 @@ A workload reads a secret only when three things are in place. Miss one and the 
 ## Wiring access
 
 - **`deploy_app`** wires all three steps for the references in its env.
-- **`grant_workload_secret_access`** (`gvc`, `workloadName`, `secretName`) creates the identity if missing (default `{gvc}-{workloadName}`), links it, and creates or updates a `reveal` policy (default `{gvc}-{workloadName}-secrets-policy`). It does not add the reference. The workload must exist first: create it (its deployment pauses on the reference), then grant, and it resumes.
-- **By hand:** `create_identity`, `update_workload` to set `spec.identityLink`, then `create_policy` with target kind `secret` and a `reveal` binding for the identity (`access-control` skill).
+- **`grant_workload_secret_access`** (`gvc`, `workloadName`, `secretName`) creates the identity if missing (default `{gvc}-{workloadName}`), creates or updates a `reveal` policy (default `{gvc}-{workloadName}-secrets-policy`), links the identity, and redeploys a workload already waiting on the secret. It does not add the reference. The workload must exist first: create it (its deployment pauses on the reference), then grant, and it resumes.
+- The platform checks access once per deployed version. A version it refused stays refused after the policy changes, until a new version deploys, so the tool grants before it links and redeploys a workload still waiting.
+- **By hand**, only when the tool cannot: `create_identity`, then `create_policy` with target kind `secret` and a `reveal` binding for the identity (`access-control` skill), then `update_workload` to set `spec.identityLink` last.
 - Identities are GVC-scoped: one per workload, shareable within a GVC, never across GVCs.
 
 ## References
@@ -85,4 +86,5 @@ data: >-
 - No `identityLink` on the workload, or `view` instead of `reveal`.
 - The bare secret name instead of `cpln://secret/NAME`.
 - Granting before the workload exists, or sharing an identity across GVCs.
+- Editing a policy by hand to unpause a deployment: nothing checks again until the next deploy. Run `grant_workload_secret_access` again instead.
 - An identity and policy for a pull secret, which needs only `pullSecretLinks`.

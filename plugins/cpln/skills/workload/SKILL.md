@@ -7,7 +7,7 @@ description: "Primary skill for creating, updating, running, and debugging workl
 
 > **Tool availability:** the `configure_workload_*` tools need `?toolsets=full`; `create_workload`, `update_workload`, and the job tools are core.
 
-A workload is the unit of deployment: one to eight containers plus how they scale, get exposed, store data, and stay healthy. `mcp__cpln__deploy_app` covers a single-container HTTP app, image, or repository on a standard workload, including a data directory (`storage`). `create_workload` and `update_workload` cover the rest: serverless, several containers, cron, non-HTTP ports, custom firewall rules, probes and scaling tuned in depth. `restart_workload`, `rollback_workload`, `promote_workload`, and `allow_workload_access` do those jobs in one call.
+A workload is the unit of deployment: one to eight containers plus how they scale, get exposed, store data, and stay healthy. `mcp__cpln__deploy_app` covers a single-container HTTP app, image, or repository: a standard workload, with a data directory every replica shares (`storage` with `shared: true`), or a stateful workload on one replica when the data directory is per replica (`storage` without `shared`). `create_workload` and `update_workload` cover the rest: serverless, several containers, cron, non-HTTP ports, custom firewall rules, probes and scaling tuned in depth. `restart_workload`, `rollback_workload`, `promote_workload`, and `allow_workload_access` do those jobs in one call.
 
 ## Workload type (immutable, standard by default)
 

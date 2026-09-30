@@ -82,6 +82,7 @@
     "list_volumeset_snapshots": "full",
     "list_workload_replicas": "core",
     "mount_volumeset_to_workload": "core",
+    "plan_app": "core",
     "promote_workload": "core",
     "query_audit_events": "core",
     "query_docs_filesystem_control_plane": "core",

@@ -11,10 +11,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 - A short always-on core rule set (`cpln-core.md`); the full operating guide is read only when a task needs it.
 - `create_mk8s` and `update_mk8s` replace the 22 per-provider mk8s tools: pass `provider` and the provider block as `spec`; `how_to_create_cloud_account` replaces the four per-provider how-to tools; `install_template` takes `dryRun`.
 - Guidance for the new MCP tool `list_orgs`, which lists the orgs a connection was granted with their GVCs and locations; with one org granted, tools default to it.
+- Guidance for the new MCP tool `plan_app`: an app that keeps files, records, or sign-ins is settled with the user before any code, and the app the user asked for is the one written.
 - Guidance for the new MCP tools `deploy_app`, `add_database`, `diagnose_workload`, `create_secret`, `rotate_secret`, `restart_workload`, `rollback_workload`, `promote_workload`, `allow_workload_access`, and `grant_cloud_access`; `create_domain` takes `workload` and `gvc` and derives the listener and route; `add_database` installs Redis.
 
 ### Changed
 
+- Apps are built production ready from the first deploy: two replicas, records in a database, and files on shared storage or in a bucket.
+- `deploy_app` takes `timeoutSeconds` for slow requests and checks the replica quota before it builds; it and `add_database` warn when a GVC with several locations would split the data.
+- Upload links take named `files` and `folders` of up to 100 files (`max`, up to 200), and `write_app_files` `moves` renames an uploaded file.
+- Apps keep the user's personal details off public pages the user did not ask for.
+- The setup-secret skill links an identity only after its policy grants `reveal`, and re-runs `grant_workload_secret_access` instead of editing a policy by hand.
+- Jobs reuse only the GVC they made for apps and ask before using any other, and a new GVC goes in a location the assistant recommends and the user picks.
+- `update_volumeset` keeps a volume set's snapshot retention when a new policy leaves it out, so scheduled snapshots always expire.
 - Guidance for finding a trace by HTTP method or request id, and reading each span's method, path, and status.
 - `add_key_to_service_account` and `create_agent` return a Console link where the user creates the key or agent and sees the credential once; nothing sensitive reaches the chat.
 - Secret values never pass through the chat: Control Plane generates values nobody needs to know, and the user types their own into the Console.
@@ -29,6 +37,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Fixed
 
+- The workload skill says `deploy_app` storage without `shared: true` makes a stateful workload on one replica.
 - The Template Catalog skill no longer claims templates generate credentials; a template's prerequisite secret is created before the install.
 - Corrected facts: containers receive SIGTERM at termination; an omitted autoscaling metric on a standard workload with Capacity AI resolves to `disabled`; the service account kind is `serviceaccount`; `create_domain` no longer requires `dnsMode` and `ports`.
 - The workload skill sends serverless workloads to `create_workload`: `deploy_app` creates standard ones.

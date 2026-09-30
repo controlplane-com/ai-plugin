@@ -40,6 +40,7 @@
     "create_app_files_upload_link": "create-app",
     "get_app_files": "create-app",
     "deploy_app": "create-app",
+    "plan_app": "create-app",
     "create_policy": "access-control",
     "get_permissions": "access-control",
     "create_group": "access-control",
