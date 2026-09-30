@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-10-01
+
 ### Added
 
 - A short always-on core rule set (`cpln-core.md`); the full operating guide is read only when a task needs it.
