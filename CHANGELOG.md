@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 - Guidance for the new MCP tool `list_orgs`, which lists the orgs a connection was granted with their GVCs and locations; with one org granted, tools default to it.
 - Guidance for the new MCP tool `plan_app`: an app that keeps files, records, or sign-ins is settled with the user before any code, and the app the user asked for is the one written.
 - Guidance for the new MCP tools `deploy_app`, `add_database`, `diagnose_workload`, `create_secret`, `rotate_secret`, `restart_workload`, `rollback_workload`, `promote_workload`, `allow_workload_access`, and `grant_cloud_access`; `create_domain` takes `workload` and `gvc` and derives the listener and route; `add_database` installs Redis.
+- A portable `plugin.json` and `mcp.json` in the Agent Plugins 1.0 format, carrying the OpenAI Directory listing, its review cases, and release notes.
 
 ### Changed
 
@@ -35,6 +36,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 - The operating guide names the `cpln/managedByTerraform` tag that Terraform and Pulumi stamp on the resources they own, so a live change to one is raised with the user first.
 - The operating guide says to create only what a task needs, never a placeholder, and to call a tool rather than hand the user a command. The `cpln` skill warns that output from inside a container holds resolved secret values, and links the docs index for agents.
 - Claude Code and Cursor connect with `?toolsets=full&skills=plugin`, and Codex and Antigravity with `?toolsets=core&skills=plugin`. The flag leaves the skills to the plugin; the core rules still come with every MCP handshake.
+- When the user or the client declines an action, the operating guide stops and reports it instead of retrying or reaching for another tool; after a lost connection it reads the current state before retrying a change.
+- The CI/CD skill has the user create a service account key in the Console from the link `add_key_to_service_account` returns, and never paste it into the chat.
+- The Template Catalog skill says that calling `add_database` again with new `allowWorkloads` reapplies the template, which resets changes made outside its values, such as volume snapshot settings.
+- Codex no longer needs feature flags for the plugin's session hooks: Codex asks the user to trust them once.
+- The Codex and OpenAI Directory listings describe what the plugin does today, and their suggested prompts build an app, diagnose a workload, and add a database.
 
 ### Fixed
 

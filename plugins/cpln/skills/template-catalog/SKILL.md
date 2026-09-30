@@ -7,7 +7,7 @@ description: "Recommends and installs templates from the Control Plane Template 
 
 Production-tested charts (Helm under the hood) for databases, caches, queues, brokers, search, and gateways, with storage, firewall, and HA variants wired. A catalog template is the default for any common component; a custom workload needs a hard reason, such as an extension or image the template cannot take.
 
-**Postgres, MySQL, MariaDB, MongoDB, or Redis: `add_database`,** not the steps below. Calling it again with a new `allowWorkloads` changes only who can connect; the password, version, and storage stay as installed. The HA and multi-location variants (`postgres-highly-available`, `mongodb-cluster`, and the rest) go through the install steps.
+**Postgres, MySQL, MariaDB, MongoDB, or Redis: `add_database`,** not the steps below. Calling it again with a new `allowWorkloads` changes who can connect by reapplying the installed template: the password, version, and storage stay as installed, but changes made outside its values, such as volume snapshot settings, are reset. Tell the user that before reapplying. The HA and multi-location variants (`postgres-highly-available`, `mongodb-cluster`, and the rest) go through the install steps.
 
 ## Credentials: create the prerequisite secret first
 

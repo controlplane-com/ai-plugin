@@ -37,13 +37,7 @@ Alternatively, install from [Anthropic's community plugin marketplace](https://g
 codex plugin marketplace add https://github.com/controlplane-com/ai-plugin.git
 ```
 
-Start Codex, open `/plugins`, and install `cpln`. Guardrail injection needs plugin hooks, which Codex gates off by default — enable them in `~/.codex/config.toml` and restart:
-
-```toml
-[features]
-plugins = true
-plugin_hooks = true
-```
+Start Codex, open `/plugins`, and install `cpln`. The MCP handshake supplies the core rules. Local installations also include optional session hooks, which must be reviewed and trusted in Codex before they run.
 
 Update with `codex plugin marketplace upgrade controlplane`, then restart Codex.
 

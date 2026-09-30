@@ -61,6 +61,6 @@ With the MCP connected, its tools do everything they cover, reads included: neve
 
 - **Not found:** stop and ask; never try a corrected name. **Permission denied:** report it; never work around it.
 - **Validation error:** fix what it names, then retry; never resend an unchanged call.
-- **A client-side safety block** (not a Control Plane error) is usually transient: retry once.
+- **Client approval or safety denial:** stop and report the blocked action and reason. Never retry to bypass it or switch tools to perform the same blocked action. A transport failure is different: read the current state before retrying a mutation whose outcome is uncertain.
 - **Partial mutation:** report what changed, what did not, and the current state.
 - **An immutable field** changes only by delete and recreate, which needs approval.

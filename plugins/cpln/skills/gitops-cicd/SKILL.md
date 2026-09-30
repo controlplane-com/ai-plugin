@@ -14,7 +14,7 @@ cpln serviceaccount create --name ci-deployer --org ORG
 cpln serviceaccount add-key ci-deployer --description "ci key" --org ORG   # --description is required
 ```
 
-The JSON response's `key` value is the credential — store it as a masked/secret variable in the CI platform. MCP: `mcp__cpln__add_key_to_service_account` (full profile) does both steps (and creates the service account if missing).
+The JSON response's `key` value is the credential — keep it on the user's machine and store it as a masked/secret variable in the CI platform; never paste it into chat. MCP: `mcp__cpln__add_key_to_service_account` (full profile) creates the service account if it is missing and returns a Console link where the user creates the key privately.
 
 Grant least privilege (`access-control` skill): pushing images needs `create` on the `image` kind; `cpln apply` needs create/edit on every kind the manifests contain. `cpln group add-member superusers --serviceaccount ci-deployer` works but grants full org access — prefer a scoped policy (`mcp__cpln__create_policy`).
 
