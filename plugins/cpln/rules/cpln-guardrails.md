@@ -33,7 +33,7 @@ The tag `cpln/managedByTerraform: "true"` marks a resource Terraform or Pulumi o
 
 ## Targets
 
-- A GVC's locations come from the user. When they leave the choice to you, pick the enabled location that fits their users (one, unless they want more) and say which; `deploy_app` and `add_database` take `location: "auto"` for this. The org's location list is the authority: it includes BYOK locations with operator-chosen names, so never substitute a cloud region for one.
+- A GVC's locations come from the user. When they leave the choice to you, pick the enabled location that fits their users (one, unless they want more), say which, and pass it. `deploy_app` and `add_database` take a location name or a city, country, or cloud region that matches one (`frankfurt`, `eu-central-1`), and refuse `auto`, `any`, and broad areas such as `europe` or `us`. The org's location list is the authority: it includes BYOK locations with operator-chosen names, so never substitute a cloud region for one.
 - A production change needs a plan and a rollback stated before it runs.
 - Create only what the task needs. When something it depends on is missing (the workload a domain routes to, the secret a reference names), ask which existing one to use; never create a placeholder.
 

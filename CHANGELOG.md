@@ -48,6 +48,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 - The Template Catalog skill no longer claims templates generate credentials; a template's prerequisite secret is created before the install.
 - Corrected facts: containers receive SIGTERM at termination; an omitted autoscaling metric on a standard workload with Capacity AI resolves to `disabled`; the service account kind is `serviceaccount`; `create_domain` no longer requires `dnsMode` and `ports`.
 - The workload skill sends serverless workloads to `create_workload`: `deploy_app` creates standard ones.
+- The operating guide no longer tells the assistant to pass `location: "auto"`, which `deploy_app` and `add_database` refuse; it passes the location it picked, and says a city, country, or cloud region name also works.
 
 ### Removed
 
