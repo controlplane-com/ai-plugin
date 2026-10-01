@@ -113,6 +113,23 @@ Two workflows also have slash commands in Claude Code — `/cpln:troubleshoot WO
 
 Report vulnerabilities per [SECURITY.md](SECURITY.md).
 
+## Where data goes
+
+The plugin's one declared connector is the hosted MCP server at `https://mcp.cpln.io/mcp`, which acts only on the orgs you grant when you sign in, with your own permissions.
+
+When a task needs it, the skills also run these tools on your machine, each with your own credentials:
+
+| Tool | Sends data to |
+| --- | --- |
+| `cpln` CLI | The Control Plane API (`api.cpln.io`), your org's image registry (`ORG.registry.cpln.io`), and the metrics endpoint (`metrics.cpln.io`), using your CLI profile or `CPLN_TOKEN` |
+| `docker` | The image registries you push to and pull from |
+| `kubectl`, `helm` | The Kubernetes cluster you point them at, when migrating from it or installing the Control Plane Kubernetes operator |
+| `terraform`, `pulumi` | The Control Plane API, through the Control Plane provider |
+| `gcloud` and other cloud CLIs | Your own cloud account, when connecting a private network or creating an agent VM |
+| `curl` | Your own domain, to check it after setup |
+
+The plugin itself stores nothing. Resources, app files, and invitations the assistant creates are stored in your Control Plane org until you delete them, and the org's audit trail records each change.
+
 ## More
 
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
