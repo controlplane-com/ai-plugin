@@ -70,7 +70,6 @@ jobs:
             .agents/plugins/marketplace.json \
             .cursor-plugin/marketplace.json \
             plugins/cpln/plugin.json \
-            plugins/cpln/mcp.json \
             plugins/cpln/mcp_config.json \
             plugins/cpln/.claude-plugin/plugin.json \
             plugins/cpln/.codex-plugin/plugin.json \

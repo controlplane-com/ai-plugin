@@ -1,3 +1,0 @@
-PyYAML>=6.0.2,<7
-jsonschema>=4.23,<5
-Pillow>=11,<13
