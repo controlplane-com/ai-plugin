@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
+## [2.4.1] - 2026-10-01
+
 ### Changed
 
 - Secrets can be deleted with `delete_resource` once the user approves, and the `cpln` skill no longer forbids it; secret values still never pass through the chat.

@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "cpln",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "description": "Control Plane skills, operating rules, and MCP server for building, deploying, and running containerized apps across AWS, GCP, Azure, Oracle Cloud, and your own hardware.",
   "author": {
     "name": "Control Plane Corporation",
