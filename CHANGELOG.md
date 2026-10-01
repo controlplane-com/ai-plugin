@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
+## [2.4.3] - 2026-10-01
+
 ### Added
 
 - The README lists every service the plugin sends data to and what it stores.
