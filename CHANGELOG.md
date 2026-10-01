@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
+### Added
+
+- The Claude plugin directory listing links Control Plane's terms of service.
+
 ## [2.4.1] - 2026-10-01
 
 ### Changed

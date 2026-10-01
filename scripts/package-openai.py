@@ -199,9 +199,10 @@ def validate_archive(path):
         return report
 
 
-def export_files(version, mcp_url, review_path=REVIEW):
+def export_files(version, mcp_url, review_path=REVIEW, name=None):
     root = json.loads(source_file(PLUGIN / "plugin.json"))
     root["version"] = version
+    root["name"] = name or root["name"]
     extension = root["extensions"]["com.openai"]
     require("review" not in extension, "plugins/cpln/plugin.json must not carry review materials; they live in openai-review.json, outside version control")
     require(review_path.is_file(), f"Missing review materials: {review_path} holds the test cases and the demo recording URL, and is never committed")
@@ -209,6 +210,7 @@ def export_files(version, mcp_url, review_path=REVIEW):
     files = {"plugin.json": json_bytes(root)}
     overlay = json.loads(source_file(PLUGIN / ".codex-plugin/plugin.json"))
     overlay["version"] = version
+    overlay["name"] = root["name"]
     files[".codex-plugin/plugin.json"] = json_bytes(overlay)
     config = json.loads(source_file(PLUGIN / "mcp.json"))
     next(iter(config["mcpServers"].values()))["url"] = mcp_url
@@ -237,6 +239,7 @@ def export_files(version, mcp_url, review_path=REVIEW):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--version", help="Public package version; independent of local marketplace release tags")
+    parser.add_argument("--name", help="The published plugin's name in the OpenAI dashboard; an update must keep it")
     parser.add_argument("--mcp-url", help="The exact URL already registered for the published plugin; do not migrate it in an update")
     parser.add_argument("--review", type=Path, default=REVIEW, help="Review cases and demo recording URL, kept out of version control")
     parser.add_argument("--output", type=Path, default=ROOT / "dist")
@@ -247,8 +250,8 @@ def main():
     if args.validate:
         report = validate_archive(args.validate)
     else:
-        require(args.version and args.mcp_url, "Export requires --version and --mcp-url")
-        files = export_files(args.version, args.mcp_url, args.review)
+        require(args.version and args.mcp_url and args.name, "Export requires --version, --mcp-url, and --name")
+        files = export_files(args.version, args.mcp_url, args.review, args.name)
         preliminary = validate_files(files)
         require(args.draft or not preliminary["metadata_gaps"], "Review materials incomplete; use --draft only for preparation: " + "; ".join(preliminary["metadata_gaps"]))
         args.output.mkdir(parents=True, exist_ok=True)

@@ -37,6 +37,12 @@ class PublicPackageTests(unittest.TestCase):
         self.assertEqual((package.PLUGIN / "hooks/hooks.json").read_bytes(), original_hooks)
         self.assertTrue(report["metadata_gaps"])
 
+    def test_export_keeps_the_published_plugin_name(self):
+        files = package.export_files("1.1.0", self.url, REVIEW_FIXTURE, "app-0123abc")
+        for manifest in package.MANIFESTS:
+            self.assertEqual(json.loads(files[manifest])["name"], "app-0123abc")
+        self.assertEqual(package.validate_files(files)["name"], "app-0123abc")
+
     def test_review_materials_come_only_from_the_local_file(self):
         exported = json.loads(self.files["plugin.json"])["extensions"]["com.openai"]["review"]
         self.assertEqual(exported, json.loads(REVIEW_FIXTURE.read_text()))

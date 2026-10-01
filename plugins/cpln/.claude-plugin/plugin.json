@@ -9,6 +9,7 @@
   },
   "homepage": "https://docs.controlplane.com/ai/plugin",
   "privacyPolicyUrl": "https://controlplane.com/privacy-policy",
+  "termsOfServiceUrl": "https://controlplane.com/terms-of-use",
   "repository": "https://github.com/controlplane-com/ai-plugin",
   "license": "MIT",
   "keywords": [
