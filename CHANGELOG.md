@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
+## [2.4.2] - 2026-10-01
+
 ### Added
 
 - The Claude plugin directory listing links Control Plane's terms of service.
