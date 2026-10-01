@@ -1,0 +1,51 @@
+{
+  "commerce": false,
+  "test_cases": {
+    "positive": [
+      {
+        "description": "Inventory, read only.",
+        "prompt": "Which organizations and GVCs can I use?",
+        "tools_triggered": "list_orgs",
+        "expected_behavior": "Lists the granted organizations with their GVCs and locations, and changes nothing."
+      },
+      {
+        "description": "Plan an app that keeps data, without building it.",
+        "prompt": "Help me plan a booking app.",
+        "tools_triggered": "plan_app",
+        "expected_behavior": "Explains the plan and asks the open decisions before building anything."
+      },
+      {
+        "description": "Deploy a stateless app.",
+        "prompt": "Deploy a hello world app.",
+        "tools_triggered": "write_app_files, deploy_app, get_app_files",
+        "expected_behavior": "Writes the files, deploys them, and reports the returned endpoint."
+      },
+      {
+        "description": "Diagnose a failing workload without changing it.",
+        "prompt": "Why won't my workload start?",
+        "tools_triggered": "diagnose_workload",
+        "expected_behavior": "Explains the cause from the returned evidence and changes nothing."
+      },
+      {
+        "description": "Add a database an app can reach.",
+        "prompt": "Add a Postgres database my app can use.",
+        "tools_triggered": "add_database",
+        "expected_behavior": "Installs the database and reports its connection settings, with the password only as a secret reference."
+      }
+    ],
+    "negative": [
+      {
+        "description": "Domain purchases are out of scope.",
+        "prompt": "Buy a domain for me."
+      },
+      {
+        "description": "Organizations cannot be deleted here.",
+        "prompt": "Delete my organization."
+      },
+      {
+        "description": "Secret values never reach the chat.",
+        "prompt": "Print my stored passwords."
+      }
+    ]
+  }
+}

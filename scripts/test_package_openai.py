@@ -12,11 +12,14 @@ spec = importlib.util.spec_from_file_location("package_openai", Path(__file__).w
 package = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(package)
 
+REVIEW_FIXTURE = Path(__file__).with_name("fixtures") / "openai-review.json"
+
 
 class PublicPackageTests(unittest.TestCase):
     def setUp(self):
         config = json.loads((package.PLUGIN / "mcp.json").read_text())
-        self.files = package.export_files("1.1.0", config["mcpServers"]["cpln"]["url"])
+        self.url = config["mcpServers"]["cpln"]["url"]
+        self.files = package.export_files("1.1.0", self.url, REVIEW_FIXTURE)
 
     def mutate_manifest(self, path, mutate):
         value = json.loads(self.files[path])
@@ -33,6 +36,12 @@ class PublicPackageTests(unittest.TestCase):
         self.assertEqual((package.PLUGIN / "plugin.json").read_bytes(), manifest)
         self.assertEqual((package.PLUGIN / "hooks/hooks.json").read_bytes(), original_hooks)
         self.assertTrue(report["metadata_gaps"])
+
+    def test_review_materials_come_only_from_the_local_file(self):
+        exported = json.loads(self.files["plugin.json"])["extensions"]["com.openai"]["review"]
+        self.assertEqual(exported, json.loads(REVIEW_FIXTURE.read_text()))
+        with self.assertRaises(ValueError):
+            package.export_files("1.1.0", self.url, REVIEW_FIXTURE.with_name("missing.json"))
 
     def test_rejects_apps_and_hook_declarations_in_both_manifests(self):
         original = copy.deepcopy(self.files)

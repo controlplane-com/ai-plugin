@@ -42,3 +42,6 @@ Thumbs.db
 *-bootstrap.json
 *.bak.yaml
 *.bak.yml
+
+# OpenAI review cases and demo link, merged into the export by scripts/package-openai.py
+/openai-review.json

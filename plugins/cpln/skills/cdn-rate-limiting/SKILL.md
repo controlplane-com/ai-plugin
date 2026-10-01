@@ -25,7 +25,7 @@ The pattern: the CDN proxies your domain and uses the workload's **canonical end
 
 ### Lock out direct access
 
-With a CDN in front, restrict the workload firewall so only CDN traffic reaches it: set `inboundAllowCIDR` to the provider's published ranges ([CloudFront IP list](https://d7uri8nf7uskq.cloudfront.net/tools/list-cloudfront-ips)) via `mcp__cpln__update_workload`, and keep the list current. BYOK locations must also admit the ranges in the cluster's ingress security group — the CloudFront list is large, so raise the VPC quota for rules per security group to at least **530**. Details: **firewall-networking**.
+With a CDN in front, restrict the workload firewall so only CDN traffic reaches it: set `inboundAllowCIDR` to the provider's published ranges ([CloudFront IP ranges](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/LocationsOfEdgeServers.html)) via `mcp__cpln__update_workload`, and keep the list current. BYOK locations must also admit the ranges in the cluster's ingress security group — the CloudFront list is large, so raise the VPC quota for rules per security group to at least **530**. Details: **firewall-networking**.
 
 ## Rate limiting
 
@@ -33,14 +33,13 @@ Tags on the target workload inject an [Envoy rate-limit filter](https://github.c
 
 ### 1. Deploy the ratelimit stack
 
-One multi-resource manifest (no bundled-apply MCP tool — use the CLI):
+The stack is one multi-resource manifest from the [rate limiting guide](https://docs.controlplane.com/guides/rate-limiting): the **ratelimit** workload (`envoyproxy/ratelimit`), a **redis** workload, the **ratelimit-config** opaque secret (the rules), and the identity + policy for secret access. The user downloads and reviews it from the guide before it is applied. Create the GVC with `mcp__cpln__create_gvc`; no MCP tool applies a multi-resource manifest, so the apply uses the CLI:
 
 ```bash
-cpln gvc create --name ratelimit --location LOCATION --org ORG   # or mcp__cpln__create_gvc
 cpln apply --file rate-limiting.yaml --org ORG --gvc ratelimit
 ```
 
-The [example manifest](https://raw.githubusercontent.com/controlplane-com/examples/main/examples/rate-limiting/rate-limiting.yaml) creates the **ratelimit** workload (`envoyproxy/ratelimit`), a **redis** workload, the **ratelimit-config** opaque secret (the rules), and the identity + policy for secret access. It assumes the GVC is named `ratelimit` (edit it if yours differs) and pins an older `envoyproxy/ratelimit` image tag — substitute a newer tag if desired.
+The manifest assumes the GVC is named `ratelimit` (edit it if yours differs) and pins an older `envoyproxy/ratelimit` image tag; substitute a newer tag if desired.
 
 **As shipped, the manifest is a trial setup, not a production one:** both workloads run `minScale: 1` with `spot: true`. Because enforcement is fail-closed, the ratelimit stack is tier-1 infrastructure for every tagged workload — for production raise its `minScale` to 2+, set `spot: false`, and run the GVC in the same locations as the workloads it protects (every request pays the check's round trip). A Redis restart only resets counters; a ratelimit outage denies traffic.
 
@@ -111,7 +110,7 @@ Traffic passes, in order: the **CDN** (absorbs and caches), then the **firewall*
 
 ## Verify the setup
 
-- **Limiting works:** send requests past the limit and expect `429` — with the sample 10/minute rule, the 11th call returns it: `for i in $(seq 1 11); do curl -s -o /dev/null -w "%{http_code}\n" -H "Authorization: test" https://CANONICAL_ENDPOINT/; done`. After any rules edit, `force-redeployment` the ratelimit workload first.
+- **Limiting works:** with the sample 10/minute rule, the 11th request within a minute that carries an `Authorization` header gets `429`. After any rules edit, `force-redeployment` the ratelimit workload first.
 - **CDN serves:** `curl -I https://SUBDOMAIN` shows the CDN's header (`cf-cache-status` on Cloudflare, `x-cache` on CloudFront).
 - **Bypass is closed:** `curl` the canonical endpoint directly — after the firewall lock-down it must no longer answer from outside the CDN ranges.
 

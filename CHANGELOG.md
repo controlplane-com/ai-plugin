@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
+### Changed
+
+- Secrets can be deleted with `delete_resource` once the user approves, and the `cpln` skill no longer forbids it; secret values still never pass through the chat.
+- The CDN and rate limiting skill has the user download and review the rate limiting manifest from the guide before it is applied, and links AWS's page for CloudFront IP ranges.
+
+### Fixed
+
+- Claude Code receives plugin updates again. It was still on the release before 2.3.0 because the Claude plugin directory held back newer versions; the plugin now passes the directory's checks.
+
 ## [2.4.0] - 2026-10-01
 
 ### Added

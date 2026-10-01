@@ -1,6 +1,7 @@
 {
   "mcpServers": {
     "cpln": {
+      "type": "http",
       "url": "https://mcp.cpln.io/mcp?toolsets=core&skills=plugin"
     }
   }

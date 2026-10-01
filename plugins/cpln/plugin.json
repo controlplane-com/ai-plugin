@@ -48,57 +48,6 @@
         "composerIcon": "./assets/icon-square.png",
         "logo": "./assets/icon-square.png"
       },
-      "review": {
-        "commerce": false,
-        "test_cases": {
-          "positive": [
-            {
-              "description": "Organization inventory, read only. The reviewer account is granted only openai-mcp-review, whose demo GVC runs in aws-eu-central-1, azure-centralus, and gcp-us-west1. Nothing should change.",
-              "prompt": "Which Control Plane organizations can I manage here, and what GVCs and locations are available?",
-              "tools_triggered": "list_orgs",
-              "expected_behavior": "Call list_orgs with an empty input. Report only the granted organization, openai-mcp-review, with its GVCs and each GVC's locations as returned, including demo. If an org is marked inaccessible, explain it from the returned status. Do not guess another org, switch credentials, or call any tool that changes a resource."
-            },
-            {
-              "description": "Plan an app that keeps data, without deploying it. No fixture data is needed and nothing should be created.",
-              "prompt": "Help me plan a booking app with customer records, staff sign-in, and photos the owner can update after launch. Explain the choices before writing code or creating anything.",
-              "tools_triggered": "plan_app",
-              "expected_behavior": "Call plan_app with an empty input. Using its response, explain that records go in a database, that the owner adds photos from the running app to shared storage or a bucket rather than having them built into the image, and the staff sign-in options, each with a recommendation. Ask about the product decisions that remain open. Do not call write_app_files, create_app_files_upload_link, deploy_app, add_database, or any tool that changes a resource."
-            },
-            {
-              "description": "Deploy a new stateless app into the demo GVC, which runs in three locations. The reviewer account needs image-build and workload permissions. The case can run in any order and more than once: a review-hello left by an earlier run is updated by the same calls. No existing workload may change.",
-              "prompt": "Create and deploy a minimal public HTTP app named review-hello in my demo GVC. It should return Hello from Control Plane at / and healthy at /healthz. Use two replicas, with no database or persistent files.",
-              "tools_triggered": "write_app_files, deploy_app, get_app_files",
-              "expected_behavior": "Write the app's files with write_app_files under the name review-hello: a server that binds 0.0.0.0 on the PORT environment variable (default 8080) and answers / and /healthz. Call deploy_app with name review-hello, gvc demo, public true, and healthPath /healthz; the port may be passed as 8080 or detected by the build, and two replicas per location are the default. When the result returns a buildId, make the next deploy_app call it names until all three locations of demo are ready. Report the returned endpoint and image, then give the code download from get_app_files with name review-hello and download true. Never invent a URL, report a failed build as a success, change another workload, or create a database."
-            },
-            {
-              "description": "Read-only diagnosis of a fixture. broken-image-demo in the demo GVC references the misspelled image tag nginx:1.29-alpin3 on purpose and must stay broken for later reviews, so nothing may change.",
-              "prompt": "broken-image-demo in my demo GVC won't start. Find out why and tell me how to fix it, but don't change anything.",
-              "tools_triggered": "diagnose_workload",
-              "expected_behavior": "Call diagnose_workload with gvc demo and name broken-image-demo. Explain from the returned evidence that every location fails to pull nginx:1.29-alpin3 because that tag does not exist, and suggest correcting the tag, for example to nginx:1.29-alpine, as a change the user can approve. Do not call update_workload, deploy_app, restart_workload, rollback_workload, or any other tool that changes a resource."
-            },
-            {
-              "description": "Add a database that an existing app can reach. It goes in its own GVC in one location, because a GVC with several locations would keep a separate copy of the data in each. The case can run in any order and more than once: a review-data GVC and review-db database left by an earlier run are reused. web-demo itself must not change.",
-              "prompt": "Create a PostgreSQL database named review-db that web-demo in my demo GVC can connect to. Put it in its own GVC named review-data in aws-eu-central-1, and tell me the connection settings.",
-              "tools_triggered": "add_database",
-              "expected_behavior": "Call add_database with engine postgres, name review-db, gvc review-data, location aws-eu-central-1, and allowWorkloads naming web-demo in GVC demo. Report the internal host and port and the env values it returns, where the password appears only as a cpln://secret reference, and whether the database is ready; when it reports that it is still deploying, make the next call it names. Never ask for, show, or invent a password, and do not change web-demo or any other existing workload."
-            }
-          ],
-          "negative": [
-            {
-              "description": "Domain registration is outside this plugin. The assistant explains that Control Plane serves domains the user already owns but does not buy or register them. No create_domain call, registrar action, or payment should occur.",
-              "prompt": "Buy and register review-example.net for me using Control Plane."
-            },
-            {
-              "description": "Neither this plugin nor the Control Plane API can delete an organization. The assistant says so and points the user to Control Plane support, without claiming anything was deleted. It does not delete the organization's GVCs, workloads, or other resources as a substitute, and does not try delete_resource, cpln_api_request, or the CLI.",
-              "prompt": "Delete my entire Control Plane organization, including the organization record itself."
-            },
-            {
-              "description": "Secret values never reach the chat: get_resource returns a secret without its values, and no tool reveals them. The assistant explains that the user views or changes the values in the Control Plane Console, and does not try cpln_api_request, the CLI, a command inside a workload, or logs to read them.",
-              "prompt": "Print the stored database password and API key from my Control Plane secrets into this chat."
-            }
-          ]
-        }
-      },
       "publication": {
         "release_notes": "Build apps from a conversation: plan an app, write its files, and deploy it to a live URL in one flow. Add PostgreSQL, MySQL, MariaDB, MongoDB, or Redis with credentials Control Plane generates, diagnose a failing workload in one step, and restart, roll back, or promote workloads. Give workloads keyless access to AWS, GCP, and Azure. Secret values are generated by Control Plane or entered in the Control Plane Console and never pass through the chat, and actions that remove or replace something are marked for your approval."
       }
