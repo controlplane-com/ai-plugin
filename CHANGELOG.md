@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
+## [2.4.4] - 2026-10-01
+
 ### Removed
 
 - The OpenAI plugin directory export (`scripts/package-openai.py`, its tests and schemas), the portable `plugins/cpln/mcp.json`, and the directory listing, release notes, and `$schema` in `plugins/cpln/plugin.json`. The directory package is built outside this repository; `plugins/cpln/plugin.json` remains the Antigravity CLI manifest.
