@@ -6,9 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
+### Added
+
+- The IaC skill says Terraform and Pulumi default `capacity_ai` to `true` on every workload type, stateful included.
+
 ### Changed
 
 - Skills say how to reach a tool outside the core profile (`?toolsets=full`), and treat the volume snapshot tools as core.
+- The Template Catalog skill finds a template with `browse_templates` and `query` (the user's need in their own words) and reads its prerequisites, the template to pick instead, and its README notes from the tools, replacing the table of common asks and the per-template secret keys. It covers any self-hosted component or product, and leaves an app the user asks to build to the `create-app` skill.
+- The Template Catalog skill searches for the capability a goal needs when the user describes a goal rather than a component, and keeps `add_database` the default for the five databases, using the install steps only for a setting it does not take, such as backups.
+
+### Fixed
+
+- The stateful `minCpu`/`minMemory` ratio and gap limits apply only while Capacity AI is off in `defaultOptions` or in a `localOptions` entry.
+- The Template Catalog skill no longer says `cockroach`, `tidb`, `nats`, `clickhouse`, `airflow`, `mongodb-cluster`, `redis-multi-location`, and `pgedge` create their own GVC; their current versions install into an existing GVC that already has every location their `locations` value lists.
 
 ## [2.4.4] - 2026-10-01
 

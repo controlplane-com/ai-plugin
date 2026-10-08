@@ -1,55 +1,31 @@
 ---
 name: template-catalog
-description: "Recommends and installs templates from the Control Plane Template Catalog. Use when the user wants postgres, redis, kafka, mongodb, mysql, or any database, cache, queue, or gateway, or asks what templates exist."
+description: "Recommends and installs templates from the Control Plane Template Catalog. Use when the user wants a self-hosted component or product: a database, cache, queue, search engine, object storage, gateway, AI tool, analytics, auth, security, automation, observability, or developer tool, a self-hosted replacement for a product they name, or asks what templates exist."
 ---
 
 # Template Catalog
 
-Production-tested charts (Helm under the hood) for databases, caches, queues, brokers, search, and gateways, with storage, firewall, and HA variants wired. A catalog template is the default for any common component; a custom workload needs a hard reason, such as an extension or image the template cannot take.
+Production-tested charts (Helm under the hood) for databases, caches, queues, search, storage, AI tools, analytics, auth, security, automation, observability, developer tools, and gateways, with storage, firewall, and HA variants wired. A catalog template is the default for any common component; a custom workload needs a hard reason, such as an extension or image the template cannot take. An app the user asks you to build, such as a blog, a wiki, or a shop, is written (`create-app` skill), not replaced by a template; install one for it only when the user names it.
 
-**Postgres, MySQL, MariaDB, MongoDB, or Redis: `add_database`,** not the steps below. Calling it again with a new `allowWorkloads` changes who can connect by reapplying the installed template: the password, version, and storage stay as installed, but changes made outside its values, such as volume snapshot settings, are reset. Tell the user that before reapplying. The HA and multi-location variants (`postgres-highly-available`, `mongodb-cluster`, and the rest) go through the install steps.
-
-## Credentials: create the prerequisite secret first
-
-- Most templates name a secret in their `values` that **must exist before the install**: `postgres`, `mongodb`, and `pgvector` read `config.credentialsSecretName` (a `dictionary` with `username`, `password`, and `database`); `mysql` and `mariadb` read `credentialsSecretName` (the same three keys) and `rootPasswordSecretName` (an `opaque` secret). The `get_template` example values mark each one.
-- A missing secret does not fail the install: the release installs and the workload **wedges silently**, with no logs.
-- `values` key names differ per template (secret names, resources, access scope): copy them from `get_template`, never from memory.
-- Create it with `create_secret` before installing: `values: "generate"` for passwords nobody needs to know, `values: "user"` for a key the user already has (they type it into the Console). Then put its name in `values`.
-- Never write a password or key into `values`: values pass through the chat and are stored in the release. A template that still takes a secret value directly in `values` is installed from the Console, or with `cpln helm install -f` and a values file the user fills in locally.
+**Postgres, MySQL, MariaDB, MongoDB, or Redis: `add_database` by default.** In one call it generates the credentials, lets the listed workloads connect, and waits until the database is ready. Use the install steps below for these only when the user needs a setting `add_database` does not take, such as backups, a connection pooler, an admin UI, or custom resources, creating the credentials secret with `create_secret` first. Calling `add_database` again with a new `allowWorkloads` changes who can connect by reapplying the installed template: the password, version, and storage stay as installed, but changes made outside its values, such as volume snapshot settings, are reset. Tell the user that before reapplying. The HA and multi-location variants (`postgres-highly-available`, `mongodb-cluster`, and the rest) go through the install steps.
 
 ## Find the right template
 
-`browse_templates` returns the **live catalog** — name, category, latest version, a "creates its own GVC" flag, and description. It is the source of truth for what exists; the table below is only the common asks. Filter with a substring (e.g. `postgres`), then call `get_template <name>` for the version list, prerequisites, and an example `values.yaml` to copy.
+Call `browse_templates` with `query` naming the capability or product needed. When the user describes a goal or a problem rather than a component ("my site is slow", "users should sign in with Google"), decide the capability it needs and search for that ("cache for database queries", "identity provider with Google login"); a goal searched in the user's own words ranks poorly. Recommend the result with what it does and why it fits. Take the first result unless its confidence is low or one of its `pickInsteadIf` needs matches the user; then use the template that entry names. A low-confidence first result is a guess: search again naming the capability, or ask the user about their goal. Each result also names its `variants` (the same software in other topologies), `related` templates (a `companion` is often installed alongside), and `includes` (bundled templates that install with it, never separately). Without `query`, `browse_templates` lists the catalog and its categories, or one `category`.
 
-| Need | Templates |
-|---|---|
-| PostgreSQL | `postgres` (single + backup), `postgres-highly-available` (Patroni failover), `pgedge` (active-active multi-master), `postgis` (geospatial) |
-| MySQL-compatible | `mysql`, `mariadb`, `tidb` (distributed) |
-| Distributed SQL | `cockroach`, `tidb` |
-| Document / NoSQL | `mongodb` (single), `mongodb-cluster` (replica set), `cassandra` |
-| Analytics / columnar | `clickhouse` |
-| Cache / KV | `redis` (replica + Sentinel), `redis-cluster` (sharded), `redis-multi-location` (cross-GVC), `etcd` |
-| Streaming / queues | `kafka`, `redpanda`, `rabbitmq`, `nats`, `cpln-task-runner` |
-| Search / vector | `manticore`, `opensearch`, `elasticsearch`, `weaviate` |
-| Gateway / WAF / VPN | `nginx`, `tyk`, `coraza`, `tailscale` |
-| Storage / AI / LLM | `minio` (S3), `ollama`, `langfuse` |
-| Auth / dev / ops | `fusionauth`, `dbeaver`, `airflow`, `ess`, `secret-env-var-syncer`, `otel-collector` |
+## Credentials: create the prerequisite secret first
 
-## Choosing an HA / scaling variant
-
-This is the choice the catalog can't make for you:
-
-- **Postgres:** `postgres` is one instance with optional scheduled S3/GCS backups; `postgres-highly-available` adds Patroni leader election and an embedded etcd quorum (odd member count — 3/5/7) plus its own scheduled backups (logical or WAL-G mode); `pgedge` is active-active multi-master across regions. Pick HA when failover matters, pgEdge when you need multi-region writes.
-- **MongoDB:** `mongodb` is single; `mongodb-cluster` is a replica set and creates its own GVC.
-- **Redis:** `redis` (master-replica + Sentinel) for one location; `redis-cluster` (sharded, needs 6+ nodes) for horizontal scale; `redis-multi-location` (Valkey + Sentinel) for cross-location failover.
-- **Distributed SQL:** `cockroach` and `tidb` are natively distributed — HA is built in through their consensus protocols, and they create their own multi-location GVCs.
-- **Streaming:** `kafka` for the full Kafka ecosystem; `redpanda` is Kafka-API-compatible with a simpler single-binary footprint.
+- Every search result and `get_template` list the template's prerequisites. A required secret comes with its `secretType`, its `keys`, and the `valuesPath` that takes its name; an optional one names the values that turn it on (`when`).
+- A missing secret does not fail the install: the release installs and the workload **wedges silently**, with no logs. So `install_template` and `upgrade_template` refuse, creating nothing, while the release would read a required secret that does not exist or has another type (they render it to confirm the read). A secret named inside a list, such as a list of users, is not checked.
+- `values` key names differ per template (secret names, resources, access scope): copy them from `get_template`, never from memory.
+- Create it with `create_secret` before installing: `values: "generate"` for passwords nobody needs to know, `values: "user"` for a key the user already has (they type it into the Console). Then put its name in `values`.
+- Never write a password or key into `values`: values pass through the chat and are stored in the release. A template that still takes a secret value directly in `values` (`get_template` says when its example values do) is installed from the Console, or with `cpln helm install -f` and a values file the user fills in locally.
 
 ## Install (MCP)
 
-1. `get_template <name>`: copy the example `values.yaml`; set the prerequisite secret names, replica count, resources, storage size, and access scope.
-2. `install_template` with `dryRun: true`: renders the resources the install would create, without applying anything.
-3. `install_template` with a unique release `name` (immutable) and the `values` YAML (at most 128 KiB). **Omit `gvc` for templates that create their own** (the `createsGvc` flag: `cockroach`, `tidb`, `nats`, `clickhouse`, `airflow`, `mongodb-cluster`, `redis-multi-location`, `pgedge`); every other template needs an existing `gvc`.
+1. `get_template <name>`: copy the example `values.yaml`; set the prerequisite secret names, replica count, resources, storage size, and access scope. It also returns the README's important notes. When a prerequisite has a `when` condition or the values are unclear, read the README's prerequisites with `get_template` and `readmeSection: "prerequisites"`; a README without that section answers with the sections it has.
+2. `install_template` with `dryRun: true`: renders the resources the install would create, without applying anything, and lists in `missingSecrets` the required secrets the release reads that are still missing.
+3. `install_template` with a unique release `name` (immutable) and the `values` YAML (at most 128 KiB). **Omit `gvc` only for a template that creates its own** (`createsGvc` in the search result and `get_template`); every other template needs an existing `gvc`, and a multi-location template's `locations` must be locations that GVC already has.
 4. Installs are asynchronous: wait with `get_installed_template` and `waitSeconds`. Its token needs `reveal` on the release's state secret.
 
 ## Configure and upgrade
@@ -84,7 +60,7 @@ Reference `values.yaml` for any template lives in the [templates repo](https://g
 ## Connection details and backups
 
 - An installed service is reachable in its GVC at `<release>-<component>.<gvc>.cpln.local:<port>`, for example `my-pg-postgres.<gvc>.cpln.local:5432`; the exact names are in the `get_installed_template` resources. Workloads read the credentials as `cpln://secret/NAME.KEY` from the prerequisite secret.
-- Backups (`postgres`, `mongodb`) need a cloud account and a storage IAM policy first, referenced in the `values` backup block.
+- Backups need the optional prerequisites `get_template` lists for them, such as a bucket, a cloud account, and on AWS a bucket-scoped IAM policy, referenced in the `values` backup block.
 
 ## Troubleshooting
 
