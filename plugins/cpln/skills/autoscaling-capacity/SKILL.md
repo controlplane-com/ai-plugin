@@ -42,7 +42,7 @@ spec:
     capacityAI: true
 ```
 
-- **Per-location overrides:** `spec.localOptions[]` (same fields + `location`) via `mcp__cpln__configure_workload_local_options` (full profile), the only MCP tool that sets `capacityAIUpdateMinutes` or `multiZone`; it replaces the full list. Both also exist on `spec.defaultOptions`, reachable with `cpln apply`.
+- **Per-location overrides:** `spec.localOptions[]` (same fields + `location`) via `mcp__cpln__configure_workload_local_options` (needs `?toolsets=full`), the only MCP tool that sets `capacityAIUpdateMinutes` or `multiZone`; it replaces the full list. Both also exist on `spec.defaultOptions`, reachable with `cpln apply`.
 - **`scaleToZeroDelay` is dual-purpose:** on serverless it is the idle period before scaling to 0; on standard/stateful it sets the **scale-down stabilization window** (default 300s) — scale-up is immediate.
 
 ### Multi-metric (standard/stateful)

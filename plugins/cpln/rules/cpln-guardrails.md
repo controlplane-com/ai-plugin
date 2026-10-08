@@ -28,7 +28,7 @@ The tag `cpln/managedByTerraform: "true"` marks a resource Terraform or Pulumi o
 - Keep generated values and user-entered values in separate secrets, so none is half filled.
 - Access needs three things, and a missing one fails silently: an identity on the workload, a policy granting `reveal` (not `view`), and a `cpln://secret/NAME.KEY` reference. `deploy_app` wires all three for its env; `grant_workload_secret_access` sets the identity and policy once the workload exists.
 - CLI and GitOps users may want a manifest: UPPERCASE placeholders they fill locally, then `cpln apply`. Never apply a file holding a placeholder. On the CLI a value goes in a file, never an inline flag.
-- Service-account keys and agent bootstrap configs are shown once, in the Console: `add_key_to_service_account` and `create_agent` (full profile) return the link.
+- Service-account keys and agent bootstrap configs are shown once, in the Console: `add_key_to_service_account` and `create_agent` (need `?toolsets=full`) return the link.
 - Redact passwords, tokens, keys, connection strings, and bearer headers from anything you repeat.
 
 ## Targets

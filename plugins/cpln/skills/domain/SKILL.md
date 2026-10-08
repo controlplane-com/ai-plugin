@@ -98,7 +98,7 @@ spec:
 
 ## Which tool changes what
 
-`create_domain` with `workload` and `gvc` derives the 443 listener, its route, and `cname` mode and returns the DNS records; pass `dnsMode` and `ports` for anything else. After creation, routes, ports, TLS, and CORS (full profile) each have their own tool; `update_domain` never changes ports, `dnsMode`, or `certChallengeType`. Domain names are FQDNs, passed as is.
+`create_domain` with `workload` and `gvc` derives the 443 listener, its route, and `cname` mode and returns the DNS records; pass `dnsMode` and `ports` for anything else. After creation, routes, ports, TLS, and CORS each have their own tool (CORS needs `?toolsets=full`); `update_domain` never changes ports, `dnsMode`, or `certChallengeType`. Domain names are FQDNs, passed as is.
 
 ## Verify
 

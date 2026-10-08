@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
+### Changed
+
+- Skills say how to reach a tool outside the core profile (`?toolsets=full`), and treat the volume snapshot tools as core.
+
 ## [2.4.4] - 2026-10-01
 
 ### Removed

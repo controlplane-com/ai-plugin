@@ -54,7 +54,7 @@ This is the choice the catalog can't make for you:
 
 ## Configure and upgrade
 
-Reconfigure with `upgrade_template`: pass `name` plus the new `version` and/or `values`. **`values` REPLACES the release's values entirely — there is no reuse-merge** — so start from the current values, never a partial. `template` and `gvc` are immutable and read from the installed release, so you don't pass them. Roll back with `rollback_template` (full profile) or `cpln helm rollback`.
+Reconfigure with `upgrade_template`: pass `name` plus the new `version` and/or `values`. **`values` REPLACES the release's values entirely — there is no reuse-merge** — so start from the current values, never a partial. `template` and `gvc` are immutable and read from the installed release, so you don't pass them. Roll back with `rollback_template` (needs `?toolsets=full`) or `cpln helm rollback`.
 
 Access scope lives in `values` under a per-template key (`internal_access.type`, `internalAccess.type`, `internalAllowType`, or `firewall.internal_inboundAllowType`), with values `same-gvc` (default), `same-org`, `workload-list` plus a `workloads:` list, and `none` on a few.
 
@@ -90,7 +90,7 @@ Reference `values.yaml` for any template lives in the [templates repo](https://g
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `rollback_template` (full profile) not found | core profile | reconnect `?toolsets=full` or use `cpln helm rollback` |
+| `rollback_template` not found | core profile | reconnect `?toolsets=full` or use `cpln helm rollback` |
 | Upgrade lost settings | `values` replaces, not merges | re-supply full values from `cpln helm get values --all` |
 | Install failed / release stuck | partial apply, bad values, or unready workloads | inspect `get_installed_template` and `cpln helm history`; fix values and `upgrade_template`, or `uninstall` and reinstall |
 | Workloads pending after install | image pull / firewall / resources | `diagnose_workload`, then the `workload-troubleshooting` skill |

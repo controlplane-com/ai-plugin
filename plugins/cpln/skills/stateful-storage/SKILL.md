@@ -5,7 +5,7 @@ description: "Creates persistent storage for stateful workloads on Control Plane
 
 # Stateful Storage & VolumeSets
 
-> **Tool availability:** the snapshot tools, `shrink_volumeset`, and `delete_volumeset_volume` need `?toolsets=full`; reconnect with it or use the CLI.
+> **Tool availability:** `delete_volumeset_snapshot`, `shrink_volumeset`, and `delete_volumeset_volume` need `?toolsets=full`; reconnect with it or use the CLI.
 
 A **VolumeSet** is GVC-scoped persistent storage for workloads. The `workload` skill covers the basics (stateful type, reserved mount paths, the 15-volume limit, create-then-verify); this skill is the full volume-set detail. The one trap that drives most rework: **`fileSystemType` and `performanceClass` are immutable** (a PATCH that changes either returns HTTP 400) — to change either you must create a new volumeset, and the old data does not carry over. Choose both at creation.
 
