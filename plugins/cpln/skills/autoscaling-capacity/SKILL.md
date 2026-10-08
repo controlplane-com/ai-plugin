@@ -122,7 +122,7 @@ spec:
 
 - Floors and the memory to CPU ratio: `workload` skill. `minCpu` and `minMemory` never exceed `cpu` and `memory`.
 - **With Capacity AI off:** `cpu`/`memory` are the fixed allocation and `minCpu`/`minMemory` are ignored — except on **stateful**, where `minCpu`/`minMemory` become the static **reserved** request and `cpu`/`memory` stay the burst ceiling.
-- **Stateful `minCpu`/`minMemory` are bounded** whether or not Capacity AI is on: max/min ratio ≤ **4** AND gap ≤ **4000m** CPU / **4096Mi** memory.
+- **Stateful `minCpu`/`minMemory` are bounded** unless Capacity AI is on in `defaultOptions` and in every `localOptions` entry: max/min ratio ≤ **4** AND gap ≤ **4000m** CPU / **4096Mi** memory.
 - **GPU:** `nvidia` model `t4` (quantity up to 4) or `a10g` (exactly 1); strict per-model CPU/memory minimums — fetch exact numbers with `mcp__cpln__get_resource_schema` (`kind: workload`).
 - **Cost:** billing follows reserved resources, so Capacity AI (or stateful `minCpu`) directly lowers cost.
 

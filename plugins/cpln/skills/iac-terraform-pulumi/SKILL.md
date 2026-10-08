@@ -108,3 +108,4 @@ Each registry page has an Import section with the exact form (composite kinds di
 | Export refused mentioning plaintext secrets | Narrow the ref/export to exclude secrets — secret export is not supported |
 | Org create or `auth_config` update fails despite a valid token | Those two operations require `CPLN_REFRESH_TOKEN` |
 | Pulumi lacks a feature the Terraform provider just shipped | The bridge tracks Terraform provider releases — upgrade the `@pulumiverse/cpln` package version |
+| A stateful workload from Terraform or Pulumi runs with Capacity AI on | `capacity_ai` (Pulumi `capacityAi`) defaults to `true` in every `options` and `local_options` block on every workload type; set it to `false` to keep it off |

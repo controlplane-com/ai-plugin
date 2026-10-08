@@ -53,7 +53,7 @@ Serverless gets TCP readiness and liveness on the container port; standard, stat
 
 - CPU and memory must fit the org quota; `maxScale` times the per-replica resources is enforced at scheduling.
 - Capacity AI is off with the `cpu` metric or multi-metric scaling; check the stored `spec.defaultOptions.capacityAI` first. On cron a new reservation lands at the next run.
-- Stateful sizing: `minCpu` to `cpu` at most 4 to 1 and 4000m apart; `minMemory` to `memory` at most 4 to 1 and 4096Mi apart.
+- Stateful sizing, unless Capacity AI is on in `defaultOptions` and in every `localOptions` entry: `minCpu` to `cpu` at most 4 to 1 and 4000m apart; `minMemory` to `memory` at most 4 to 1 and 4096Mi apart.
 - Ephemeral storage is 1 GB per CPU core, at least 1 GB; exceeding it replaces the replica.
 
 ### Container will not start
