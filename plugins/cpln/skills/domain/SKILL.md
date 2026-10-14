@@ -61,6 +61,7 @@ spec:
 - **Subdomain matching on one domain** (`hostPrefix` / `hostRegex`, mutually exclusive) requires `acceptAllHosts` or `acceptAllSubdomains` (which exclude each other) AND a GVC with a dedicated load balancer. `hostPrefix` charset: alphanumeric, dot, underscore, hyphen.
 - **Header rewrites** (`headers.request.set`): values may use only `%REQUESTED_SERVER_NAME%`, `%DOWNSTREAM_REMOTE_ADDRESS_WITHOUT_PORT%`, `%START_TIME%`.
 - **Traffic mirroring** per route: `mirror: [{workloadLink, percent 0-100, port}]` — same GVC, response comes only from the primary.
+- **Canaries** per route: `canaries: [{workloadLink, weight, port}]` split traffic by weight; weights total at most 100 (the rest goes to the route's workload), 0 disables one, and a canary not deployed in a location is dropped there.
 - **CORS** per port: `allowOrigins` entries take `exact` XOR `regex`; header lists are lowercased; `maxAge` format is digits + `h`/`m`/`s` only.
 - **TLS** per port: `minProtocolVersion` default `TLSV1_2`; custom cert = keypair secret (PEM) on `serverCertificate.secretLink`; `clientCertificate` enables mTLS verification — client cert details reach the workload in the XFCC header.
 
@@ -98,7 +99,7 @@ spec:
 
 ## Which tool changes what
 
-`create_domain` with `workload` and `gvc` derives the 443 listener, its route, and `cname` mode and returns the DNS records; pass `dnsMode` and `ports` for anything else. After creation, routes, ports, TLS, and CORS each have their own tool (CORS needs `?toolsets=full`); `update_domain` never changes ports, `dnsMode`, or `certChallengeType`. Domain names are FQDNs, passed as is.
+`create_domain` with `workload` and `gvc` derives the 443 listener, its route, and `cname` mode and returns the DNS records; pass `dnsMode` and `ports` for anything else. After creation, one `update_domain` call changes listeners and routes: `addPorts` adds a listener or sets its `protocol`, `tls`, or `cors`; `addRoutes` adds a route or replaces the one with the same path and host, and takes the route fields `create_domain` takes (`canaries` and `mirror` included) plus `portNumber`; `removePorts`, `removeRoutes`, `removeTls`, and `removeCors` delete. Removals run first, so `removeRoutes` plus `addRoutes` moves a route to a new path or host. It also switches `certChallengeType` (for example to `dns01`; refused on `.internal` domains), and never changes `dnsMode`. Domain names are FQDNs, passed as is.
 
 ## Verify
 

@@ -101,7 +101,7 @@ Two workflows also have slash commands in Claude Code — `/cpln:troubleshoot WO
 
 - Domain skills across CLI usage, access control, autoscaling, networking, observability, migration, templates, stateful storage, and security.
 - Two guided agents: workload troubleshooting and Kubernetes / Compose / Helm migration.
-- A short always-on rule set the assistant applies in every session, with the full operating guide read on demand.
+- A short always-on rule set the assistant applies in every session, with the full operating guide as a skill read on demand.
 - Pre-configured access to the hosted Control Plane MCP server.
 
 ## Security

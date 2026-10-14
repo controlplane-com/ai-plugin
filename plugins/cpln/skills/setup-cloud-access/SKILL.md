@@ -5,7 +5,7 @@ description: Credential-free cloud access (Universal Cloud Identity) for a Contr
 
 # Cloud Access Setup (Universal Cloud Identity)
 
-> **Tool availability:** `create_cloud_account`, `update_cloud_account`, and `how_to_create_cloud_account` need `?toolsets=full`; `grant_cloud_access` is core.
+> **Tool availability:** `create_cloud_account`, `update_cloud_account`, `how_to_create_cloud_account`, `create_identity`, and `update_identity` need `?toolsets=full`; `grant_cloud_access` is core.
 
 A workload reads cloud resources with **no embedded keys**: a GVC-scoped **identity** carries a per-provider cloud-access block that federates with the provider's IAM, and Control Plane vends short-lived credentials at runtime. Cloud SDKs (boto3, google-cloud, @azure/sdk) pick them up automatically — no SDK config.
 
@@ -68,7 +68,7 @@ spec:
     policyRefs: ["aws::AmazonS3ReadOnlyAccess", "MyCustomPolicy"]
 ```
 
-CLI fallback (MCP unavailable / CI-CD): `cpln identity get NAME --gvc GVC -o yaml-slim > id.yaml`, add the block under `spec`, `cpln apply -f id.yaml`. Confirm the exact shape with `get_resource_schema` (kind `identity`) before authoring YAML by hand.
+CLI fallback (MCP unavailable / CI-CD): `cpln identity get NAME --gvc GVC -o yaml-slim > id.yaml`, add the block under `spec`, `cpln apply -f id.yaml`. Confirm the exact shape with `get_resource` (kind `identity`, `schema: true`) before authoring YAML by hand.
 
 ## Step 4 — Link to the workload and verify
 

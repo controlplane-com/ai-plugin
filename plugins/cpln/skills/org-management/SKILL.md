@@ -5,7 +5,7 @@ description: "Manages organizations, billing, users, and authentication on Contr
 
 # Organization & User Management
 
-> **Tool availability:** `update_org`, `configure_external_logging`, `invite_user_to_org`, `edit_group`, and `add_key_to_service_account` need `?toolsets=full`; reconnect with it or use the CLI.
+> **Tool availability:** `update_org`, `configure_external_logging`, `invite_user_to_org`, `edit_group`, `create_policy`, and `add_key_to_service_account` need `?toolsets=full`; reconnect with it or use the CLI.
 
 An **org** is the top-level isolation boundary: every GVC, workload, secret, policy, image, domain, user, group, and service account lives inside one, with no cross-org sharing. An org **cannot be renamed or deleted** once created (every DELETE on `/org` returns 405) and its name is **globally unique** across all of Control Plane — so the first job is choosing a name you can live with permanently.
 
@@ -40,7 +40,7 @@ Read with `mcp__cpln__get_resource` (kind `org`); change with `mcp__cpln__update
 | `observability.defaultAlertEmails` | Yes | Default Grafana alert recipients |
 | `security.threatDetection` | Yes | Forward detected threats to a syslog target (`enabled` + optional `minimumSeverity` + syslog host/port) |
 | `logging` / `extraLogging` | **No** | Use `mcp__cpln__configure_external_logging` — see **external-logging** |
-| `tracing` | **No** | Escape hatch: `mcp__cpln__get_resource_schema` (kind `org`), author the block, `cpln apply -f org.yaml` |
+| `tracing` | **No** | Escape hatch: `mcp__cpln__get_resource` (kind `org`, `schema: true`), author the block, `cpln apply -f org.yaml` |
 
 ## Billing
 

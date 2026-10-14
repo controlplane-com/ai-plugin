@@ -21,10 +21,11 @@ A workload reads a secret only when three things are in place. Miss one and the 
 
 ## Wiring access
 
-- **`deploy_app`** wires all three steps for the references in its env.
-- **`grant_workload_secret_access`** (`gvc`, `workloadName`, `secretName`) creates the identity if missing (default `{gvc}-{workloadName}`), creates or updates a `reveal` policy (default `{gvc}-{workloadName}-secrets-policy`), links the identity, and redeploys a workload already waiting on the secret. It does not add the reference. The workload must exist first: create it (its deployment pauses on the reference), then grant, and it resumes.
+- **`deploy_app`** wires all three steps for the references in its env, and refuses a referenced secret that does not exist before it builds or writes anything.
+- **`grant_workload_secret_access`** (`gvc`, `workloadName`, `secretName`) creates the identity if missing (default `{gvc}-{workloadName}`), creates or updates a `reveal` policy (default `{gvc}-{workloadName}-secrets-policy`), links the identity, and redeploys a workload already waiting on the secret. Before writing anything it checks that the secret exists and that an existing policy of that name targets secrets. It does not add the reference. The workload must exist first: create it (its deployment pauses on the reference), then grant, and it resumes.
 - The platform checks access once per deployed version. A version it refused stays refused after the policy changes, until a new version deploys, so the tool grants before it links and redeploys a workload still waiting.
-- **By hand**, only when the tool cannot: `create_identity`, then `create_policy` with target kind `secret` and a `reveal` binding for the identity (`access-control` skill), then `update_workload` to set `spec.identityLink` last.
+- **By hand**, only when the tool cannot: `create_identity`, then `create_policy` (both need `?toolsets=full`) with target kind `secret` and a `reveal` binding for the identity (`access-control` skill), then `update_workload` to set `spec.identityLink` last.
+- **Revoking:** `grant_workload_secret_access` with `remove: true` takes the secret out of that policy (deleting the policy once it targets nothing) and keeps the identity; it refuses, changing nothing, a policy that also binds another principal or grants by `target: all` or a query. Also drop the `cpln://secret/` reference with `update_workload`: a deploy that still references a revoked secret fails, and running replicas keep the value until they are replaced.
 - Identities are GVC-scoped: one per workload, shareable within a GVC, never across GVCs.
 
 ## References
@@ -73,7 +74,7 @@ data: >-
 | `gcp` | **JSON string** | a full service-account key: `type`, `project_id`, `private_key_id`, `private_key`, `client_email`, `client_id`, `auth_uri`, `token_uri`, `auth_provider_x509_cert_url`, `client_x509_cert_url` |
 | `azure-sdk` | **JSON string** | `subscriptionId`, `tenantId`, `clientId` (UUIDs) and `clientSecret` |
 
-`get_resource_schema` (kind "secret") has the apply schema and REST endpoints.
+`get_resource` (kind "secret", `schema: true`) has the apply schema and REST endpoints.
 
 ## Verify
 

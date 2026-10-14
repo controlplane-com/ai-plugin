@@ -6,20 +6,19 @@
  * MCP on ANY toolset profile (core ⊂ mk8s ⊂ full, core is the default), so:
  *
  *   1. A mentioned tool must EXIST in the registry — a stale name (a tool that was removed
- *      or renamed) sends the model into a guaranteed-failing call.
+ *      or renamed) sends the model into a guaranteed-failing call. A name in the manifest's
+ *      `removed` list, or a `name_*` wildcard of a removed family, is flagged even without a verb prefix.
  *   2. A tool beyond the core tier must be marked on the line with how to reach it
  *      (`?toolsets=full` / `?toolsets=mk8s`) or the file must carry a "**Tool availability:**"
  *      note, so a core-profile reader knows to ask the user to reconnect instead of improvising.
  *      A `name_*` wildcard mentions its whole family and takes the family's highest tier.
- *   3. `cpln_api_request` is registered only when its kill switch is on, so every mention
- *      needs an availability hedge ("disabled by default", "only when advertised", …).
  *
  * Deliberate "this tool does not exist" prose is fine: lines matching the negation
  * patterns (e.g. "There is no `create_user`") are exempt from the existence check.
  *
  * The `readonly` profile sits outside this tier ladder — it withholds every write tool, so
  * markers would have to sit on nearly every mention. Content covers it in prose instead: the
- * guardrails define it, and availability notes name the tools that survive on it.
+ * operating guide defines it, and availability notes name the tools that survive on it.
  *
  * The manifest is generated from the MCP server's tool registry — regenerate it there after tool changes.
  *
@@ -32,8 +31,13 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PLUGIN = path.join(ROOT, 'plugins', 'cpln');
 
-const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts', 'tools-manifest.json'), 'utf8')).tools;
-const TIER = { core: 1, mk8s: 2, full: 3, conditional: 4 };
+const manifestFile = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts', 'tools-manifest.json'), 'utf8'));
+const manifest = manifestFile.tools;
+if (!Array.isArray(manifestFile.removed)) {
+  throw new Error('scripts/tools-manifest.json has no removed list: regenerate it from the MCP server.');
+}
+const REMOVED = new Set(manifestFile.removed);
+const TIER = { core: 1, mk8s: 2, full: 3 };
 
 const TOKEN_RE = /\b(?:mcp__cpln__)?([a-z][a-z0-9]*(?:_[a-z0-9]+)+)(?:(_\*)|\b)/g;
 const VERB_PREFIXES = new Set([
@@ -47,7 +51,6 @@ const NOT_TOOLS = new Set(['query_range', 'start_period']);
 
 const FULL_MARKER_RE = /toolsets=full/;
 const MK8S_MARKER_RE = /toolsets=(?:mk8s|full)/;
-const API_REQUEST_HEDGE_RE = /disabled by default|only when advertised|if advertised|when advertised|kill switch|if enabled|when enabled/i;
 const NEGATION_RE = /no `|there is no |no create- or update-/i;
 const FILE_NOTE_RE = /\*\*Tool availability:\*\*/;
 
@@ -71,24 +74,19 @@ function checkFile(filePath) {
       const token = match[1];
       if (NOT_TOOLS.has(token)) continue;
 
-      const tiers = tiersNamedBy(token, match[2] !== undefined);
+      const isWildcard = match[2] !== undefined;
+      const tiers = tiersNamedBy(token, isWildcard);
 
       if (tiers.length === 0) {
-        const looksLikeTool = match[0].startsWith('mcp__cpln__') || VERB_PREFIXES.has(token.split('_')[0]);
+        const isRemoved = REMOVED.has(token) || (isWildcard && [...REMOVED].some((name) => name.startsWith(`${token}_`)));
+        const looksLikeTool = isRemoved || match[0].startsWith('mcp__cpln__') || VERB_PREFIXES.has(token.split('_')[0]);
         if (looksLikeTool && !NEGATION_RE.test(line)) {
-          offenders.push(`${where}: unknown tool "${match[0]}" — ${line.trim().slice(0, 120)}`);
+          offenders.push(`${where}: ${isRemoved ? 'removed' : 'unknown'} tool "${match[0]}": ${line.trim().slice(0, 120)}`);
         }
         continue;
       }
 
       const tier = tiers.reduce((highest, candidate) => (TIER[candidate] > TIER[highest] ? candidate : highest));
-
-      if (tier === 'conditional') {
-        if (!API_REQUEST_HEDGE_RE.test(line)) {
-          offenders.push(`${where}: "${token}" is registered only when its kill switch is on — add an availability hedge — ${line.trim().slice(0, 120)}`);
-        }
-        continue;
-      }
 
       if (TIER[tier] <= TIER.core || fileHasNote) continue;
 

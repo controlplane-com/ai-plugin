@@ -8,18 +8,47 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ### Added
 
+- `run_volumeset_command` runs one volume set command (expand, shrink, snapshot, restore, or delete) and returns its command id for `get_command`, as `start_workload_cron` now does.
+- `request_quota_increase` asks Control Plane to raise an org quota; every quota error names it, with the quota and, for a per-GVC quota, the GVC.
+- `grant_workload_secret_access` takes `remove: true` to revoke one secret from a workload, keeping its identity.
+- `list_deployments` names each location's running replicas, the `--replica` value the `cpln` workload commands take.
+- Routes in `create_domain` and `update_domain` take the same fields: `canaries` split a route's traffic by weight, and `create_domain` routes take `mirror` too.
+- `update_domain` switches `certChallengeType`, for example to `dns01` when a CDN or WAF blocks `http01`; `.internal` domains refuse it.
+- `create_domain` and `update_domain` warn when a route sends clients to a workload that admits no external traffic, which the domain answers with 403.
 - The IaC skill says Terraform and Pulumi default `capacity_ai` to `true` on every workload type, stateful included.
 
 ### Changed
 
-- Skills say how to reach a tool outside the core profile (`?toolsets=full`), and treat the volume snapshot tools as core.
+- The default `core` profile advertises 45 tools instead of 71: tools fold into the tool that covers their family (see Removed).
+- Tools few tasks need move from `core` to `full`: policies, identities, permissions, quota lists, promotion, events, replica and command lists, volume set creation, and the docs filesystem; the read tools among them stay on `readonly`.
+- `workload_start_cron` and `workload_stop_replica` are renamed `start_workload_cron` and `stop_workload_replica`.
+- `create_gvc` and `update_gvc` are titled "Create a GVC" and "Update a GVC".
+- `promote_workload` creates or updates each mounted volume set in the target GVC with the source's settings, never copying data, and points firewall links at the target GVC's workloads.
+- Skills say how to reach a tool outside the core profile (`?toolsets=full`).
 - The Template Catalog skill finds a template with `browse_templates` and `query` (the user's need in their own words) and reads its prerequisites, the template to pick instead, and its README notes from the tools, replacing the table of common asks and the per-template secret keys. It covers any self-hosted component or product, and leaves an app the user asks to build to the `create-app` skill.
 - The Template Catalog skill searches for the capability a goal needs when the user describes a goal rather than a component, and keeps `add_database` the default for the five databases, using the install steps only for a setting it does not take, such as backups.
 
 ### Fixed
 
+- `update_workload` `public: false` now closes the workload to the internet, and `public: true` opens it without replacing its other firewall rules.
+- `rollback_workload` finds the previous image even after a rollout has finished, from the last 30 days of changes.
+- Quota rejections (HTTP 429) are not retried, and their errors carry the quota hint instead of the rate limit hint.
+- An update that loses a write race with another change (HTTP 409 "Conflict: resource was changed") is retried once instead of failing with an "already exists" hint.
+- Volume command refusals say what blocks them and what to do next.
+- `grant_workload_secret_access`, `deploy_app`, and `promote_workload` check the secrets and the policy they need before writing anything, so a refusal leaves nothing half done.
+- Logs, metrics, traces, and audit events are always read from the environment the request targets.
+- Skills and agents now match the tools wherever they described a field or behavior wrongly, for example that shrinking a volume keeps its data.
 - The stateful `minCpu`/`minMemory` ratio and gap limits apply only while Capacity AI is off in `defaultOptions` or in a `localOptions` entry.
 - The Template Catalog skill no longer says `cockroach`, `tidb`, `nats`, `clickhouse`, `airflow`, `mongodb-cluster`, `redis-multi-location`, and `pgedge` create their own GVC; their current versions install into an existing GVC that already has every location their `locations` value lists.
+
+### Removed
+
+- `get_cpln_rules` (now the `operating-guide` skill: plugin hosts load it, and MCP-only clients read it with `get_cpln_skill`).
+- `add_domain_route`, `update_domain_route`, `remove_domain_route`, `add_domain_port`, `remove_domain_port`, `set_domain_tls`, `clear_domain_tls`, `set_domain_cors`, and `clear_domain_cors` (now `update_domain` with `addPorts`, `removePorts`, `addRoutes`, `removeRoutes`, `removeTls`, and `removeCors`, applied in one write).
+- `expand_volumeset`, `shrink_volumeset`, `create_volumeset_snapshot`, `restore_volumeset_snapshot`, `delete_volumeset_snapshot`, and `delete_volumeset_volume` (now `run_volumeset_command`).
+- `get_resource_schema` (now `get_resource` with `schema: true`), `list_volumeset_snapshots` (now `get_resource` on a volume set), `get_template` (now `browse_templates` with `name`), and `list_installed_templates` (now `get_installed_template` without `name`).
+- `get_trace` (now `query_traces` with `traceId`), `list_metrics` (now `query_metrics` without `query`), and `convert_to_terraform` (now `export_terraform` with `manifest`, which refuses secrets as an export does).
+- `cpln_api_request`, the raw API tool that was off by default; the `cpln` CLI covers what the tools do not.
 
 ## [2.4.4] - 2026-10-01
 

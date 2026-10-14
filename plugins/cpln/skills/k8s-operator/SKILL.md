@@ -5,7 +5,7 @@ description: "Manages Control Plane resources as Kubernetes CRDs. Use when the u
 
 # Kubernetes Operator
 
-The operator (Helm chart `cpln-operator`) runs in any Kubernetes cluster and reconciles `cpln.io/v1` custom resources, plus labeled native Secrets, against the platform on a 30-second loop. Reach for it only when resources must live in Git and be reconciled from a cluster (ArgoCD/Flux); for direct provisioning prefer the typed MCP tools, and for pipeline-driven YAML prefer `cpln apply` (`gitops-cicd` skill). The recurring failure is manifest shape: `org`, `gvc`, and `description` sit at the **top level next to `spec`**, not inside it — author the `spec` block with `mcp__cpln__get_resource_schema`, or skip hand-writing entirely by exporting with `-o crd`.
+The operator (Helm chart `cpln-operator`) runs in any Kubernetes cluster and reconciles `cpln.io/v1` custom resources, plus labeled native Secrets, against the platform on a 30-second loop. Reach for it only when resources must live in Git and be reconciled from a cluster (ArgoCD/Flux); for direct provisioning prefer the typed MCP tools, and for pipeline-driven YAML prefer `cpln apply` (`gitops-cicd` skill). The recurring failure is manifest shape: `org`, `gvc`, and `description` sit at the **top level next to `spec`**, not inside it; author the `spec` block from `mcp__cpln__get_resource` with `schema: true`, or skip hand-writing entirely by exporting with `-o crd`.
 
 ## Install
 

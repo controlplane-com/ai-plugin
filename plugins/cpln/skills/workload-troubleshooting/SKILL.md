@@ -12,10 +12,10 @@ Maps a symptom to its platform-specific cause and a fix the schema accepts. Diag
 `mcp__cpln__diagnose_workload` first: one call reads the deployments, events, and error log lines, matches them against this catalog, and returns the likely cause with its evidence. When it is not conclusive:
 
 - `list_deployments`, with `location` for one location in full detail.
-- `get_workload_events` for image pulls, crashes, scheduling, probe failures, and `OOMKilled`.
+- `get_workload_events` (needs `?toolsets=full`) for event history past the 10 newest events `diagnose_workload` returns: image pulls, crashes, scheduling, probe failures, and `OOMKilled`.
 - `get_workload_logs`; the `_accesslog` container holds HTTP status codes and latency.
-- `list_metrics`, then `query_metrics`, for memory, CPU, and latency pressure.
-- `query_traces`, then `get_trace`, for a slow request; needs tracing on the GVC (`metrics-observability` skill).
+- `query_metrics`, first without a `query` to list the metric names, for memory, CPU, and latency pressure.
+- `query_traces`, then again with one trace's `traceId`, for a slow request; needs tracing on the GVC (`metrics-observability` skill).
 - In-container inspection goes through the CLI (`cpln` skill).
 
 ## Failure catalog
@@ -51,7 +51,7 @@ Serverless gets TCP readiness and liveness on the container port; standard, stat
 
 ### Resources and Capacity AI
 
-- CPU and memory must fit the org quota; `maxScale` times the per-replica resources is enforced at scheduling.
+- CPU and memory must fit the org quota; `maxScale` times the per-replica resources is enforced at scheduling. A quota error names its quota (a workload's total CPU or memory error means `cpu-per-workload` or `memory-per-workload`); `request_quota_increase` asks for a higher max when the user wants one.
 - Capacity AI is off with the `cpu` metric or multi-metric scaling; check the stored `spec.defaultOptions.capacityAI` first. On cron a new reservation lands at the next run.
 - Stateful sizing, unless Capacity AI is on in `defaultOptions` and in every `localOptions` entry: `minCpu` to `cpu` at most 4 to 1 and 4000m apart; `minMemory` to `memory` at most 4 to 1 and 4096Mi apart.
 - Ephemeral storage is 1 GB per CPU core, at least 1 GB; exceeding it replaces the replica.

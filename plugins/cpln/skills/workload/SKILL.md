@@ -5,9 +5,9 @@ description: "Primary skill for creating, updating, running, and debugging workl
 
 # Workloads
 
-> **Tool availability:** the `configure_workload_*` tools need `?toolsets=full`; `create_workload`, `update_workload`, and the job tools are core.
+> **Tool availability:** the `configure_workload_*` tools and `promote_workload` need `?toolsets=full`; `create_workload`, `update_workload`, and the other job tools are core.
 
-A workload is the unit of deployment: one to eight containers plus how they scale, get exposed, store data, and stay healthy. `mcp__cpln__deploy_app` covers a single-container HTTP app, image, or repository: a standard workload, with a data directory every replica shares (`storage` with `shared: true`), or a stateful workload on one replica when the data directory is per replica (`storage` without `shared`). `create_workload` and `update_workload` cover the rest: serverless, several containers, cron, non-HTTP ports, custom firewall rules, probes and scaling tuned in depth. `restart_workload`, `rollback_workload`, `promote_workload`, and `allow_workload_access` do those jobs in one call.
+A workload is the unit of deployment: one to eight containers plus how they scale, get exposed, store data, and stay healthy. `mcp__cpln__deploy_app` covers a single-container HTTP app, image, or repository: a standard workload, with a data directory every replica shares (`storage` with `shared: true`), or a stateful workload on one replica when the data directory is per replica (`storage` without `shared`). `create_workload` and `update_workload` cover the rest: serverless, several containers, cron, non-HTTP ports, custom firewall rules, probes and scaling tuned in depth. `restart_workload`, `rollback_workload`, `promote_workload` (`?toolsets=full`), and `allow_workload_access` do those jobs in one call.
 
 ## Workload type (immutable, standard by default)
 
@@ -39,7 +39,7 @@ A workload is the unit of deployment: one to eight containers plus how they scal
 | `securityOptions` (`runAsUser`, `filesystemGroupId`) | `configure_workload_security` |
 | `requestRetryPolicy` | `configure_workload_retry` |
 
-`update_workload` merges `containers[]` by name: send only the containers that change; an unknown name adds a container. On cron it patches the schedule, job policy, `suspend`, `capacityAI`, and containers, and rejects autoscaling, `timeoutSeconds`, and `debug`; schedule and job fields are rejected on other types.
+`update_workload` merges `containers[]` by name: send only the containers that change; an unknown name adds a container. On cron it patches the schedule, job policy, `suspend`, `capacityAI`, and containers, and rejects autoscaling, `timeoutSeconds`, and `debug`; schedule and job fields are rejected on other types. `start_workload_cron` runs a cron workload now, with optional `containerOverrides` for that run only; each call starts another run, and it returns a command id that `get_command` follows.
 
 ## Production defaults beyond the core rules
 
@@ -98,5 +98,5 @@ Changing a workload's type or name means delete and recreate. Recreating under t
 
 ## Metrics and live replicas
 
-- Custom Prometheus metrics: `containers[].metrics` with `port` and `path` (default `/metrics`). Query with `list_metrics`, then `query_metrics`; measure before changing scaling.
-- `list_workload_replicas` lists replicas; a command inside one goes through the CLI (`cpln` skill), with confirmation for anything that changes state.
+- Custom Prometheus metrics: `containers[].metrics` with `port` and `path` (default `/metrics`). List them with `query_metrics` without a `query`, then query them; measure before changing scaling.
+- `list_deployments` names each location's running replicas, the `--replica` value for `cpln workload exec` and `cpln workload connect`; a command inside one goes through the CLI (`cpln` skill), with confirmation for anything that changes state.

@@ -1,6 +1,6 @@
 ---
-description: Control Plane operating guide for AI agents. The platform facts tools do not enforce or report, the high-impact approval rule, secrets beyond the core rules, targets, CLI fallback, and failure handling. Read it when a task goes beyond what the job tools cover.
-alwaysApply: false
+name: operating-guide
+description: "Control Plane operating guide: platform facts tools do not enforce or report, high-impact approvals, secrets beyond the core rules, targets, CLI fallback, failures. Use when a task goes beyond what the job tools cover."
 ---
 
 # Control Plane Operating Guide
@@ -12,10 +12,10 @@ The core rules arrive with every MCP connection. This guide holds only what they
 A destructive call needs the user's explicit approval after you say what it removes or breaks. Three kinds need a fresh yes that answers the stated blast radius, even when the opening message already asked:
 
 - **Cascades:** deleting a GVC removes every workload and identity in it; the platform refuses while a volume set remains.
-- **Data loss:** deleting, shrinking, or restoring volumes and snapshots; uninstalling a template release deletes its volume data.
+- **Data loss:** deleting or restoring volumes and snapshots; uninstalling a template release deletes its volume data.
 - **Production targets:** a name that says so, or public traffic, custom domains, several replicas, or real users.
 
-Also destructive: removing bindings, members, routes, locations, or policies; changing a workload's type or name, or a volume set's filesystem or performance class, which means delete and recreate. Hesitation, "maybe", or a counter-question is not approval. A resource you created by mistake this session, and only that, you remove and report.
+Also destructive: removing bindings, members, routes, locations, or policies; shrinking a volume, which moves its data to a new volume and restarts its replica; changing a workload's type or name, or a volume set's filesystem or performance class, which means delete and recreate. Hesitation, "maybe", or a counter-question is not approval. A resource you created by mistake this session, and only that, you remove and report.
 
 ## Reads
 
@@ -46,7 +46,7 @@ The tag `cpln/managedByTerraform: "true"` marks a resource Terraform or Pulumi o
 - **Shutdown:** the default `preStop` runs `sleep`; an image without it, or a failing custom `preStop`, kills every container at once. A container running as UID 1337 bypasses the mesh, losing mTLS and firewall enforcement.
 - **Hand-written specs:** ports go in `containers[].ports`, never the deprecated `port`; custom domains use the Domain resource, never the GVC's deprecated `spec.domain`.
 - **Domains** stay pending until their DNS records resolve. Pending is a wait, not an error to retry.
-- **Public** needs both an external inbound and an external outbound CIDR.
+- **Public** means external inbound allows `0.0.0.0/0` or `::/0`; outbound is a separate list, which the `public: true` shortcut of `create_workload` and `update_workload` also opens.
 - **Reachability:** after ready, a real HTTP GET of the canonical URL settles it. 2xx, 3xx, 401, and 403 mean serving; a timeout points at firewall inbound; a TLS or DNS error means propagation, so wait. Never claim reachability without a response.
 - **App code:** before changing an app's code, `get_app_files` with the NAME from `//image/NAME:TAG` says where the code lives. Never rewrite an app from scratch under an existing name.
 - **Other databases, caches, queues, and search** come from the Template Catalog, never built by hand.

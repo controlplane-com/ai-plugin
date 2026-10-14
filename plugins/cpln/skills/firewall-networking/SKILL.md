@@ -5,7 +5,7 @@ description: "Firewall rules and service-to-service communication on Control Pla
 
 # Firewall & Networking
 
-Deep detail for `spec.firewallConfig` and the enforcement model behind it; the `workload` skill owns the summary (deny-by-default, exposure decided at create time, LB picker). Set `firewallConfig` with `create_workload` / `update_workload` — or `public: true`, the shortcut that opens inbound AND outbound to `0.0.0.0/0` (mutually exclusive with an explicit `firewallConfig`). A firewall change creates a new deployment version — a rolling replace, live in about a minute (`vm` workloads are the exception: firewall updates apply in place without restarting the VM).
+Deep detail for `spec.firewallConfig` and the enforcement model behind it; the `workload` skill owns the summary (deny-by-default, exposure decided at create time, LB picker). Set `firewallConfig` with `create_workload` / `update_workload`, or use the `public` shortcut (mutually exclusive with an explicit `firewallConfig`): `public: true` opens inbound AND outbound to `0.0.0.0/0` (on `update_workload` it adds `0.0.0.0/0` to both external allow lists and keeps every other rule), and `public: false` on `update_workload` removes only `0.0.0.0/0` and `::/0` from external inbound. A firewall change creates a new deployment version — a rolling replace, live in about a minute (`vm` workloads are the exception: firewall updates apply in place without restarting the VM).
 
 ## How rules are enforced
 

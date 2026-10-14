@@ -44,11 +44,11 @@ Exactly one provider per cluster (the schema enforces XOR). For every provider e
 | `triton` | **keypair** secret (`connection.privateKeySecretLink`) | `packageId` | `location` |
 | `generic` | none — you join your own nodes | n/a (external nodes) | `location` |
 
-**Azure uses an `opaque` secret, not an `azure-sdk` secret** — the create tool rejects the typed one. Triton/Generic/Ephemeral `location` is a *Control Plane* location (e.g. `aws-us-east-2`), not a cloud region. A 12th provider, `ephemeral`, exists in the schema but has **no create tool or CLI create** — ignore it for real clusters. Other required fields (network/VPC, image, SSH keys, region enum) vary per provider; `mcp__cpln__get_resource_schema` (kind `mk8s`) and the create tool's own validation give the exact required set. Generic nodes you supply each need Linux kernel ≥ 5.4, ≥ 1 CPU / 512 MB, mutual connectivity, and SSH access.
+**Azure uses an `opaque` secret, not an `azure-sdk` secret**: the platform checks it before creating the cluster and refuses any other type; the payload is JSON with `appId`, `password`, and `tenant`. Triton/Generic/Ephemeral `location` is a *Control Plane* location (e.g. `aws-us-east-2`), not a cloud region. A 12th provider, `ephemeral`, exists in the schema and `create_mk8s` accepts it, but its nodes run as containers, at most 4 per pool, with no autoscaler: ignore it for real clusters. Other required fields (network/VPC, image, SSH keys, region enum) vary per provider; `mcp__cpln__get_resource` (kind `mk8s`, `schema: true`) and the create tool's own validation give the exact required set. Generic nodes you supply each need Linux kernel ≥ 5.4, ≥ 1 CPU / 512 MB, mutual connectivity, and SSH access.
 
 ## The cluster spec essentials
 
-- **`version`** — required, no default, a **closed enum** of specific patch versions (currently `1.26.0` through `1.35.3`). The set drifts as versions are added/retired; pull the live list from `get_resource_schema`, or just submit and let the typed tool's validation error name the valid values. Updating it is **upgrade-only** — mk8s rejects downgrades.
+- **`version`**: required, no default, a **closed enum** of specific patch versions (currently `1.26.0` through `1.35.3`). The set drifts as versions are added/retired; pull the live list from `get_resource` with `schema: true`, or just submit and let the typed tool's validation error name the valid values. Updating it is **upgrade-only**: mk8s rejects downgrades.
 - **`nodePools`** (per provider) — give at least one to get worker capacity. Common fields are `name`/`labels`/`taints`; the rest are provider-specific. Each pool's **`minSize`/`maxSize` drive the cluster autoscaler** (set `maxSize > minSize` to allow scale-up).
 - **`autoscaler`** (per provider) — defaults: `expander: [most-pods]`, `unneededTime: 10m`, `unreadyTime: 20m`, `utilizationThreshold: 0.7`. Usually leave it.
 - **`networking`** (per provider) — `serviceNetwork` (default `10.43.0.0/16`) and `podNetwork` (default `10.42.0.0/16`) must differ and are **unmodifiable after creation**; pick non-overlapping CIDRs up front. AWS and GCP additionally accept `podNetwork: vpc`.
@@ -80,11 +80,11 @@ Exactly one provider per cluster (the schema enforces XOR). For every provider e
 
 ## Create & update (MCP)
 
-`mcp__cpln__create_mk8s` takes `provider` (any row of the table above) and `spec`, the provider block; the tool names the fields the provider requires, and `get_resource_schema` (kind `mk8s`, path `spec.provider.<provider>`) has the exact shape. Supply `version` and at least one node pool. Read with `mcp__cpln__get_resource` / `list_resources` (kind `mk8s`); delete with `mcp__cpln__delete_resource` (destructive — confirm the blast radius).
+`mcp__cpln__create_mk8s` takes `provider` (any row of the table above) and `spec`, the provider block; the tool names the fields the provider requires, and `get_resource` (kind `mk8s`, `schema: true`, path `spec.provider.<provider>`) has the exact shape. Supply `version` and at least one node pool. Read with `mcp__cpln__get_resource` / `list_resources` (kind `mk8s`); delete with `mcp__cpln__delete_resource` (destructive: confirm the blast radius).
 
 `mcp__cpln__update_mk8s` (same `provider`, `spec` with the changed fields, `removeSpecFields` to delete one) is a **merge-patch**: send only what changes. Provided **arrays** (`nodePools`, `firewall`) **replace the previous values wholesale** — include the full set you want to keep. `addOns` merge-patches per key, so the update tool **cannot disable a toggle add-on by passing `false`** — remove one with `cpln apply` (set the key to `null`). `region`/`networking` and the provider/name are unmodifiable after creation.
 
-Fallback (MCP unavailable, or CI/CD): author a YAML manifest from `get_resource_schema` (kind `mk8s`) and `cpln apply --file mk8s.yaml`.
+Fallback (MCP unavailable, or CI/CD): author a YAML manifest from `get_resource` (kind `mk8s`, `schema: true`) and `cpln apply --file mk8s.yaml`.
 
 ## CLI (mk8s)
 
@@ -130,7 +130,7 @@ Once the location exists, prefer MCP for the GVC and workload work: `mcp__cpln__
 
 | Symptom | Cause and fix |
 |:---|:---|
-| Version create/update rejected | `version` must be in the closed enum, and updates are **upgrade-only** (no downgrade); read the valid set from `get_resource_schema` or the error. |
+| Version create/update rejected | `version` must be in the closed enum, and updates are **upgrade-only** (no downgrade); read the valid set from `get_resource` with `schema: true` or the error. |
 | Create rejected: secret type | Azure needs an **opaque** secret (not `azure-sdk`); GCP needs a **gcp** secret; Triton a **keypair** secret; token providers an **opaque** secret. Create it first. |
 | Cluster reachable from anywhere | The API-server `firewall` defaulted to `0.0.0.0/0` — set it to your admin CIDRs. |
 | Update wiped node pools / a rule | `nodePools` and `firewall` arrays replace wholesale on update — resend the full set. |

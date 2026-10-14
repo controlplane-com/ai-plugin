@@ -95,7 +95,7 @@ autoscaling:
 - Triggers needing auth reference a GVC-listed secret via `authenticationRef.name` (the TriggerAuthentication is named after the secret).
 - If the trigger source is a Control Plane workload, allow KEDA in the source's firewall: `internal.inboundAllowWorkload: [cpln://internal/keda]`.
 - Also supported: `keda.advanced.scalingModifiers` (custom formulas), `fallback`, `pollingInterval`, `cooldownPeriod`.
-- **Prometheus trigger** — scale on any platform or custom metric: `type: prometheus` with `serverAddress: https://metrics.cpln.io:443/metrics/org/ORG`, a `query` (PromQL), `threshold`, and `customHeaders: Authorization=Bearer SERVICE_ACCOUNT_TOKEN` (service account needs `readMetrics`). **Before wiring any trigger, confirm the signal resolves:** `mcp__cpln__list_metrics` for real names/labels, then `mcp__cpln__query_metrics` to run the PromQL — a never-resolving signal pins the workload at `minScale`. Custom app metrics come from the container `metrics` block (see **metrics-observability**).
+- **Prometheus trigger**, to scale on any platform or custom metric: `type: prometheus` with `serverAddress: https://metrics.cpln.io:443/metrics/org/ORG`, a `query` (PromQL), `threshold`, and `customHeaders: Authorization=Bearer SERVICE_ACCOUNT_TOKEN` (service account needs `readMetrics`). **Before wiring any trigger, confirm the signal resolves:** `mcp__cpln__query_metrics` without a `query` for real names (add `metric` for one metric's live label values), then with the PromQL as its `query` to run it; a never-resolving signal pins the workload at `minScale`. Custom app metrics come from the container `metrics` block (see **metrics-observability**).
 
 ## Capacity AI
 
@@ -123,14 +123,14 @@ spec:
 - Floors and the memory to CPU ratio: `workload` skill. `minCpu` and `minMemory` never exceed `cpu` and `memory`.
 - **With Capacity AI off:** `cpu`/`memory` are the fixed allocation and `minCpu`/`minMemory` are ignored — except on **stateful**, where `minCpu`/`minMemory` become the static **reserved** request and `cpu`/`memory` stay the burst ceiling.
 - **Stateful `minCpu`/`minMemory` are bounded** unless Capacity AI is on in `defaultOptions` and in every `localOptions` entry: max/min ratio ≤ **4** AND gap ≤ **4000m** CPU / **4096Mi** memory.
-- **GPU:** `nvidia` model `t4` (quantity up to 4) or `a10g` (exactly 1); strict per-model CPU/memory minimums — fetch exact numbers with `mcp__cpln__get_resource_schema` (`kind: workload`).
+- **GPU:** `nvidia` model `t4` (quantity up to 4) or `a10g` (exactly 1); strict per-model CPU/memory minimums: fetch exact numbers with `mcp__cpln__get_resource` (`kind: workload`, `schema: true`).
 - **Cost:** billing follows reserved resources, so Capacity AI (or stateful `minCpu`) directly lowers cost.
 
 ## Troubleshooting
 
 | Symptom | Check |
 |---|---|
-| Not scaling up | Does the signal exist? `mcp__cpln__list_metrics` then `mcp__cpln__query_metrics`; check `maxScale`; check replica readiness via `mcp__cpln__list_deployments` |
+| Not scaling up | Does the signal exist? `mcp__cpln__query_metrics` without, then with, a `query`; check `maxScale`; check replica readiness via `mcp__cpln__list_deployments` |
 | Not scaling down | Standard/stateful stabilization window = `scaleToZeroDelay` (default 300s); check `minScale` |
 | Scale-to-zero not happening | Serverless needs `concurrency`/`rps`; standard/stateful need `metric: keda`; check `scaleToZeroDelay` |
 | KEDA not triggering | KEDA enabled on the GVC? Trigger auth secret listed in `gvc.spec.keda.secrets`? Source firewall allows `cpln://internal/keda`? |

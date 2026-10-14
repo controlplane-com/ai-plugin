@@ -170,7 +170,7 @@ Each direct-LB location also gets a public Geo DNS address with latency-based ro
 ## Verify
 
 - After any change, wait with `mcp__cpln__list_deployments` and `waitSeconds` until each location reports ready: it surfaces probe failures per location.
-- `mcp__cpln__get_workload_events` gives the probe/liveness failure reason and message; `mcp__cpln__get_workload_logs` shows app-side errors.
+- `mcp__cpln__diagnose_workload` gives the probe/liveness failure reason and message from the newest events; `mcp__cpln__get_workload_logs` shows app-side errors.
 - For JWT, send a request with and without a valid token (expect 401 without) and confirm the `claim_to_headers` header arrives at the workload.
 
 ## Troubleshooting

@@ -27,7 +27,7 @@ The payoff is **retroactive and self-maintaining**: tag a new workload `environm
 | CLI, dedicated | `cpln KIND tag NAME --tag key=value` (repeatable); `--remove-tag key` drops one |
 | CLI, on create | `cpln KIND create ... --tag key=value` |
 | CLI, generic update | `cpln KIND update NAME --set tags.key=value` (kinds with no `tag` subcommand, e.g. `user`) |
-| MCP | The `mcp__cpln__create_*` / `update_*` tool for the kind accepts a `tags` object |
+| MCP | Each kind's `mcp__cpln__create_*` and `update_*` tool takes `tags` as a list of `{key, value}` pairs, as do `edit_group` and `edit_audit_context` (`?toolsets=full`); updates merge them into the existing tags, and `removeTagKeys` drops keys. Exceptions: `create_secret` and `update_org` take no tags, and `update_mk8s` takes no `removeTagKeys` |
 | Manifest | A top-level `tags:` map, then `cpln apply -f FILE` |
 
 ```bash
