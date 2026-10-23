@@ -100,7 +100,7 @@ For any OIDC provider (Auth0, Firebase, Cognito, Okta), set `issuer` to its issu
 
 ## Security Options
 
-`spec.securityOptions` (set with `configure_workload_security`):
+`spec.securityOptions` (set with `create_workload` or `update_workload`, which merges the given fields; `removeSecurityOptions: true` deletes the block):
 
 | Field | Range | Purpose |
 |---|---|---|
@@ -148,15 +148,16 @@ Each direct-LB location also gets a public Geo DNS address with latency-based ro
 
 ## Graceful Termination
 
-`spec.rolloutOptions` (set with `configure_workload_rollout`) governs how replicas are removed during scaling, version updates, Capacity AI rollouts, and maintenance.
+`spec.rolloutOptions` (set with `create_workload` or `update_workload`, which merges the given fields) governs how replicas are removed during scaling, version updates, Capacity AI rollouts, and maintenance.
 
 | Field | Range / values | Default |
 |---|---|---|
-| `minReadySeconds` | integer ≥0 | 0 |
-| `maxSurgeReplicas` | integer or percent | unset (not for `vm`) |
-| `maxUnavailableReplicas` | integer or percent | unset (not for `stateful`) |
-| `scalingPolicy` | `OrderedReady` / `Parallel` | `OrderedReady` (not for `vm`) |
+| `minReadySeconds` | integer ≥0 (standard and stateful) | 0 |
+| `maxSurgeReplicas` | integer or percent (standard only) | 25% |
+| `maxUnavailableReplicas` | integer or percent (standard only) | 25% |
+| `scalingPolicy` | `OrderedReady` / `Parallel` (stateful only) | `OrderedReady` |
 | `terminationGracePeriodSeconds` | 0-900 (3600 with the `cpln/relaxGracePeriodMax` tag) | 90 |
+| `rolloutOnReferenceChange` | `true` restarts replicas when a referenced secret or the identity changes | unset |
 
 `terminationGracePeriodSeconds` is the total budget for a replica to shut down before SIGKILL; raise it for long-running requests. Termination sequence:
 

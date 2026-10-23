@@ -17,6 +17,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 - `create_domain` and `update_domain` warn when a route sends clients to a workload that admits no external traffic, which the domain answers with 403.
 - The IaC skill says Terraform and Pulumi default `capacity_ai` to `true` on every workload type, stateful included.
 - `update_workload` sets per-location overrides on every profile: `localOptions` merges by location (a new override starts as a copy of `defaultOptions`), `removeLocalOptions` deletes one, and naming a location in both rebuilds it from `defaultOptions`. The result says how each override was built and which locations a `defaultOptions` change does not reach.
+- `create_workload` and `update_workload` set `rolloutOptions` and `securityOptions` on every profile, including `rolloutOnReferenceChange`, which restarts replicas when a referenced secret or the identity changes. `update_workload` merges the given fields into the stored ones, `removeSecurityOptions: true` deletes the security block, and the result shows what the platform stored.
+- `create_workload` takes `localOptions`: each override starts as a copy of the `defaultOptions` the same call sets, so a location never runs on the defaults first.
+- `create_workload` and `update_workload` set `multiZone` and `capacityAIUpdateMinutes` for every location, which before took an override in each location.
 
 ### Changed
 
@@ -51,6 +54,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 - `get_trace` (now `query_traces` with `traceId`), `list_metrics` (now `query_metrics` without `query`), and `convert_to_terraform` (now `export_terraform` with `manifest`, which refuses secrets as an export does).
 - `cpln_api_request`, the raw API tool that was off by default; the `cpln` CLI covers what the tools do not.
 - `configure_workload_local_options` (now `update_workload` with `localOptions` and `removeLocalOptions`, merged by location instead of replacing the list).
+- `configure_workload_rollout` and `configure_workload_security` (now `rolloutOptions`, `securityOptions`, and `removeSecurityOptions` on `create_workload` and `update_workload`).
 
 ## [2.4.4] - 2026-10-01
 

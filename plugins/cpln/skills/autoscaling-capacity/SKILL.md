@@ -42,10 +42,10 @@ spec:
     capacityAI: true
 ```
 
-- **Per-location overrides:** `spec.localOptions[]` (the `defaultOptions` fields plus `location`), set with `mcp__cpln__update_workload` `localOptions`, the only MCP path to `capacityAIUpdateMinutes` and `multiZone` (both also exist on `spec.defaultOptions`, reachable with `cpln apply`). An override **replaces** `defaultOptions` in its location and inherits nothing afterwards, so a later `defaultOptions` change skips every location that has one. The tool merges by location, and locations not named keep their overrides:
+- **Per-location overrides:** `spec.localOptions[]` (the `defaultOptions` fields plus `location`), set with `localOptions` on `mcp__cpln__create_workload` or `mcp__cpln__update_workload`. `capacityAIUpdateMinutes` and `multiZone` are top-level fields on both tools and apply to every location; set them in an override only when one location needs a different value. An override **replaces** `defaultOptions` in its location and inherits nothing afterwards, so a later `defaultOptions` change skips every location that has one. `update_workload` merges by location, and locations not named keep their overrides:
   - **Before writing:** read the workload with `mcp__cpln__get_resource` and tell the user which locations already have an override and what it holds. Use the GVC's own location names; an override for a location the GVC does not run in has no effect until it does.
   - **A location with an override:** send only the fields that change; the rest of the stored override stays, and `autoscaling` merges key by key.
-  - **A location without one:** the new override starts as a copy of the current `defaultOptions` plus the fields sent.
+  - **A location without one:** the new override starts as a copy of the current `defaultOptions` plus the fields sent; on `create_workload`, a copy of the `defaultOptions` the same call sets.
   - **Back to `defaultOptions`:** `removeLocalOptions` with the location link. Naming a location in both `removeLocalOptions` and `localOptions` rebuilds its override from `defaultOptions` in one write, for example to drop a stored `multi` or `keda` block that a merge would keep.
   - **After writing:** the result says how each override was built and its autoscaling now; check that it matches what the user asked.
 - **`scaleToZeroDelay` is dual-purpose:** on serverless it is the idle period before scaling to 0; on standard/stateful it sets the **scale-down stabilization window** (default 300s) — scale-up is immediate.
