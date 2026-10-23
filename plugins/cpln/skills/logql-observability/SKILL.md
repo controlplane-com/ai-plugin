@@ -9,7 +9,8 @@ Control Plane stores workload stdout/stderr in Loki and queries it with LogQL. T
 
 ## Two ways to query
 
-- **MCP (primary for agents):** `mcp__cpln__get_workload_logs` — structured params `gvc` (required), `workload`, `container`, `location`, `filter` (literal substring, LogQL `|=`, not regex); window `since` (default `1h`) or `from`/`to` (ISO 8601, `from` inclusive, `to` exclusive); `limit` (default 30, max 999, single request — `truncated: true` means narrow the window or filter harder); `order` (`oldest_first` default, or `newest_first`). For regex, parsers, or the `replica`/`stream`/`version` labels, pass a raw `query` (max 500 chars) instead of the structured selectors.
+- **MCP (primary for agents):** `mcp__cpln__get_workload_logs`: structured params `gvc`, `workload`, `container`, `location`, `filter` (literal substring, LogQL `|=`, not regex); window `since` (default `1h`) or `from`/`to` (ISO 8601, `from` inclusive, `to` exclusive); `limit` (default 30, max 999, single request: `truncated: true` means narrow the window or filter harder); `order` (`oldest_first` default, or `newest_first`). For regex, parsers, or the `replica`/`stream`/`version` labels, pass a raw `query` (max 500 chars) instead of the structured selectors.
+- **mk8s cluster logs** (the cluster's `logs` add-on): the same tool with `cluster` in place of `gvc`, narrowed by `namespace`, `pod`, `container`, `node`, and `job` (`kubernetes-pods`, `kubelet`, `kernel`, `docker-containers`, `audit`). These streams carry `cluster_name` and `cluster_alias`, never `gvc`; Control Plane workloads running on the cluster log under their GVC.
 - **CLI:** `cpln logs '<LOGQL>'` — interactive debugging (live `--tail`), scripts, CI.
 
 ```bash

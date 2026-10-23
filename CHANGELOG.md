@@ -20,6 +20,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 - `create_workload` and `update_workload` set `rolloutOptions` and `securityOptions` on every profile, including `rolloutOnReferenceChange`, which restarts replicas when a referenced secret or the identity changes. `update_workload` merges the given fields into the stored ones, `removeSecurityOptions: true` deletes the security block, and the result shows what the platform stored.
 - `create_workload` takes `localOptions`: each override starts as a copy of the `defaultOptions` the same call sets, so a location never runs on the defaults first.
 - `create_workload` and `update_workload` set `multiZone` and `capacityAIUpdateMinutes` for every location, which before took an override in each location.
+- `get_workload_logs` reads an mk8s cluster's own logs: `cluster` in place of `gvc`, narrowed by `namespace`, `pod`, `container`, `node`, and `job`. When nothing comes back from a cluster whose `logs` add-on is off, the result says so.
+- `get_resource` on an mk8s cluster with the `logs` or `metrics` add-on names the calls that read its logs and metrics.
 
 ### Changed
 
@@ -31,6 +33,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 - Skills say how to reach a tool outside the core profile (`?toolsets=full`).
 - The Template Catalog skill finds a template with `browse_templates` and `query` (the user's need in their own words) and reads its prerequisites, the template to pick instead, and its README notes from the tools, replacing the table of common asks and the per-template secret keys. It covers any self-hosted component or product, and leaves an app the user asks to build to the `create-app` skill.
 - The Template Catalog skill searches for the capability a goal needs when the user describes a goal rather than a component, and keeps `add_database` the default for the five databases, using the install steps only for a setting it does not take, such as backups.
+- `query_metrics` without `query` lists the metrics mk8s clusters ship apart from custom metrics, and its description names the `cluster_name` and `node` labels mk8s series carry.
 
 ### Fixed
 
@@ -55,6 +58,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 - `cpln_api_request`, the raw API tool that was off by default; the `cpln` CLI covers what the tools do not.
 - `configure_workload_local_options` (now `update_workload` with `localOptions` and `removeLocalOptions`, merged by location instead of replacing the list).
 - `configure_workload_rollout` and `configure_workload_security` (now `rolloutOptions`, `securityOptions`, and `removeSecurityOptions` on `create_workload` and `update_workload`).
+- `logs.events` on the `create_mk8s` and `update_mk8s` add-ons, which no mk8s log collector reads.
 
 ## [2.4.4] - 2026-10-01
 

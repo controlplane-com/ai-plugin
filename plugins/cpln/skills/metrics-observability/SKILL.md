@@ -44,7 +44,7 @@ Collected for every workload, no configuration. Names and types below are the re
 
 **Org-wide** (no workload label): `logs_storage_mb` / `metrics_storage_mb` / `tracing_storage_mb`; `agent_peers_count` / `agent_services_count` (gauge) and `agent_{tx,rx}_{bytes,packets}_total` (counter) from wormhole agents; `threat_detection_alerts` / `threat_detection_forward_total` / `threat_detection_forward_enabled`.
 
-mk8s clusters with metrics enabled also expose `kube_*` (kube-state-metrics) and `node_*` (node-exporter).
+mk8s clusters with the `metrics` add-on also ship `kube_*` (kube-state-metrics), `node_*` (node-exporter), kubelet, and cadvisor series. Every one carries `cluster_name` and `cluster_alias`, and node-exporter, kubelet, and cadvisor series also carry `node`: select a cluster with `{cluster_name="CLUSTER"}`.
 
 ## Custom metrics
 

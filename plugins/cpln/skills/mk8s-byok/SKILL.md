@@ -78,6 +78,8 @@ Exactly one provider per cluster (the schema enforces XOR). For every provider e
 | `azureACR` | pull from private ACR (`clientId` required) | all |
 | `byok` | register this cluster as a BYOK location (`addOns.byok.location` is a `//location/NAME` link) | all |
 
+With the `logs` or `metrics` add-on on, read the cluster's own logs with `mcp__cpln__get_workload_logs` (`cluster` in place of `gvc`) and its metrics with `mcp__cpln__query_metrics` on `cluster_name`.
+
 ## Create & update (MCP)
 
 `mcp__cpln__create_mk8s` takes `provider` (any row of the table above) and `spec`, the provider block; the tool names the fields the provider requires, and `get_resource` (kind `mk8s`, `schema: true`, path `spec.provider.<provider>`) has the exact shape. Supply `version` and at least one node pool. Read with `mcp__cpln__get_resource` / `list_resources` (kind `mk8s`); delete with `mcp__cpln__delete_resource` (destructive: confirm the blast radius).
