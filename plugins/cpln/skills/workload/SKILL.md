@@ -29,17 +29,17 @@ A workload is the unit of deployment: one to eight containers plus how they scal
 |---|---|
 | `containers[]`: image, ports, cpu/memory, env, command/args, probes, metrics, volumes | `create_workload` / `update_workload` |
 | `autoscaling`, `capacityAI`, `timeoutSeconds`, `suspend`, `debug` | `create_workload` / `update_workload` |
+| `localOptions` (per-location overrides, also the path to `multiZone`, `capacityAIUpdateMinutes`) and `removeLocalOptions` | `update_workload` |
 | `firewallConfig`, or the `public` shortcut | `create_workload` / `update_workload` |
 | `schedule` and job policy (`concurrencyPolicy`, `historyLimit`, `restartPolicy`, `activeDeadlineSeconds`) | the same tools with `type: cron` |
 | `loadBalancer` (direct, geo, replicaDirect) | `configure_workload_load_balancer` |
 | `sidecar.envoy` (JWT auth, Envoy filters) | `configure_workload_sidecar` |
 | `extras` (BYOK affinity, tolerations, topology) | `configure_workload_extras` |
-| `localOptions` (per-location overrides, `multiZone`, `capacityAIUpdateMinutes`) | `configure_workload_local_options` |
 | `rolloutOptions` (termination grace, surge) | `configure_workload_rollout` |
 | `securityOptions` (`runAsUser`, `filesystemGroupId`) | `configure_workload_security` |
 | `requestRetryPolicy` | `configure_workload_retry` |
 
-`update_workload` merges `containers[]` by name: send only the containers that change; an unknown name adds a container. On cron it patches the schedule, job policy, `suspend`, `capacityAI`, and containers, and rejects autoscaling, `timeoutSeconds`, and `debug`; schedule and job fields are rejected on other types. `start_workload_cron` runs a cron workload now, with optional `containerOverrides` for that run only; each call starts another run, and it returns a command id that `get_command` follows.
+`update_workload` merges `containers[]` by name: send only the containers that change; an unknown name adds a container. It merges `localOptions` by location the same way; read the **autoscaling-capacity** skill before changing one, since an override replaces `defaultOptions` in its location. On cron it patches the schedule, job policy, `suspend`, `capacityAI`, and containers, and rejects autoscaling, `timeoutSeconds`, and `debug`; schedule and job fields are rejected on other types. `start_workload_cron` runs a cron workload now, with optional `containerOverrides` for that run only; each call starts another run, and it returns a command id that `get_command` follows.
 
 ## Production defaults beyond the core rules
 

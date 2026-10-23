@@ -42,7 +42,12 @@ spec:
     capacityAI: true
 ```
 
-- **Per-location overrides:** `spec.localOptions[]` (same fields + `location`) via `mcp__cpln__configure_workload_local_options` (needs `?toolsets=full`), the only MCP tool that sets `capacityAIUpdateMinutes` or `multiZone`; it replaces the full list. Both also exist on `spec.defaultOptions`, reachable with `cpln apply`.
+- **Per-location overrides:** `spec.localOptions[]` (the `defaultOptions` fields plus `location`), set with `mcp__cpln__update_workload` `localOptions`, the only MCP path to `capacityAIUpdateMinutes` and `multiZone` (both also exist on `spec.defaultOptions`, reachable with `cpln apply`). An override **replaces** `defaultOptions` in its location and inherits nothing afterwards, so a later `defaultOptions` change skips every location that has one. The tool merges by location, and locations not named keep their overrides:
+  - **Before writing:** read the workload with `mcp__cpln__get_resource` and tell the user which locations already have an override and what it holds. Use the GVC's own location names; an override for a location the GVC does not run in has no effect until it does.
+  - **A location with an override:** send only the fields that change; the rest of the stored override stays, and `autoscaling` merges key by key.
+  - **A location without one:** the new override starts as a copy of the current `defaultOptions` plus the fields sent.
+  - **Back to `defaultOptions`:** `removeLocalOptions` with the location link. Naming a location in both `removeLocalOptions` and `localOptions` rebuilds its override from `defaultOptions` in one write, for example to drop a stored `multi` or `keda` block that a merge would keep.
+  - **After writing:** the result says how each override was built and its autoscaling now; check that it matches what the user asked.
 - **`scaleToZeroDelay` is dual-purpose:** on serverless it is the idle period before scaling to 0; on standard/stateful it sets the **scale-down stabilization window** (default 300s) — scale-up is immediate.
 
 ### Multi-metric (standard/stateful)
@@ -115,7 +120,7 @@ spec:
 
 - **With `metric: cpu`:** explicitly enabling Capacity AI is **rejected** (dynamic CPU allocation fights CPU-based scaling); left unset with `cpu` or `multi`, it silently defaults to **off**.
 - **GPU containers reject Capacity AI.**
-- Adjustments land **in place** on standard and stateful when the cluster supports pod resize (no restart; otherwise a rolling update); serverless rolls a new revision; **cron picks up the new reservation on its next execution** — a run already in flight is never resized. Throttle frequency with `capacityAIUpdateMinutes` (min 2 — via `localOptions` or `cpln apply`; not on create/update tools).
+- Adjustments land **in place** on standard and stateful when the cluster supports pod resize (no restart; otherwise a rolling update); serverless rolls a new revision; **cron picks up the new reservation on its next execution** — a run already in flight is never resized. Throttle frequency with `capacityAIUpdateMinutes` (min 2; per location through `update_workload` `localOptions`, or on `defaultOptions` through `cpln apply`).
 - Idle floor is **25m** CPU, rising with memory at **1 millicore per 3 MiB**. A just-changed workload pauses adjustments while history rebuilds — apps that reserve resources at startup may not benefit.
 
 ### Resource bounds (all types)

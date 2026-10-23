@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 - `update_domain` switches `certChallengeType`, for example to `dns01` when a CDN or WAF blocks `http01`; `.internal` domains refuse it.
 - `create_domain` and `update_domain` warn when a route sends clients to a workload that admits no external traffic, which the domain answers with 403.
 - The IaC skill says Terraform and Pulumi default `capacity_ai` to `true` on every workload type, stateful included.
+- `update_workload` sets per-location overrides on every profile: `localOptions` merges by location (a new override starts as a copy of `defaultOptions`), `removeLocalOptions` deletes one, and naming a location in both rebuilds it from `defaultOptions`. The result says how each override was built and which locations a `defaultOptions` change does not reach.
 
 ### Changed
 
@@ -49,6 +50,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 - `get_resource_schema` (now `get_resource` with `schema: true`), `list_volumeset_snapshots` (now `get_resource` on a volume set), `get_template` (now `browse_templates` with `name`), and `list_installed_templates` (now `get_installed_template` without `name`).
 - `get_trace` (now `query_traces` with `traceId`), `list_metrics` (now `query_metrics` without `query`), and `convert_to_terraform` (now `export_terraform` with `manifest`, which refuses secrets as an export does).
 - `cpln_api_request`, the raw API tool that was off by default; the `cpln` CLI covers what the tools do not.
+- `configure_workload_local_options` (now `update_workload` with `localOptions` and `removeLocalOptions`, merged by location instead of replacing the list).
 
 ## [2.4.4] - 2026-10-01
 
