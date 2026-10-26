@@ -11,7 +11,7 @@ A workload reads cloud resources with **no embedded keys**: a GVC-scoped **ident
 
 ## The chain
 
-**One call once the cloud account exists:** `mcp__cpln__grant_cloud_access` (`workload`, `provider`, `cloudAccount`, and the provider block from step 3) ensures the workload's identity, attaches the cloud account to it, and waits for `status.<provider>.usable`. Steps 3 and 4 below are what it does, for hand-built setups.
+**One call once the cloud account exists:** `mcp__cpln__grant_cloud_access` (`workload`, `provider`, `cloudAccount`, and the provider block from step 3) ensures the workload's identity, attaches the cloud account to it, and waits for `status.<provider>.usable` (none comes for a reused `roleName` or `serviceAccount`). Steps 3 and 4 below are what it does, for hand-built setups.
 
 | Step | What must be true | Without it |
 |---|---|---|
@@ -74,7 +74,7 @@ CLI fallback (MCP unavailable / CI-CD): `cpln identity get NAME --gvc GVC -o yam
 
 `update_workload` sets `spec.identityLink = //identity/NAME` (CLI: `cpln workload update NAME --set spec.identityLink=//identity/NAME`).
 
-Read the identity back with `get_resource` (kind `identity`): `status.<provider>.usable` must be `true`; if `false`, read `status.<provider>.lastError`. Cloud CLIs are usually absent from production containers, so a missing `aws`/`gcloud`/`az` does **not** mean access is broken — the SDK path still works.
+Read the identity back with `get_resource` (kind `identity`): `status.<provider>.usable` must be `true`; if `false`, read `status.<provider>.lastError`. Control Plane writes none for a reused `roleName` or `serviceAccount`: the workload's own cloud calls are the check there. Cloud CLIs are usually absent from production containers, so a missing `aws`/`gcloud`/`az` does **not** mean access is broken: the SDK path still works.
 
 ## Private-network resources
 
@@ -86,6 +86,6 @@ Reaching a private VPC / on-prem endpoint is a different mechanism on the **same
 - **Skipping the how-to** — the org-specific account/external IDs and SA email are required and can't be guessed.
 - **Full ARN in AWS `policyRefs`** — use the policy name with an optional `aws::` prefix, no colons.
 - **Both `policyRefs` + `roleName` (AWS) or `bindings` + `serviceAccount` (GCP)** — exactly one.
-- **Not checking `status.<provider>.usable`** — verify `true` before linking to the workload.
+- **Not checking `status.<provider>.usable`**: verify `true` before linking to the workload (it is never set for a reused `roleName` or `serviceAccount`).
 - **Confusing cloud access with secret access** — cloud access is the identity's `aws`/`gcp`/`azure`/`ngs` block; secret access is a `reveal` policy on a `cpln://secret/` reference (see **setup-secret**).
 - **Sharing an identity across GVCs** — recreate it per GVC.

@@ -47,6 +47,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 - Skills and agents now match the tools wherever they described a field or behavior wrongly, for example that shrinking a volume keeps its data.
 - The stateful `minCpu`/`minMemory` ratio and gap limits apply only while Capacity AI is off in `defaultOptions` or in a `localOptions` entry.
 - The Template Catalog skill no longer says `cockroach`, `tidb`, `nats`, `clickhouse`, `airflow`, `mongodb-cluster`, `redis-multi-location`, and `pgedge` create their own GVC; their current versions install into an existing GVC that already has every location their `locations` value lists.
+- `grant_cloud_access` returns at once for a reused `roleName` or `serviceAccount`, which never gets a status, instead of waiting on one, and refuses an input data-service would refuse before the workload gets an identity. The cloud access skill says a reused role or service account gets no status.
 
 ### Removed
 
