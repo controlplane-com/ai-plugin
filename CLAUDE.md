@@ -97,6 +97,6 @@ The server knows the fetched map's skills plus those of the map bundled in its b
 
 ## Versioning
 
-Work lands on `develop`, which the test MCP server reads; `main` is the released line that installs and the production MCP server read. A release is `scripts/bump-version.sh <X.Y.Z>` run on `develop`: it updates every plugin manifest and the marketplace entries in lockstep, promotes the CHANGELOG `[Unreleased]` block, commits, tags, and pushes `develop`, `main`, and the tag together. Don't edit version strings by hand. Details: `CONTRIBUTING.md`.
+Work lands on `develop`, which the test MCP server reads; `main` is the released line that installs and the production MCP server read. A release is `scripts/bump-version.sh <X.Y.Z>` run on `develop`: it updates every plugin manifest and the marketplace entries in lockstep, promotes the CHANGELOG `[Unreleased]` block, commits, pushes `develop`, and opens the release pull request to `main`. Once it is approved and merged with Rebase and merge, `scripts/bump-version.sh <X.Y.Z> --finish` tags `main` and rebases `develop` onto it. Don't edit version strings by hand. Details: `CONTRIBUTING.md`.
 
 In the CHANGELOG, keep only the headings that have entries — omit empty `Added` / `Changed` / `Fixed` / `Removed` sections (including under `[Unreleased]`). Keep each entry as short as possible — one customer-facing line that summarizes rather than enumerates; specifics and internal refactors live in git history, not the changelog. Avoid arrow characters like `→` — write `to`, `-`, or `/` instead.
