@@ -7,7 +7,7 @@ description: "Production hardening for Control Plane workloads. Use when asked a
 
 Deep-dive companion to the `workload` skill, which owns workload types, the spec shape, and the readiness-vs-liveness model. Everything below is production-hardening detail for an existing workload.
 
-**Where settings live.** Health probes go inline in `containers[]` via `create_workload` / `update_workload`. Every other block here — `sidecar.envoy`, `loadBalancer`, `securityOptions`, `rolloutOptions` — is set by its own `configure_workload_*` tool, a set-or-clear PATCH on that one field (`remove: true` clears it). **Tool availability:** these tools live in the `full` toolset profile; if one isn't advertised, reconnect with `?toolsets=full` or use the CLI.
+**Where settings live.** Health probes go inline in `containers[]`, and `securityOptions` and `rolloutOptions` are fields of `create_workload` / `update_workload`. `sidecar.envoy` and `loadBalancer` are each set by their own `configure_workload_*` tool, a set-or-clear PATCH on that one field (`remove: true` clears it). **Tool availability:** those two tools live in the `full` toolset profile; if one isn't advertised, reconnect with `?toolsets=full` or use the CLI.
 
 ## Health Probes
 

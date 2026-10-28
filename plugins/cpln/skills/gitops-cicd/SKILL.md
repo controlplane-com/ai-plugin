@@ -27,7 +27,7 @@ Set in the platform's variable settings, never inline in scripts:
 | `CPLN_GVC` | Target GVC, when the pipeline targets one |
 | `CPLN_SKIP_UPDATE_CHECK=1` | Silence CLI update checks in logs |
 
-With `CPLN_TOKEN` set the CLI runs a profile-less session; resolution is flag, then env var, then profile (`cpln` skill). The official example repos persist the token instead — `cpln profile update default --token "$CPLN_TOKEN"` (`create` is an alias of `update`) — either works. Never pass `--token` on ad-hoc commands and never echo the token.
+With `CPLN_TOKEN` set the CLI runs a profile-less session; resolution is flag, then env var, then profile (`cpln` skill). Prefer that session: it keeps the token off the command line. The official example repos persist the token with `cpln profile update default --token "$CPLN_TOKEN"` instead (`create` is an alias of `update`); keep that only in a job that never prints its commands. Never pass `--token` on ad-hoc commands and never echo the token.
 
 ## Installing the CLI on runners
 
