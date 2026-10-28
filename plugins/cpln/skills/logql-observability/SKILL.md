@@ -9,7 +9,8 @@ Control Plane stores workload stdout/stderr in Loki and queries it with LogQL. T
 
 ## Two ways to query
 
-- **MCP (primary for agents):** `mcp__cpln__get_workload_logs` — structured params `gvc` (required), `workload`, `container`, `location`, `filter` (literal substring, LogQL `|=`, not regex); window `since` (default `1h`) or `from`/`to` (ISO 8601, `from` inclusive, `to` exclusive); `limit` (default 30, max 999, single request — `truncated: true` means narrow the window or filter harder); `order` (`oldest_first` default, or `newest_first`). For regex, parsers, or the `replica`/`stream`/`version` labels, pass a raw `query` (max 500 chars) instead of the structured selectors.
+- **MCP (primary for agents):** `mcp__cpln__get_workload_logs`: structured params `gvc`, `workload`, `container`, `location`, `filter` (literal substring, LogQL `|=`, not regex); window `since` (default `1h`) or `from`/`to` (ISO 8601, `from` inclusive, `to` exclusive); `limit` (default 30, max 999, single request: `truncated: true` means narrow the window or filter harder); `order` (`oldest_first` default, or `newest_first`). For regex, parsers, or the `replica`/`stream`/`version` labels, pass a raw `query` (max 500 chars) instead of the structured selectors.
+- **mk8s cluster logs** (the cluster's `logs` add-on): the same tool with `cluster` in place of `gvc`, narrowed by `namespace`, `pod`, `container`, `node`, and `job` (`kubernetes-pods`, `kubelet`, `kernel`, `docker-containers`, `audit`). These streams carry `cluster_name` and `cluster_alias`, never `gvc`; Control Plane workloads running on the cluster log under their GVC.
 - **CLI:** `cpln logs '<LOGQL>'` — interactive debugging (live `--tail`), scripts, CI.
 
 ```bash
@@ -94,7 +95,7 @@ Schema facts (nodelibs `cronjob.ts`) that bite scripts:
 
 - `status` is one of `successful | failed | active | pending | invalid | removed` (default `pending`). Running means `status == "active"` AND no `completionTime`; a missing `completionTime` alone proves nothing (the schema warns it is not an indication of success).
 - `completionTime: null` is stripped server-side and `startTime` may be absent for never-started runs — each field is present-with-value or absent, so guard flags with `${VAR:+--from "$VAR"}` and jq `// empty`.
-- `replica` is optional: when missing, the run never got a pod and there are **no logs** — diagnose with the execution's `containers` map and `message` field (aggregated pod events) and `mcp__cpln__get_workload_events`.
+- `replica` is optional: when missing, the run never got a pod and there are **no logs**; diagnose with the execution's `containers` map and `message` field (aggregated pod events) and `mcp__cpln__diagnose_workload`, which returns the newest events.
 
 **2. Query that replica, time-bounded.** MCP: raw `query` embedding ALL labels (structured params must be omitted) plus `from`/`to`. CLI:
 
@@ -118,6 +119,6 @@ CI/CD and headless use: set `CPLN_TOKEN` and run `cpln logs` directly (no profil
 | Empty result for known activity | Window outside retention (default 30d), span over 31 days, or filters too narrow; app may not write to stdout/stderr |
 | `#### Replica logs were rate-limited ... ####` marker | Per-replica cap was hit; lines in that interval are gone — reduce log volume |
 | Line ends with `... [truncated N bytes]` | 16 KiB per-line cap — emit smaller lines |
-| Health checks absent from `_accesslog` | Filtered by design; probe failures surface in `mcp__cpln__get_workload_events` |
+| Health checks absent from `_accesslog` | Filtered by design; probe failures surface in the events `mcp__cpln__diagnose_workload` returns |
 | MCP rejects raw `query` combined with `workload` etc. | A raw query replaces the structured params — embed all labels in the query itself |
 | `cpln workload log` shows no app output | That is the eventlog alias; use `cpln logs` |

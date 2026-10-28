@@ -6,6 +6,78 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-10-29
+
+### Added
+
+- `run_volumeset_command` runs one volume set command (expand, shrink, snapshot, restore, or delete) and returns its command id for `get_command`, as `start_workload_cron` now does.
+- `request_quota_increase` asks Control Plane to raise an org quota; every quota error names it, with the quota and, for a per-GVC quota, the GVC.
+- `grant_workload_secret_access` takes `remove: true` to revoke one secret from a workload, keeping its identity.
+- `list_deployments` names each location's running replicas, the `--replica` value the `cpln` workload commands take.
+- Routes in `create_domain` and `update_domain` take the same fields: `canaries` split a route's traffic by weight, and `create_domain` routes take `mirror` too.
+- `update_domain` switches `certChallengeType`, for example to `dns01` when a CDN or WAF blocks `http01`; `.internal` domains refuse it.
+- `create_domain` and `update_domain` warn when a route sends clients to a workload that admits no external traffic, which the domain answers with 403.
+- The IaC skill says Terraform and Pulumi default `capacity_ai` to `true` on every workload type, stateful included.
+- `update_workload` sets per-location overrides on every profile: `localOptions` merges by location (a new override starts as a copy of `defaultOptions`), `removeLocalOptions` deletes one, and naming a location in both rebuilds it from `defaultOptions`. The result says how each override was built and which locations a `defaultOptions` change does not reach.
+- `create_workload` and `update_workload` set `rolloutOptions` and `securityOptions` on every profile, including `rolloutOnReferenceChange`, which restarts replicas when a referenced secret or the identity changes. `update_workload` merges the given fields into the stored ones, `removeSecurityOptions: true` deletes the security block, and the result shows what the platform stored.
+- `create_workload` takes `localOptions`: each override starts as a copy of the `defaultOptions` the same call sets, so a location never runs on the defaults first.
+- `create_workload` and `update_workload` set `multiZone` and `capacityAIUpdateMinutes` for every location, which before took an override in each location.
+- `get_workload_logs` reads an mk8s cluster's own logs: `cluster` in place of `gvc`, narrowed by `namespace`, `pod`, `container`, `node`, and `job`. When nothing comes back from a cluster whose `logs` add-on is off, the result says so.
+- `get_resource` on an mk8s cluster with the `logs` or `metrics` add-on names the calls that read its logs and metrics.
+- `run_volumeset_command` takes `copyVolume`, which copies a volume to the same index in another location or volume set and replaces the volume there; skills list it with the destructive commands.
+- `create_secret` takes `defaults` with values `"user"` and a dictionary: starting values that are not secret, such as a host or port, filled into the Console form for the user to change.
+- `create_mk8s` and `update_mk8s` take a `*Drop` regex per metrics collector, dropping every series whose metric name matches it in full.
+- The metrics skill names `container_last_terminated_reason`, the reason each container last stopped, such as `OOMKilled`.
+
+### Changed
+
+- Skills and the core rules run `cpln` only in a shell on the user's machine. A chat app such as ChatGPT never looks for, installs, or runs it, even in its code sandbox; it stores app files with `write_app_files` and gives the user a command to run only for a step no tool covers.
+- The mk8s skill gives the current version range, `1.26.0` through `1.36.5`.
+- `upgrade_template` and the Template Catalog skill start an upgrade from the values the release runs with, which the user reads in the Console, instead of a `cpln helm get values` command that would bring credentials into the chat.
+- `allow_workload_access` says that `remove: true` takes callers off the list, while a `same-gvc` or `same-org` rule still admits them.
+- Live credentials stay with the user: the agent never runs `cpln profile token` or prints an API token, the user runs those in their own terminal, and the Secret YAML from `cpln operator install --export` stays out of Git unless encrypted.
+- The KEDA Prometheus trigger authenticates with `authModes: bearer` and a dictionary secret (`bearerToken`) named in `authenticationRef`, never a token written into the workload spec.
+- Skills say the ChatGPT listing always runs `core`, so a step that needs another profile goes through the Console or a CLI command the user runs.
+- The rate limiting setup no longer mentions `spot`, which the platform removes from every workload.
+
+- The default `core` profile advertises 45 tools instead of 71: tools fold into the tool that covers their family (see Removed).
+- Tools few tasks need move from `core` to `full`: policies, identities, permissions, quota lists, promotion, events, replica and command lists, volume set creation, and the docs filesystem; the read tools among them stay on `readonly`.
+- `workload_start_cron` and `workload_stop_replica` are renamed `start_workload_cron` and `stop_workload_replica`.
+- `create_gvc` and `update_gvc` are titled "Create a GVC" and "Update a GVC".
+- `promote_workload` creates or updates each mounted volume set in the target GVC with the source's settings, never copying data, and points firewall links at the target GVC's workloads.
+- Skills say how to reach a tool outside the core profile (`?toolsets=full`).
+- The Template Catalog skill finds a template with `browse_templates` and `query` (the user's need in their own words) and reads its prerequisites, the template to pick instead, and its README notes from the tools, replacing the table of common asks and the per-template secret keys. It covers any self-hosted component or product, and leaves an app the user asks to build to the `create-app` skill.
+- The Template Catalog skill searches for the capability a goal needs when the user describes a goal rather than a component, and keeps `add_database` the default for the five databases, using the install steps only for a setting it does not take, such as backups.
+- `query_metrics` without `query` lists the metrics mk8s clusters ship apart from custom metrics, and its description names the `cluster_name` and `node` labels mk8s series carry.
+
+### Fixed
+
+- `update_workload` `public: false` now closes the workload to the internet, and `public: true` opens it without replacing its other firewall rules.
+- `get_app_files` never shows the content of a file holding credentials, such as a `.env` with values uploaded from a folder; it returns the file's details instead.
+- `rollback_workload` finds the previous image even after a rollout has finished, from the last 30 days of changes.
+- Quota rejections (HTTP 429) are not retried, and their errors carry the quota hint instead of the rate limit hint.
+- An update that loses a write race with another change (HTTP 409 "Conflict: resource was changed") is retried once instead of failing with an "already exists" hint.
+- Volume command refusals say what blocks them and what to do next.
+- `grant_workload_secret_access`, `deploy_app`, and `promote_workload` check the secrets and the policy they need before writing anything, so a refusal leaves nothing half done.
+- Logs, metrics, traces, and audit events are always read from the environment the request targets.
+- Skills and agents now match the tools wherever they described a field or behavior wrongly, for example that shrinking a volume keeps its data.
+- The stateful `minCpu`/`minMemory` ratio and gap limits apply only while Capacity AI is off in `defaultOptions` or in a `localOptions` entry.
+- The Template Catalog skill no longer says `cockroach`, `tidb`, `nats`, `clickhouse`, `airflow`, `mongodb-cluster`, `redis-multi-location`, and `pgedge` create their own GVC; their current versions install into an existing GVC that already has every location their `locations` value lists.
+- `grant_cloud_access` returns at once for a reused `roleName` or `serviceAccount`, which never gets a status, instead of waiting on one, and refuses an input data-service would refuse before the workload gets an identity. The cloud access skill says a reused role or service account gets no status.
+
+### Removed
+
+- `get_cpln_rules` (now the `operating-guide` skill: plugin hosts load it, and MCP-only clients read it with `get_cpln_skill`).
+- `add_domain_route`, `update_domain_route`, `remove_domain_route`, `add_domain_port`, `remove_domain_port`, `set_domain_tls`, `clear_domain_tls`, `set_domain_cors`, and `clear_domain_cors` (now `update_domain` with `addPorts`, `removePorts`, `addRoutes`, `removeRoutes`, `removeTls`, and `removeCors`, applied in one write).
+- `expand_volumeset`, `shrink_volumeset`, `create_volumeset_snapshot`, `restore_volumeset_snapshot`, `delete_volumeset_snapshot`, and `delete_volumeset_volume` (now `run_volumeset_command`).
+- `get_resource_schema` (now `get_resource` with `schema: true`), `list_volumeset_snapshots` (now `get_resource` on a volume set), `get_template` (now `browse_templates` with `name`), and `list_installed_templates` (now `get_installed_template` without `name`).
+- `get_trace` (now `query_traces` with `traceId`), `list_metrics` (now `query_metrics` without `query`), and `convert_to_terraform` (now `export_terraform` with `manifest`, which refuses secrets as an export does).
+- `cpln_api_request`, the raw API tool that was off by default; the `cpln` CLI covers what the tools do not.
+- `configure_workload_local_options` (now `update_workload` with `localOptions` and `removeLocalOptions`, merged by location instead of replacing the list).
+- `configure_workload_rollout` and `configure_workload_security` (now `rolloutOptions`, `securityOptions`, and `removeSecurityOptions` on `create_workload` and `update_workload`).
+- `logs.events` on the `create_mk8s` and `update_mk8s` add-ons, which no mk8s log collector reads.
+- `recoveryPolicy` on `mount_volumeset_to_workload` and on container volumes in `create_workload` and `update_workload`, which the platform does not act on.
+
 ## [2.4.4] - 2026-10-01
 
 ### Removed

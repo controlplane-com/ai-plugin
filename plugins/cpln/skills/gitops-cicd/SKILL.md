@@ -5,7 +5,7 @@ description: "Sets up CI/CD pipelines and GitOps for Control Plane. Use when the
 
 # GitOps & CI/CD
 
-In pipelines the **CLI is the primary interface**: authenticate with a service-account key in `CPLN_TOKEN` (no profile needed), push an image, `cpln apply --ready` the manifests. MCP tools do the work around the pipeline — `mcp__cpln__get_resource_schema` before authoring manifests, `mcp__cpln__list_deployments` to confirm a deploy landed. The usual failure is image builds: `cpln image build` runs the build **locally through Docker**, so a runner without a daemon needs a different flow — a daemonless builder, or `--remote` to build on Control Plane. Pick by runner capability, not by habit.
+In pipelines the **CLI is the primary interface**: authenticate with a service-account key in `CPLN_TOKEN` (no profile needed), push an image, `cpln apply --ready` the manifests. MCP tools do the work around the pipeline: `mcp__cpln__get_resource` with `schema: true` before authoring manifests, `mcp__cpln__list_deployments` to confirm a deploy landed. The usual failure is image builds: `cpln image build` runs the build **locally through Docker**, so a runner without a daemon needs a different flow (a daemonless builder, or `--remote` to build on Control Plane). Pick by runner capability, not by habit.
 
 ## Service-account authentication
 
@@ -14,9 +14,9 @@ cpln serviceaccount create --name ci-deployer --org ORG
 cpln serviceaccount add-key ci-deployer --description "ci key" --org ORG   # --description is required
 ```
 
-The JSON response's `key` value is the credential — keep it on the user's machine and store it as a masked/secret variable in the CI platform; never paste it into chat. MCP: `mcp__cpln__add_key_to_service_account` (full profile) creates the service account if it is missing and returns a Console link where the user creates the key privately.
+The JSON response's `key` value is the credential — keep it on the user's machine and store it as a masked/secret variable in the CI platform; never paste it into chat. MCP: `mcp__cpln__add_key_to_service_account` (needs `?toolsets=full`) creates the service account if it is missing and returns a Console link where the user creates the key privately.
 
-Grant least privilege (`access-control` skill): pushing images needs `create` on the `image` kind; `cpln apply` needs create/edit on every kind the manifests contain. `cpln group add-member superusers --serviceaccount ci-deployer` works but grants full org access — prefer a scoped policy (`mcp__cpln__create_policy`).
+Grant least privilege (`access-control` skill): pushing images needs `create` on the `image` kind; `cpln apply` needs create/edit on every kind the manifests contain. `cpln group add-member superusers --serviceaccount ci-deployer` works but grants full org access; prefer a scoped policy (`mcp__cpln__create_policy`, needs `?toolsets=full`).
 
 Set in the platform's variable settings, never inline in scripts:
 
@@ -27,7 +27,7 @@ Set in the platform's variable settings, never inline in scripts:
 | `CPLN_GVC` | Target GVC, when the pipeline targets one |
 | `CPLN_SKIP_UPDATE_CHECK=1` | Silence CLI update checks in logs |
 
-With `CPLN_TOKEN` set the CLI runs a profile-less session; resolution is flag, then env var, then profile (`cpln` skill). The official example repos persist the token instead — `cpln profile update default --token "$CPLN_TOKEN"` (`create` is an alias of `update`) — either works. Never pass `--token` on ad-hoc commands and never echo the token.
+With `CPLN_TOKEN` set the CLI runs a profile-less session; resolution is flag, then env var, then profile (`cpln` skill). Prefer that session: it keeps the token off the command line. The official example repos persist the token with `cpln profile update default --token "$CPLN_TOKEN"` instead (`create` is an alias of `update`); keep that only in a job that never prints its commands. Never pass `--token` on ad-hoc commands and never echo the token.
 
 ## Installing the CLI on runners
 
@@ -72,7 +72,7 @@ On GitHub, `docker/login-action` + `docker/build-push-action` also work with the
 
 ## Applying manifests
 
-Author YAML against the real shape first: `mcp__cpln__get_resource_schema` for each kind. The pipeline then runs:
+Author YAML against the real shape first: `mcp__cpln__get_resource` with `schema: true` for each kind. The pipeline then runs:
 
 ```bash
 cpln apply --file ./manifests/ --ready

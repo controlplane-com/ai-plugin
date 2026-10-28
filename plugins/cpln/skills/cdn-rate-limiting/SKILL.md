@@ -15,7 +15,7 @@ The pattern: the CDN proxies your domain and uses the workload's **canonical end
 
 1. **DNS at Cloudflare:** proxied CNAME (orange cloud on) from your subdomain to the canonical endpoint; SSL/TLS mode **Full (strict)**.
 2. **Origin certificate** (SSL/TLS, then Origin Server; RSA 2048) becomes a Control Plane **TLS secret** — `create_secret` type `tls` with `values: "user"` (the user types the cert and key in the Console), **TLS chain left empty** (the origin cert is self-signed).
-3. **Domain at Control Plane:** `mcp__cpln__create_domain` (CNAME DNS mode), `mcp__cpln__set_domain_tls` with the secret as the custom **server certificate**, `mcp__cpln__add_domain_route` to the workload. **The apex domain must be verified before configuring a subdomain.**
+3. **Domain at Control Plane:** `mcp__cpln__create_domain` (CNAME DNS mode), then one `mcp__cpln__update_domain` call: `addPorts` sets the secret as the listener's custom **server certificate** (`tls.serverCertificate.secretLink`) and `addRoutes` routes it to the workload. **The apex domain must be verified before configuring a subdomain.**
 
 ### Amazon CloudFront
 
@@ -41,7 +41,7 @@ cpln apply --file rate-limiting.yaml --org ORG --gvc ratelimit
 
 The manifest assumes the GVC is named `ratelimit` (edit it if yours differs) and pins an older `envoyproxy/ratelimit` image tag; substitute a newer tag if desired.
 
-**As shipped, the manifest is a trial setup, not a production one:** both workloads run `minScale: 1` with `spot: true`. Because enforcement is fail-closed, the ratelimit stack is tier-1 infrastructure for every tagged workload — for production raise its `minScale` to 2+, set `spot: false`, and run the GVC in the same locations as the workloads it protects (every request pays the check's round trip). A Redis restart only resets counters; a ratelimit outage denies traffic.
+**As shipped, the manifest is a trial setup, not a production one:** both workloads run `minScale: 1`. Because enforcement is fail-closed, the ratelimit stack is tier-1 infrastructure for every tagged workload: for production raise its `minScale` to 2+ and run the GVC in the same locations as the workloads it protects (every request pays the check's round trip). A Redis restart only resets counters; a ratelimit outage denies traffic.
 
 ### 2. Configure the rules
 

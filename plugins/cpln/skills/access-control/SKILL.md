@@ -5,7 +5,7 @@ description: "Primary skill for access control, policies, and RBAC on Control Pl
 
 # Access Control & Policies — Primary Skill
 
-> **Tool availability:** `create_group`, `edit_group`, `create_service_account`, `update_service_account`, `add_key_to_service_account`, and `invite_user_to_org` need `?toolsets=full`; reconnect with it or use the CLI.
+> **Tool availability:** `create_policy`, `update_policy`, `get_permissions`, `create_group`, `edit_group`, `create_service_account`, `update_service_account`, `add_key_to_service_account`, and `invite_user_to_org` need `?toolsets=full`; reconnect with it or use the CLI. On core, `grant_workload_secret_access` (`remove: true` revokes) grants a workload secret access through its identity and a policy, creating either when missing; `grant_cloud_access` creates no policy: it makes sure the workload has an identity and sets that identity's cloud provider access.
 
 A **policy** targets one resource kind and binds **permissions** to **principals** (users, groups, service accounts, workload identities). The common failure is a policy that **exists but grants nothing** — a wrong `targetKind`, permission name, or principal link fails with no error — so read the policy back after writing.
 
@@ -41,7 +41,7 @@ bindings:                    # ≤ 50
 **Valid target kinds:** the `targetKind` enum accepts all **33** resource kinds, but only the **20 kinds with permission schemas** (the ones `get_permissions` accepts) are meaningful targets: `workload, secret, gvc, identity, image, org, policy, group, serviceaccount, user, volumeset, domain, location, ipset, mk8s, cloudaccount, agent, auditctx, quota, task`.
 
 **Create vs update:**
-- `create_policy` builds **one** binding from `addPermissions` × (`addUsers`/`addGroups`/`addServiceAccounts`/`addIdentities`) — providing only one side is an **error** (a binding needs both). It also requires **exactly one** target scope (`targetAll` / `targetLinks` / `targetQuery`). For several distinct bindings, use `update_policy` `addBindings`.
+- `create_policy` builds **one** binding from `addPermissions` × (`addUsers`/`addGroups`/`addServiceAccounts`/`addIdentities`) — providing only one side is an **error** (a binding needs both). It takes the target scope as `targetAll`, `targetLinks`, or `targetQuery`; they may be combined, and `targetAll` wins. For several distinct bindings, use `update_policy` `addBindings`.
 - `update_policy` **merges** bindings (matched by exact permission set — you can't extend a set) but **replaces** targets (`targetLinks` wholesale, `removeTargetLinks` incremental, `targetAll` — mutually exclusive).
 
 ## Permissions
@@ -77,7 +77,7 @@ Members are **users and service accounts only** (≤ 200). Bind policies to grou
 
 ### Users (IDP-backed)
 - **Invite:** `invite_user_to_org` (`email`, optional `groupName`).
-- **Read / remove:** `get_resource` (kind="user") / `delete_resource` (kind="user") take **`identifier`** (id or email); `list_resources` (kind="user") has an `email` filter.
+- **Read / remove:** `get_resource` (kind="user") / `delete_resource` (kind="user") take the user's `name` exactly as `list_resources` (kind="user") shows it; `list_resources` has no filter argument, so find the user in its table.
 
 ## Built-ins (seeded per org)
 

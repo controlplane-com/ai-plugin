@@ -98,7 +98,7 @@ The decisive question for any bind-mounted file: **does it change between enviro
 
 Baking config into the image couples that image to one environment: a hostname or feature-flag change then forces a rebuild. Mounting application content as secret volumes is the opposite mistake — it decouples content from its image version and makes rollbacks strange. A single container's migration is usually **mixed**, decided file by file. Rule of thumb: if changing the file between environments would not count as a code change, it is config and belongs in a secret volume.
 
-Workloads mount secrets as read-only files via `cpln://secret/<name>` volumes (the `workload`/`stateful-storage` skills own the mechanism; `get_resource_schema` for `workload` gives the exact shape):
+Workloads mount secrets as read-only files via `cpln://secret/<name>` volumes (the `workload`/`stateful-storage` skills own the mechanism; `get_resource` with `schema: true` for `workload` gives the exact shape):
 
 - **Opaque** (single config file): the path needs at least one subpath; the last segment becomes the file name and holds the `payload`.
 - **Dictionary** (multi-key ConfigMap): mount the secret at a directory path and each key becomes a file.
@@ -118,7 +118,7 @@ Release-name rules, `--history-limit`, OCI charts, and `--wait` are general helm
 
 ## Exporting to Terraform / IaC
 
-When the target is Infrastructure-as-Code rather than live resources, turn the converted Control Plane YAML into HCL with `mcp__cpln__convert_to_terraform` (dry-run validated against the API first, so the HCL always matches a schema-valid resource), or capture already-created resources with `mcp__cpln__export_terraform`. The `iac-terraform-pulumi` skill owns the full Terraform/Pulumi story, including `terraform import`.
+When the target is Infrastructure-as-Code rather than live resources, turn the converted Control Plane YAML into HCL with `mcp__cpln__export_terraform` and its `manifest` (dry-run validated against the API first, so the HCL always matches a schema-valid resource), or capture already-created resources with the same tool from their self links. The `iac-terraform-pulumi` skill owns the full Terraform/Pulumi story, including `terraform import`.
 
 ## Verify
 

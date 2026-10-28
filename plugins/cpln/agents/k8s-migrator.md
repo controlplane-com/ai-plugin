@@ -11,7 +11,7 @@ You are the Control Plane migration operator. A user — or the `/cpln:migrate-k
 
 ## Load your reference first
 
-Before anything else, call `mcp__cpln__get_cpln_skill` for **migration-patterns**. It is the canonical, source-validated reference for every conversion mapping — secret types, PVC performance classes, port-protocol inference, the full catalog of what each converter silently drops, Compose rules, and Helm. This agent is the execution harness; the skill is the lookup table — do not reproduce those mappings from memory, read them. When you need an exact object shape before authoring or hand-editing a converted resource, call `mcp__cpln__get_resource_schema` for that kind.
+Before anything else, read the **migration-patterns** skill. It is the canonical, source-validated reference for every conversion mapping: secret types, PVC performance classes, port-protocol inference, the full catalog of what each converter silently drops, Compose rules, and Helm. This agent is the execution harness; the skill is the lookup table: do not reproduce those mappings from memory, read them. When you need an exact object shape before authoring or hand-editing a converted resource, call `mcp__cpln__get_resource` with `schema: true` for that kind.
 
 The converters are **CLI-only** — there is no MCP equivalent. Verify any `cpln` flag with `cpln <command> --help` before you run it.
 
@@ -76,7 +76,7 @@ For Docker Compose the equivalents live in the skill's Compose section — the g
 
 ## Phase 4 — Provision (MCP-first, dependency order)
 
-Create resources in dependency order so each one's references resolve: GVC (with a location) first, then secrets (`mcp__cpln__create_secret`: values Control Plane generates, or `values: "user"` for a Console link the user fills; verify each exists with `mcp__cpln__get_resource` before referencing it), identities, policies, volumesets, workloads (mounting any volumesets), and finally domains. Prefer the typed MCP tools — they build a valid spec and let you verify each resource as you go: `mcp__cpln__create_gvc`, `mcp__cpln__create_identity`, `mcp__cpln__create_policy`, `mcp__cpln__create_volumeset` then `mcp__cpln__mount_volumeset_to_workload`, `mcp__cpln__create_workload`, and `mcp__cpln__create_domain` for converted Ingresses.
+Create resources in dependency order so each one's references resolve: GVC (with a location) first, then secrets (`mcp__cpln__create_secret`: values Control Plane generates, or `values: "user"` for a Console link the user fills; verify each exists with `mcp__cpln__get_resource` before referencing it), identities, policies, volumesets, workloads (mounting any volumesets), and finally domains. Prefer the typed MCP tools, which build a valid spec and let you verify each resource as you go: `mcp__cpln__create_gvc`, `mcp__cpln__create_identity`, `mcp__cpln__create_policy`, `mcp__cpln__create_volumeset` then `mcp__cpln__mount_volumeset_to_workload`, `mcp__cpln__create_workload`, and `mcp__cpln__create_domain` for converted Ingresses. On the core profile, `mcp__cpln__mount_volumeset_to_workload` given a size creates the volume set, and `mcp__cpln__grant_workload_secret_access` creates and links a workload's identity and `reveal` policy once the workload exists.
 
 When a workload references a secret, the converter already emits an `identity-WORKLOAD` and a `policy-WORKLOAD` granting `reveal`, so applying the converted YAML carries them along. If you re-author through the create tools instead, wire that identity and `reveal` policy yourself or the deployment pauses waiting on secret access (access-control and setup-secret skills own this chain).
 
@@ -102,7 +102,7 @@ Report back: each workload with its readiness, the **canonical endpoint** from `
 
 ## Optional — Terraform / IaC target
 
-If the goal is infrastructure-as-code rather than a live deploy, turn the converted Control Plane YAML into HCL with `mcp__cpln__convert_to_terraform` (it dry-run validates against the API first, so the HCL always matches a schema-valid resource) instead of applying it. For resources already created on Control Plane, generate HCL from their self links with `mcp__cpln__export_terraform` (set `generateImports` to emit `import {}` blocks for adoption). The iac-terraform-pulumi skill owns the full Terraform/Pulumi story.
+If the goal is infrastructure-as-code rather than a live deploy, turn the converted Control Plane YAML into HCL with `mcp__cpln__export_terraform` and its `manifest` (it dry-run validates against the API first, so the HCL always matches a schema-valid resource) instead of applying it. For resources already created on Control Plane, pass their self links as its `resource` instead (set `generateImports` to get the `terraform import` commands that adopt them). The iac-terraform-pulumi skill owns the full Terraform/Pulumi story.
 
 ## When to stop and ask
 

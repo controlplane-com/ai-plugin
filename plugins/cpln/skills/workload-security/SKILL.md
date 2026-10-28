@@ -7,7 +7,7 @@ description: "Production hardening for Control Plane workloads. Use when asked a
 
 Deep-dive companion to the `workload` skill, which owns workload types, the spec shape, and the readiness-vs-liveness model. Everything below is production-hardening detail for an existing workload.
 
-**Where settings live.** Health probes go inline in `containers[]` via `create_workload` / `update_workload`. Every other block here — `sidecar.envoy`, `loadBalancer`, `securityOptions`, `rolloutOptions` — is set by its own `configure_workload_*` tool, a set-or-clear PATCH on that one field (`remove: true` clears it). **Tool availability:** these tools live in the `full` toolset profile; if one isn't advertised, reconnect with `?toolsets=full` or use the CLI.
+**Where settings live.** Health probes go inline in `containers[]`, and `securityOptions` and `rolloutOptions` are fields of `create_workload` / `update_workload`. `sidecar.envoy` and `loadBalancer` are each set by their own `configure_workload_*` tool, a set-or-clear PATCH on that one field (`remove: true` clears it). **Tool availability:** those two tools live in the `full` toolset profile; if one isn't advertised, reconnect with `?toolsets=full` or use the CLI.
 
 ## Health Probes
 
@@ -100,7 +100,7 @@ For any OIDC provider (Auth0, Firebase, Cognito, Okta), set `issuer` to its issu
 
 ## Security Options
 
-`spec.securityOptions` (set with `configure_workload_security`):
+`spec.securityOptions` (set with `create_workload` or `update_workload`, which merges the given fields; `removeSecurityOptions: true` deletes the block):
 
 | Field | Range | Purpose |
 |---|---|---|
@@ -148,15 +148,16 @@ Each direct-LB location also gets a public Geo DNS address with latency-based ro
 
 ## Graceful Termination
 
-`spec.rolloutOptions` (set with `configure_workload_rollout`) governs how replicas are removed during scaling, version updates, Capacity AI rollouts, and maintenance.
+`spec.rolloutOptions` (set with `create_workload` or `update_workload`, which merges the given fields) governs how replicas are removed during scaling, version updates, Capacity AI rollouts, and maintenance.
 
 | Field | Range / values | Default |
 |---|---|---|
-| `minReadySeconds` | integer ≥0 | 0 |
-| `maxSurgeReplicas` | integer or percent | unset (not for `vm`) |
-| `maxUnavailableReplicas` | integer or percent | unset (not for `stateful`) |
-| `scalingPolicy` | `OrderedReady` / `Parallel` | `OrderedReady` (not for `vm`) |
+| `minReadySeconds` | integer ≥0 (standard and stateful) | 0 |
+| `maxSurgeReplicas` | integer or percent (standard only) | 25% |
+| `maxUnavailableReplicas` | integer or percent (standard only) | 25% |
+| `scalingPolicy` | `OrderedReady` / `Parallel` (stateful only) | `OrderedReady` |
 | `terminationGracePeriodSeconds` | 0-900 (3600 with the `cpln/relaxGracePeriodMax` tag) | 90 |
+| `rolloutOnReferenceChange` | `true` restarts replicas when a referenced secret or the identity changes | unset |
 
 `terminationGracePeriodSeconds` is the total budget for a replica to shut down before SIGKILL; raise it for long-running requests. Termination sequence:
 
@@ -170,7 +171,7 @@ Each direct-LB location also gets a public Geo DNS address with latency-based ro
 ## Verify
 
 - After any change, wait with `mcp__cpln__list_deployments` and `waitSeconds` until each location reports ready: it surfaces probe failures per location.
-- `mcp__cpln__get_workload_events` gives the probe/liveness failure reason and message; `mcp__cpln__get_workload_logs` shows app-side errors.
+- `mcp__cpln__diagnose_workload` gives the probe/liveness failure reason and message from the newest events; `mcp__cpln__get_workload_logs` shows app-side errors.
 - For JWT, send a request with and without a valid token (expect 401 without) and confirm the `claim_to_headers` header arrives at the workload.
 
 ## Troubleshooting

@@ -1,19 +1,28 @@
 #!/usr/bin/env bash
 #
-# Cut a release from develop: bump the plugin version across the manifests,
-# promote the CHANGELOG [Unreleased] section, commit, tag, and push develop,
-# main (fast-forwarded to the release commit), and the tag in one atomic push.
-# The tag push triggers the release workflow.
+# Cut a release from develop in two steps, since main takes changes only
+# through an approved pull request:
 #
-# Usage: scripts/bump-version.sh <X.Y.Z> [--dry-run]
+#   1. scripts/bump-version.sh <X.Y.Z>
+#      Bump the plugin version across the manifests, promote the CHANGELOG
+#      [Unreleased] section, commit "Bump version to X.Y.Z" on develop, push
+#      develop, and open the release pull request from develop to main.
+#   2. scripts/bump-version.sh <X.Y.Z> --finish
+#      Once that pull request merges with Rebase and merge: tag the release on
+#      main and push the tag, which triggers the release workflow, then move
+#      develop onto main's rewritten commits so the next release pull request
+#      holds only new work.
 #
-#   --dry-run   run every check and print what the release would do; changes nothing
+# Usage: scripts/bump-version.sh <X.Y.Z> [--finish] [--dry-run]
 #
-# Run it on develop, clean and in sync with origin, with the release notes
-# already under [Unreleased] in CHANGELOG.md. When the release names MCP tools
-# that production does not serve yet, deploy the MCP to production first.
+#   --finish    run step 2
+#   --dry-run   run every check and print what the step would do; changes nothing
 #
-# Files updated (kept in lockstep):
+# Run it on develop, clean and in sync with origin. Step 1 needs the release
+# notes already under [Unreleased] in CHANGELOG.md. When the release names MCP
+# tools that production does not serve yet, deploy the MCP to production first.
+#
+# Files updated by step 1 (kept in lockstep):
 #   - plugins/cpln/.claude-plugin/plugin.json   .version
 #   - .claude-plugin/marketplace.json           .plugins[0].version
 #   - plugins/cpln/.codex-plugin/plugin.json    .version
@@ -24,7 +33,7 @@
 #   - CHANGELOG.md                       [Unreleased] -> [X.Y.Z] - YYYY-MM-DD,
 #                                        plus a fresh empty [Unreleased] above it
 #
-# Dependencies: git, jq, node, awk (BSD or GNU), date.
+# Dependencies: git, gh (signed in, step 1 only), jq, node, awk (BSD or GNU), date.
 
 set -euo pipefail
 
@@ -43,8 +52,8 @@ MANIFESTS=(
 )
 
 usage() {
-  echo "Usage: $0 <X.Y.Z> [--dry-run]" >&2
-  echo "Example: $0 1.1.0" >&2
+  echo "Usage: $0 <X.Y.Z> [--finish] [--dry-run]" >&2
+  echo "Example: $0 1.1.0, then after the release pull request merges: $0 1.1.0 --finish" >&2
   exit 1
 }
 
@@ -55,10 +64,12 @@ fail() {
 
 VERSION=""
 DRY_RUN=0
+FINISH=0
 
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=1 ;;
+    --finish) FINISH=1 ;;
     -*) usage ;;
     *) [ -z "$VERSION" ] || usage; VERSION="$arg" ;;
   esac
@@ -77,7 +88,7 @@ done
 TAG="v$VERSION"
 TODAY="$(date +%Y-%m-%d)"
 
-# Preflight: every check runs before anything changes.
+# Preflight shared by both steps: every check runs before anything changes.
 
 branch="$(git rev-parse --abbrev-ref HEAD)"
 [ "$branch" = "$RELEASE_BRANCH" ] || fail "releases are cut from $RELEASE_BRANCH (currently on $branch)"
@@ -89,12 +100,67 @@ git fetch --quiet --tags "$REMOTE" "$RELEASE_BRANCH" "$PRODUCTION_BRANCH"
 [ "$(git rev-parse HEAD)" = "$(git rev-parse "$REMOTE/$RELEASE_BRANCH")" ] \
   || fail "$RELEASE_BRANCH is not in sync with $REMOTE/$RELEASE_BRANCH; pull or push first"
 
-git merge-base --is-ancestor "$REMOTE/$PRODUCTION_BRANCH" HEAD \
-  || fail "$REMOTE/$PRODUCTION_BRANCH has commits $RELEASE_BRANCH lacks, so it cannot fast-forward; merge it into $RELEASE_BRANCH first"
-
 if git rev-parse --quiet --verify "refs/tags/$TAG" >/dev/null; then
   fail "tag $TAG already exists"
 fi
+
+# Step 2: tag the merged release on main and move develop onto main's commits.
+
+if [ "$FINISH" -eq 1 ]; then
+  released="$(git show "$REMOTE/$PRODUCTION_BRANCH:plugins/cpln/.claude-plugin/plugin.json" | jq -r '.version')"
+  [ "$released" = "$VERSION" ] \
+    || fail "$REMOTE/$PRODUCTION_BRANCH is at $released, not $VERSION; merge the release pull request first"
+
+  release_commit="$(git rev-parse "$REMOTE/$PRODUCTION_BRANCH")"
+
+  if [ "$DRY_RUN" -eq 1 ]; then
+    cat <<EOF
+Dry run: every check passed. Finishing the release would:
+  1. Tag $REMOTE/$PRODUCTION_BRANCH ($(git rev-parse --short "$release_commit")) as $TAG and push the tag, which triggers the release workflow.
+  2. Rebase $RELEASE_BRANCH onto $REMOTE/$PRODUCTION_BRANCH, dropping the commits the merge rewrote, and push it with --force-with-lease.
+EOF
+    exit 0
+  fi
+
+  git tag "$TAG" "$release_commit"
+  if ! git push --quiet "$REMOTE" "refs/tags/$TAG"; then
+    git tag -d "$TAG" >/dev/null
+    fail "the tag push was rejected, so nothing changed on $REMOTE"
+  fi
+  echo "Pushed $TAG on $(git rev-parse --short "$release_commit"); the release workflow now publishes the GitHub Release."
+
+  # GitHub's Rebase and merge writes new commit ids, so develop still holds the
+  # old ones. Rebasing drops them as already applied and replays anything newer.
+  before="$(git rev-parse HEAD)"
+  realign_by_hand="git rebase $REMOTE/$PRODUCTION_BRANCH && git push --force-with-lease=$RELEASE_BRANCH:$before $REMOTE HEAD:refs/heads/$RELEASE_BRANCH"
+  if ! git rebase --quiet "$REMOTE/$PRODUCTION_BRANCH"; then
+    git rebase --abort
+    fail "$RELEASE_BRANCH does not rebase cleanly onto $REMOTE/$PRODUCTION_BRANCH (was the pull request squashed?); $TAG is released, and $RELEASE_BRANCH is unchanged. Realign it by hand: $realign_by_hand"
+  fi
+  if ! git diff --quiet "$before" HEAD; then
+    git reset --quiet --hard "$before"
+    fail "rebasing $RELEASE_BRANCH onto $REMOTE/$PRODUCTION_BRANCH would change its content, so it is unchanged; $TAG is released. Compare them before realigning: git diff $before $REMOTE/$PRODUCTION_BRANCH"
+  fi
+  git push --quiet --force-with-lease="$RELEASE_BRANCH:$before" "$REMOTE" "HEAD:refs/heads/$RELEASE_BRANCH" \
+    || fail "the $RELEASE_BRANCH push was rejected; $TAG is released. Realign by hand: $realign_by_hand"
+
+  git fetch --quiet "$REMOTE" "$PRODUCTION_BRANCH:$PRODUCTION_BRANCH" \
+    || echo "Note: local $PRODUCTION_BRANCH was not updated; run: git fetch $REMOTE $PRODUCTION_BRANCH:$PRODUCTION_BRANCH"
+
+  echo "Released $VERSION: $RELEASE_BRANCH now builds on $REMOTE/$PRODUCTION_BRANCH."
+  exit 0
+fi
+
+# Step 1 preflight.
+
+command -v gh >/dev/null 2>&1 || fail "gh is required to open the release pull request"
+gh auth status >/dev/null 2>&1 || fail "gh is not signed in; run: gh auth login"
+
+git merge-base --is-ancestor "$REMOTE/$PRODUCTION_BRANCH" HEAD \
+  || fail "$REMOTE/$PRODUCTION_BRANCH has commits $RELEASE_BRANCH lacks; finish the previous release first: $0 $(git show "$REMOTE/$PRODUCTION_BRANCH:plugins/cpln/.claude-plugin/plugin.json" | jq -r '.version') --finish"
+
+open_pr="$(gh pr list --base "$PRODUCTION_BRANCH" --head "$RELEASE_BRANCH" --state open --json number --jq '.[0].number // empty')"
+[ -z "$open_pr" ] || fail "release pull request #$open_pr is already open; merge it and run --finish, or close it first"
 
 current="$(jq -r '.version' plugins/cpln/.claude-plugin/plugin.json)"
 highest="$(printf '%s\n' "$current" "$VERSION" | sort -V | tail -n 1)"
@@ -109,8 +175,9 @@ if [ "$DRY_RUN" -eq 1 ]; then
   cat <<EOF
 Dry run: every check passed. The release would:
   1. Bump $current to $VERSION in ${#MANIFESTS[@]} manifest fields and promote [Unreleased] ($unreleased_entries entries) to [$VERSION] - $TODAY.
-  2. Commit "Bump version to $VERSION" on $RELEASE_BRANCH and tag it $TAG.
-  3. Run: git push --atomic $REMOTE HEAD:refs/heads/$RELEASE_BRANCH HEAD:refs/heads/$PRODUCTION_BRANCH refs/tags/$TAG
+  2. Commit "Bump version to $VERSION" on $RELEASE_BRANCH and push it.
+  3. Open the pull request "Release $VERSION" from $RELEASE_BRANCH to $PRODUCTION_BRANCH with the [$VERSION] notes.
+After it merges with Rebase and merge, run: $0 $VERSION --finish
 EOF
   exit 0
 fi
@@ -150,27 +217,37 @@ for spec in "${MANIFESTS[@]}"; do
   [ "$actual" = "$VERSION" ] || fail "post-bump mismatch in $file ($path = $actual, expected $VERSION)"
 done
 
-# Commit, tag, and push.
+# Commit, push develop, and open the release pull request.
 
 git add "${files[@]}"
 git commit --quiet -m "Bump version to $VERSION"
-git tag "$TAG"
 
-if ! git push --atomic "$REMOTE" "HEAD:refs/heads/$RELEASE_BRANCH" "HEAD:refs/heads/$PRODUCTION_BRANCH" "refs/tags/$TAG"; then
+if ! git push --quiet "$REMOTE" "HEAD:refs/heads/$RELEASE_BRANCH"; then
   cat >&2 <<EOF
 Error: the push was rejected, so nothing changed on $REMOTE.
-The release commit and tag $TAG exist only locally. To retry, fix the cause and run:
-  git push --atomic $REMOTE HEAD:refs/heads/$RELEASE_BRANCH HEAD:refs/heads/$PRODUCTION_BRANCH refs/tags/$TAG
+The release commit exists only locally. To retry, fix the cause and run:
+  git push $REMOTE HEAD:refs/heads/$RELEASE_BRANCH
 To abandon it instead:
-  git tag -d $TAG && git reset --hard HEAD~1
+  git reset --hard HEAD~1
 EOF
   exit 1
 fi
 
-git fetch --quiet "$REMOTE" "$PRODUCTION_BRANCH:$PRODUCTION_BRANCH" \
-  || echo "Note: local $PRODUCTION_BRANCH was not updated; run: git fetch $REMOTE $PRODUCTION_BRANCH:$PRODUCTION_BRANCH"
+notes="$(mktemp)"
+trap 'rm -f "$notes"' EXIT
+awk -v heading="## [$VERSION]" '
+  index($0, heading) == 1 { inside = 1; next }
+  inside && /^## \[/ { exit }
+  inside { print }
+' CHANGELOG.md > "$notes"
+printf '\nMerge with **Rebase and merge**, then run `scripts/bump-version.sh %s --finish` on %s to tag the release and realign %s.\n' \
+  "$VERSION" "$RELEASE_BRANCH" "$RELEASE_BRANCH" >> "$notes"
+
+if ! pr_url="$(gh pr create --base "$PRODUCTION_BRANCH" --head "$RELEASE_BRANCH" --title "Release $VERSION" --body-file "$notes")"; then
+  fail "pushed $RELEASE_BRANCH, but the pull request was not opened; open it with: gh pr create --base $PRODUCTION_BRANCH --head $RELEASE_BRANCH --title \"Release $VERSION\""
+fi
 
 cat <<EOF
-Released $VERSION: pushed $RELEASE_BRANCH, $PRODUCTION_BRANCH, and $TAG.
-The release workflow now validates the manifests and publishes the GitHub Release from the [$VERSION] notes.
+Opened $pr_url
+Once it is approved and merged with Rebase and merge, run: $0 $VERSION --finish
 EOF

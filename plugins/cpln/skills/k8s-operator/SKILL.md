@@ -5,7 +5,7 @@ description: "Manages Control Plane resources as Kubernetes CRDs. Use when the u
 
 # Kubernetes Operator
 
-The operator (Helm chart `cpln-operator`) runs in any Kubernetes cluster and reconciles `cpln.io/v1` custom resources, plus labeled native Secrets, against the platform on a 30-second loop. Reach for it only when resources must live in Git and be reconciled from a cluster (ArgoCD/Flux); for direct provisioning prefer the typed MCP tools, and for pipeline-driven YAML prefer `cpln apply` (`gitops-cicd` skill). The recurring failure is manifest shape: `org`, `gvc`, and `description` sit at the **top level next to `spec`**, not inside it — author the `spec` block with `mcp__cpln__get_resource_schema`, or skip hand-writing entirely by exporting with `-o crd`.
+The operator (Helm chart `cpln-operator`) runs in any Kubernetes cluster and reconciles `cpln.io/v1` custom resources, plus labeled native Secrets, against the platform on a 30-second loop. Reach for it only when resources must live in Git and be reconciled from a cluster (ArgoCD/Flux); for direct provisioning prefer the typed MCP tools, and for pipeline-driven YAML prefer `cpln apply` (`gitops-cicd` skill). The recurring failure is manifest shape: `org`, `gvc`, and `description` sit at the **top level next to `spec`**, not inside it; author the `spec` block from `mcp__cpln__get_resource` with `schema: true`, or skip hand-writing entirely by exporting with `-o crd`.
 
 ## Install
 
@@ -22,7 +22,7 @@ kubectl get pods -n controlplane -l app=operator
 cpln operator install --serviceaccount k8s-operator --org ORG
 ```
 
-`cpln operator install` configures **auth only** (the Helm step deploys the operator): it gets-or-creates the service account, adds it to a group (`--serviceaccount-group`, default `superusers` — any other group prints a warning), mints a **new key**, and applies a Secret named after the org in the `controlplane` namespace. Re-running with the same `--serviceaccount` is a no-op; a different name replaces the secret with a fresh key; an org-named secret the operator does not own aborts the install. `--export` prints the Secret YAML for Git instead of applying it — but still creates the service account and key on the platform.
+`cpln operator install` configures **auth only** (the Helm step deploys the operator): it gets-or-creates the service account, adds it to a group (`--serviceaccount-group`, default `superusers` — any other group prints a warning), mints a **new key**, and applies a Secret named after the org in the `controlplane` namespace. Re-running with the same `--serviceaccount` is a no-op; a different name replaces the secret with a fresh key; an org-named secret the operator does not own aborts the install. `--export` prints the Secret YAML instead of applying it, and still creates the service account and key on the platform. The YAML holds that key: the user runs it in their own terminal, and it stays out of Git unless encrypted (Sealed Secrets, SOPS).
 
 Manual equivalent (one secret per org; multiple orgs = multiple secrets):
 

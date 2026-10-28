@@ -5,9 +5,9 @@ description: "Writes cpln CLI commands and workflows for Control Plane. Use when
 
 # cpln CLI
 
-**MCP first; the CLI covers what the MCP cannot.** With the MCP connected, its tools do every operation they cover, reads included; the CLI is for the CLI-only operations below (building a folder on disk among them), interactive debugging, scripted GitOps, and sessions without the MCP. A connected MCP that is signed out means the user signs in again, not a switch to the CLI. **In CI/CD the CLI is the primary interface** — pipelines authenticate with a service-account key in `CPLN_TOKEN`, build and push images (`cpln image build --push`, or `--remote` on a runner with no Docker daemon), and apply resources (`cpln apply --ready`). Platform rules (resource model, secrets, destructive ops, production defaults, scale-to-zero, firewall) live in the operating guide (`get_cpln_rules`); this skill is the CLI mechanics.
+**MCP first; the CLI covers what the MCP cannot.** With the MCP connected, its tools do every operation they cover, reads included; the CLI is for the CLI-only operations below (building a folder on disk among them), interactive debugging, scripted GitOps, and sessions without the MCP. A connected MCP that is signed out means the user signs in again, not a switch to the CLI. **In CI/CD the CLI is the primary interface**: pipelines authenticate with a service-account key in `CPLN_TOKEN`, build and push images (`cpln image build --push`, or `--remote` on a runner with no Docker daemon), and apply resources (`cpln apply --ready`). Platform rules (resource model, secrets, destructive ops, production defaults, scale-to-zero, firewall) live in the `operating-guide` skill (through the MCP: `get_cpln_skill` with `skill: "operating-guide"`); this skill is the CLI mechanics.
 
-**Never write a `cpln` command from memory.** Verify every verb and flag with `cpln <command> --help` before quoting it. If a command isn't in the resource command map below, assume it isn't real.
+**Never write a `cpln` command from memory.** In a shell on the user's machine, verify every verb and flag with `cpln <command> --help` before quoting it. A chat app (ChatGPT, Claude web and desktop) has no `cpln` to run, its code sandbox included: never look for or install it there; quote commands from this skill for the user to run on their machine. If a command isn't in the resource command map below, assume it isn't real.
 
 ## CLI-only operations
 
@@ -24,7 +24,7 @@ No MCP equivalent — the CLI's primary job:
 
 One-shot and interactive container commands, TTY sessions (`workload connect`, `exec -it`), and streamed logs (`cpln logs --tail`) are also CLI-only; MCP's `get_workload_logs` covers bounded log fetches. Everything else — discovery and CRUD — prefer the MCP tools (generic `mcp__cpln__list_resources` / `get_resource` / `delete_resource` with a `kind`, typed `create_*`/`update_*` for mutations).
 
-When no MCP tool covers a resource, field, or sub-endpoint, use the `cpln` CLI for that piece (ground the command in this skill and `--help`) or tell the user what is missing. The raw-API escape hatch (`cpln_api_request`) is disabled by default — it bypasses the typed tools' pre-call validation.
+When no MCP tool covers a resource, field, or sub-endpoint, use the `cpln` CLI for that piece (ground the command in this skill, and in `--help` where you can run it) or tell the user what is missing.
 
 ## Setup & auth
 
@@ -35,7 +35,7 @@ cpln profile update default --org ORG --gvc GVC  # set defaults ("update" create
 
 **CI/CD needs no profile.** With `CPLN_TOKEN` set (service-account key, from `cpln serviceaccount add-key`), the CLI runs a profile-less session against `api.cpln.io`. Add `CPLN_ORG` / `CPLN_GVC` for defaults and `CPLN_SKIP_UPDATE_CHECK=1` to silence update checks. Resolution everywhere is **flag, then env var, then profile**: `--org` beats `CPLN_ORG` beats the profile default — same for `--gvc`/`CPLN_GVC`, `--profile`/`CPLN_PROFILE`, `--endpoint`/`CPLN_ENDPOINT`, `--token`/`CPLN_TOKEN`. Profiles live in `~/.config/cpln` (override with `CPLN_HOME`).
 
-**Never pass `--token`** — it leaks into logs and shell history; use `CPLN_TOKEN` or a profile. Inspect context with `cpln profile get` — **there is no `cpln whoami`.** **`cpln profile token` (prints the profile's live access JWT) is break-glass** — it exposes a live credential: never suggest it or run it on your own; use it only when the user explicitly asks. **Secret data commands belong to the user**: never run `cpln secret reveal`, `cpln secret create-*`, or `cpln secret edit` yourself; a user may run `cpln secret create-* --file` with a value they hold. Explain any profile state changes so operators can revert them.
+**Never pass `--token`** — it leaks into logs and shell history; use `CPLN_TOKEN` or a profile. Inspect context with `cpln profile get` — **there is no `cpln whoami`.** **`cpln profile token` prints the profile's live access JWT**, a live credential: never run it or suggest it, since its output would land in the conversation; a user who asks for the token runs it in their own terminal. **Secret data commands belong to the user**: never run `cpln secret reveal`, `cpln secret create-*`, or `cpln secret edit` yourself; a user may run `cpln secret create-* --file` with a value they hold. Explain any profile state changes so operators can revert them.
 
 ## Command structure & shared flags
 
@@ -205,9 +205,10 @@ Dedicated verb per operation; the flags are **singular** — `--location`, `--vo
 | Restore snapshot | `cpln volumeset snapshot restore REF --snapshot-name NAME --location LOC --volume-index N` (all required) | Overwrites volume state |
 | Delete snapshot | `cpln volumeset snapshot delete REF --snapshot-name NAME` | Destructive |
 | Delete volume | `cpln volumeset volume delete REF [--location LOC] [--volume-index N]` | Destructive (data loss) |
-| Shrink volume | `cpln volumeset shrink REF --new-size GIB [--location LOC]` | **DESTRUCTIVE — permanent data loss** |
+| Shrink volume | `cpln volumeset shrink REF --new-size GIB [--location LOC]` | **DESTRUCTIVE** (replaces the volume and restarts the replica) |
+| Copy volume | no CLI verb: `run_volumeset_command` with `copyVolume`, or `POST .../volumeset/NAME/-command` with `type: copyVolume` | **DESTRUCTIVE** (deletes the volume at the destination index) |
 
-`shrink` provisions a new, smaller volume and removes the old one — data is **not** migrated. Safe only with built-in redundancy (Kafka replication; Cassandra/CockroachDB), on `ext4`/`xfs` (not `shared`). Apply the destructive-op confirmation from the operating guide (`get_cpln_rules`) first. Detail: `stateful-storage` skill.
+`shrink` copies the data with rsync onto a new, smaller volume (the replica restarts for the final sync), then deletes the old one. It runs on `ext4`/`xfs` (not `shared`). The platform refuses a size below the volume set's `initialCapacity` or below used bytes plus 5% (HTTP 400), and a shrink that fails keeps the old volume. Apply the destructive-op confirmation from the operating guide first, and snapshot as a recovery point. Detail: `stateful-storage` skill.
 
 ## Commands that don't exist
 
@@ -263,7 +264,7 @@ cpln workload get-deployments my-app --gvc my-gvc   # verify readiness
 
 ## Workflow: Grant secret access (3 steps)
 
-The 3-step rule (identity + policy + reference) is owned by the operating guide (`get_cpln_rules`). The secret must already exist (`create_secret`, or the manifest path in `setup-secret`). CLI fallback:
+The 3-step rule (identity + policy + reference) is owned by the operating guide. The secret must already exist (`create_secret`, or the manifest path in `setup-secret`). CLI fallback:
 
 ```bash
 cpln identity create --name my-app-identity --gvc my-gvc --org my-org
@@ -309,4 +310,4 @@ cpln port-forward my-app 8080:8080 --gvc my-gvc                          # probe
 
 ## Platform rules & integration
 
-Scale-to-zero/autoscaling, production defaults/probes, Template Catalog first, destructive ops, secrets, and firewall rules live in the operating guide (`get_cpln_rules`) and their dedicated skills — not duplicated here. Before authoring any apply YAML / CI manifest / API body, call `get_resource_schema`. IaC: Terraform (`controlplane-com/cpln` provider), Pulumi (`@pulumiverse/cpln`), K8s Operator (`cpln operator install`). Docs index for agents: https://docs.controlplane.com/llms.txt
+Scale-to-zero/autoscaling, production defaults/probes, Template Catalog first, destructive ops, secrets, and firewall rules live in the operating guide and their dedicated skills, not duplicated here. Before authoring any apply YAML / CI manifest / API body, call `get_resource` with `schema: true`. IaC: Terraform (`controlplane-com/cpln` provider), Pulumi (`@pulumiverse/cpln`), K8s Operator (`cpln operator install`). Docs index for agents: https://docs.controlplane.com/llms.txt

@@ -55,16 +55,16 @@ The hosted terraform-exporter produces provider-correct HCL. Route by what you h
 | You have | Use |
 |----------|-----|
 | Existing resource(s) | `mcp__cpln__export_terraform` — a single self link, or bulk by path depth: `/org/ORG` (whole org), `/org/ORG/KIND` (all of a kind), `/org/ORG/gvc/GVC/workload` (all workloads in the GVC) |
-| A YAML/JSON manifest | `mcp__cpln__convert_to_terraform` — dry-run validated against the API first, so the returned HCL always matches a schema-valid resource; pass `gvc` for GVC-scoped kinds (workload, identity, volumeset) |
-| Nothing yet | author the manifest against `mcp__cpln__get_resource_schema`, then convert it |
+| A YAML/JSON manifest | `mcp__cpln__export_terraform` with `manifest` and `org`: dry-run validated against the API first, so the returned HCL always matches a schema-valid resource; pass `gvc` for GVC-scoped kinds (workload, identity, volumeset) |
+| Nothing yet | author the manifest against `mcp__cpln__get_resource` with `schema: true`, then convert it |
 
-Set `generateImports` on any of these to also get ready-to-run `terraform import` commands, one per resource with the IDs prefilled — run them after `terraform init` and before the first `terraform apply`, so apply updates the live resources instead of re-creating them. `includeDependencies` (export tools) pulls in referenced resources so the HCL is self-contained.
+Set `generateImports` on any of these to also get ready-to-run `terraform import` commands, one per resource with the IDs prefilled; run them after `terraform init` and before the first `terraform apply`, so apply updates the live resources instead of re-creating them. `includeDependencies` (self link exports only) pulls in referenced resources so the HCL is self-contained.
 
 The exporter emits HCL only. For a Pulumi program, convert the exported HCL with the Pulumi CLI: `pulumi convert --from terraform --language typescript --out DIR` (also python, go, csharp, java, yaml). Conversion translates config, not state — adopt the live resources afterwards per Importing below.
 
 The exporter covers 16 kinds: agent, auditctx, cloudaccount, domain (routes emitted as `cpln_domain_route`), group, gvc, identity, ipset, location, mk8s, org, policy, secret, serviceaccount, volumeset, workload. An unsupported kind is rejected with that list; just attempt the export — an unsupported kind is rejected with the supported list.
 
-**Secrets are never exported.** The upstream exporter would embed revealed values in the HCL, so the MCP tools refuse a ref that targets secrets and refuse wholesale any bulk export that pulled secrets in. Narrow the export to exclude secrets; the user authors secret resources in their own Terraform.
+**Secrets are never exported.** The upstream exporter would embed revealed values in the HCL, so `export_terraform` refuses a ref or a `manifest` that targets a secret, and refuses wholesale any bulk export that pulled secrets in. Narrow the export to exclude secrets; the user authors secret resources in their own Terraform.
 
 ## CLI fallback: -o tf
 
@@ -76,7 +76,7 @@ cpln workload get --gvc GVC -o tf > workloads.tf         # no ref: every workloa
 cpln gvc get -o tf > gvcs.tf                             # every GVC in the org
 ```
 
-Differences from the MCP tools: the output is bare `resource` blocks only (write the `terraform {}` and `provider "cpln" {}` blocks yourself), no `terraform import` commands, no dependency closure, and no secret guard — never run `-o tf` against a secret (it can print revealed plaintext). Multiple explicit refs in one call are not supported with `-o tf`; export per resource or use the no-ref bulk form. The sibling `-o crd` emits Kubernetes CRD YAML for the operator path (k8s-operator skill). For stateless manifests instead of HCL, use `-o yaml-slim` with `cpln apply`.
+Differences from `export_terraform`: the output is bare `resource` blocks only (write the `terraform {}` and `provider "cpln" {}` blocks yourself), no `terraform import` commands, no dependency closure, and no secret guard; never run `-o tf` against a secret (it can print revealed plaintext). Multiple explicit refs in one call are not supported with `-o tf`; export per resource or use the no-ref bulk form. The sibling `-o crd` emits Kubernetes CRD YAML for the operator path (k8s-operator skill). For stateless manifests instead of HCL, use `-o yaml-slim` with `cpln apply`.
 
 ## Importing existing resources
 
@@ -108,3 +108,4 @@ Each registry page has an Import section with the exact form (composite kinds di
 | Export refused mentioning plaintext secrets | Narrow the ref/export to exclude secrets — secret export is not supported |
 | Org create or `auth_config` update fails despite a valid token | Those two operations require `CPLN_REFRESH_TOKEN` |
 | Pulumi lacks a feature the Terraform provider just shipped | The bridge tracks Terraform provider releases — upgrade the `@pulumiverse/cpln` package version |
+| A stateful workload from Terraform or Pulumi runs with Capacity AI on | `capacity_ai` (Pulumi `capacityAi`) defaults to `true` in every `options` and `local_options` block on every workload type; set it to `false` to keep it off |

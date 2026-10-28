@@ -27,8 +27,8 @@ cpln apply --file ./manifests/ --org my-org --gvc staging-gvc --ready     # gvc-
 
 - Bootstrap manifests from a live environment with `cpln <resource> get REF -o yaml-slim` (plain `yaml` output breaks apply).
 - Environment differences (env vars, scaling, firewall) belong in the manifests per environment — or patch after apply with `mcp__cpln__update_workload` / `mcp__cpln__update_gvc` (both PATCH semantics).
-- For IaC-based promotion, export live resources to Terraform: `mcp__cpln__export_terraform` (one self link, or bulk by path depth — a whole GVC or org), `mcp__cpln__convert_to_terraform` (manifest to HCL, dry-run validated). An unsupported kind is rejected with the supported list.
-- **One workload into another GVC:** `mcp__cpln__promote_workload` (`workload`, `gvc`, `targetGvc`, optional `image` and `env` overrides) copies the spec without its identity or `cpln/` tags, creates or updates the target, grants its secret references, and waits. A volume set mount is refused: create the storage in the target GVC first.
+- For IaC-based promotion, export live resources to Terraform with `mcp__cpln__export_terraform`: one self link, bulk by path depth (a whole GVC or org), or a `manifest` converted to HCL after a dry-run validation. An unsupported kind is rejected with the supported list.
+- **One workload into another GVC:** `mcp__cpln__promote_workload` (needs `?toolsets=full`; `workload`, `gvc`, `targetGvc`, optional `image` and `env` overrides) copies the spec without its identity or `cpln/` tags, points internal firewall links to workloads of the source GVC at the same names in the target, creates or updates the target, grants its secret references, and waits. Each volume set it mounts is created in the target GVC from the source's settings, custom encryption keys included, or updated to them (capacity only grows; an existing one keeps its own keys); data is never copied. Before anything is written it refuses a referenced secret that does not exist, an existing `{targetGvc}-{workload}-secrets-policy` policy of another target kind, an existing target workload of another type, and a target volume set with another file system or performance class or one another workload uses.
 
 ## Sharing images across orgs
 
@@ -45,8 +45,8 @@ CLI-only (no MCP tool) and **still requires a running Docker daemon — `copy` h
 
 The target org pulls directly from the source org's registry. Four steps:
 
-1. **Source org — puller credentials**: `mcp__cpln__add_key_to_service_account` (full profile; creates the service account if missing; the key is shown **once**).
-2. **Source org — grant pull**: `mcp__cpln__create_policy` with `targetKind: image`, `targetAll: true` (or `targetQuery` by repository), `addPermissions: ["pull"]`, `addServiceAccounts: [LINK]` — bindings go in the create call.
+1. **Source org — puller credentials**: `mcp__cpln__add_key_to_service_account` (needs `?toolsets=full`; creates the service account if missing; the key is shown **once**).
+2. **Source org, grant pull**: `mcp__cpln__create_policy` (needs `?toolsets=full`) with `targetKind: image`, `targetAll: true` (or `targetQuery` by repository), `addPermissions: ["pull"]`, `addServiceAccounts: [LINK]`; bindings go in the create call.
 3. **Target org — docker secret**: have the user create a `docker` secret with this `dockerConfigJson` — offer a manifest scaffold (`data` is this JSON as one string; `setup-secret` skill); the username is the **literal string `<token>`** (the registry rejects anything else; the password is the service-account key):
 
 ```json
@@ -107,7 +107,7 @@ cpln workload update my-app --set spec.containers.main.image=//image/my-app:v1.1
 cpln workload get-deployments my-app --gvc my-gvc --org my-org    # verify every location reports ready
 ```
 
-- MCP path: `mcp__cpln__rollback_workload` (`name`, optional `image`) re-points the first container at the newest earlier image the deployments recorded, or at the image passed, and waits.
+- MCP path: `mcp__cpln__rollback_workload` (`name`, optional `image`) restores the previous image of every container whose image changed, read from the workload's audit trail (last 30 days; failing that, from an earlier version its deployments still run), or puts the image passed on the first container, and waits. Only images change.
 - Org-per-environment: confirm the older image still exists in **this** org's registry first (`mcp__cpln__list_resources` kind="image") — it may only have been copied forward once.
 - **Restart without changing the image**: `mcp__cpln__restart_workload`, or `cpln workload force-redeployment my-app --gvc GVC`; both stamp the `cpln/deployTimestamp` tag, a rolling restart.
 - Helm-managed releases are the exception with real revision history: `cpln helm rollback RELEASE [REVISION]`.

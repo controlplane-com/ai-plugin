@@ -5,15 +5,13 @@ description: "Creates persistent storage for stateful workloads on Control Plane
 
 # Stateful Storage & VolumeSets
 
-> **Tool availability:** the snapshot tools, `shrink_volumeset`, and `delete_volumeset_volume` need `?toolsets=full`; reconnect with it or use the CLI.
-
 A **VolumeSet** is GVC-scoped persistent storage for workloads. The `workload` skill covers the basics (stateful type, reserved mount paths, the 15-volume limit, create-then-verify); this skill is the full volume-set detail. The one trap that drives most rework: **`fileSystemType` and `performanceClass` are immutable** (a PATCH that changes either returns HTTP 400) — to change either you must create a new volumeset, and the old data does not carry over. Choose both at creation.
 
 **Most databases don't need this skill:** `mcp__cpln__add_database` installs Postgres, MySQL, MariaDB, MongoDB, or Redis with the volume set and generated credentials wired, and the `template-catalog` skill covers the rest. An app that only needs a data directory passes `storage` to `mcp__cpln__deploy_app`, which creates and mounts the volume set and picks the workload type. Hand-build only for anything else.
 
 ## Filesystem types and performance classes
 
-| Filesystem | Access | Workloads | Volumes provisioned | Snapshots / shrink / delete-volume |
+| Filesystem | Access | Workloads | Volumes provisioned | Snapshots / shrink / copy / delete-volume |
 |---|---|---|---|---|
 | `ext4` | read-write-once | one stateful/vm workload | one per replica, per location | yes |
 | `xfs` | read-write-once | one stateful/vm workload | one per replica, per location | yes |
@@ -29,7 +27,7 @@ When `fileSystemType: shared`, `performanceClass` is **auto-set to `shared`** �
 
 ## Create a volumeset
 
-Use `mcp__cpln__create_volumeset` (MCP create/mount tools default `fileSystemType` to **xfs** and `performanceClass` to `general-purpose-ssd`; the raw API/`cpln apply` default is **ext4**). YAML for IaC / CLI fallback:
+`mcp__cpln__mount_volumeset_to_workload` creates the volume set when given a size and mounts it in the same call (see Mount below); `mcp__cpln__create_volumeset` (needs `?toolsets=full`) creates one alone. MCP create/mount tools default `fileSystemType` to **xfs** and `performanceClass` to `general-purpose-ssd`; the raw API/`cpln apply` default is **ext4**. YAML for IaC / CLI fallback:
 
 ```yaml
 kind: volumeset
@@ -76,7 +74,6 @@ Mount with `mcp__cpln__mount_volumeset_to_workload` — it attaches to the **fir
 
 - **ext4/xfs require a `stateful` or `vm` workload** (mounting on serverless/standard returns HTTP 400); `shared` mounts on any type. Workload type is immutable — see "Migrating to stateful" below.
 - Up to **15 volumes** per container. **Reserved mount paths** (rejected): `/dev`, `/dev/log`, `/tmp`, `/var`, `/var/log`.
-- `recoveryPolicy`: `retain` (default — reuse an existing volume's data on a new replica) or `recycle` (start fresh).
 - `path` is required for non-vm workloads and rejected for `vm` (VM disks use `name`/`bus`/`bootOrder` instead).
 - Stateful workloads give each replica a stable index and its own volume; `spec.loadBalancer.replicaDirect` (stateful-only) exposes per-replica endpoints — see the `workload` skill.
 
@@ -99,19 +96,22 @@ spec:
 
 ## Snapshots
 
-Snapshots are **ext4/xfs only — never `shared`**. Automatic policy lives in `spec.snapshots`: `createFinalSnapshot` (default `true` — a snapshot is taken before any volume in the set is deleted), `retentionDuration`, and `schedule` (cron whose minute field must be a single concrete value, so no more than once per hour). Manual: `mcp__cpln__create_volumeset_snapshot`, `list_volumeset_snapshots`, `restore_volumeset_snapshot`, `delete_volumeset_snapshot`. A restore creates a **new volume** and discards everything written since the snapshot.
+Snapshots are **ext4/xfs only, never `shared`**. Automatic policy lives in `spec.snapshots`: `createFinalSnapshot` (default `true`: a snapshot is taken before any volume in the set is deleted), `retentionDuration`, and `schedule` (cron whose minute field must be a single concrete value, so no more than once per hour). Manual: `mcp__cpln__run_volumeset_command` with `createVolumeSnapshot`, `restoreVolume`, or `deleteVolumeSnapshot`; `mcp__cpln__get_resource` (kind `volumeset`) lists them. A restore creates a **new volume** and discards everything written since the snapshot.
 
 ## Resize and delete volumes
 
-- **Expand** is live, with no downtime, on every filesystem; `expand_volumeset` states its throttle.
-- **Shrink** (ext4/xfs only) — data is migrated to the new smaller volume via an online presync + final delta sync, and the replica restarts during the swap. The platform **rejects the shrink with HTTP 400 when known used bytes (+5% metadata headroom) would not fit**; data is only lost if used bytes genuinely exceed the new capacity. Floor is the class minimum (10 / 200 GB). `mcp__cpln__shrink_volumeset`.
-- **Delete a volume** (ext4/xfs only) — permanent loss of that volume's data. `mcp__cpln__delete_volumeset_volume`.
+Each of these is one `mcp__cpln__run_volumeset_command` call on a volume picked by `location` and `volumeIndex`; it returns a command id that `get_command` follows until the command completes.
 
-Shrink, volume-delete, snapshot-delete, and restore are destructive: **snapshot first** as the recovery net, then present the blast radius and get the user's approval before the call (it runs at once, with no server-side preview).
+- **Expand** (`expandVolume`) is live, with no downtime, on every filesystem, at most 4 times per volume per rolling 24 hours.
+- **Shrink** (`shrinkVolume`, ext4/xfs only): data is migrated to the new smaller volume via an online presync + final delta sync, and the replica restarts during the swap. The platform **refuses the shrink with HTTP 400 below the volume set's `initialCapacity`, below used bytes plus 5% metadata headroom, or when it cannot read the volume's used bytes**, and a shrink that fails keeps the old volume. Floor is the class minimum (10 / 200 GB).
+- **Delete a volume** (`deleteVolume`, ext4/xfs only): permanent loss of that volume's data.
+- **Copy** (`copyVolume`, ext4/xfs only): copies the volume to the same `volumeIndex` in `targetLocation`, of this volume set or of `targetVolumeSet` (`//volumeset/<name>`, `//gvc/<gvc>/volumeset/<name>`, or `/org/<org>/gvc/<gvc>/volumeset/<name>`, same org, needs `exec.copyVolume` on it). The device already at the destination is **deleted and replaced**, so `acknowledgeDestinationVolumeDeletion: true` is always required. Within one volume set the target location must differ from the source. Both locations run the command, and `get_command` shows each side's stage.
+
+Shrink, volume-delete, snapshot-delete, restore, and copy are destructive: **snapshot first** as the recovery net (for a copy, snapshot the destination volume; the source is unchanged), then present the blast radius and get the user's approval before the call (it runs at once, with no server-side preview).
 
 ## Shared filesystem
 
-A `shared` volumeset is mounted read-write by many workloads at once but supports only expand (no snapshots, shrink, or volume-delete). Each mount point is provisioned its own CPU/memory, tuned with `mountOptions.resources`:
+A `shared` volumeset is mounted read-write by many workloads at once but supports only expand (no snapshots, shrink, copy, or volume-delete). Each mount point is provisioned its own CPU/memory, tuned with `mountOptions.resources`:
 
 ```yaml
 spec:

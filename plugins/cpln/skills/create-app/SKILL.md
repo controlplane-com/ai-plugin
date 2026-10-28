@@ -11,10 +11,10 @@ You write the app's files, Control Plane builds them into an image, and `mcp__cp
 
 | Your environment | Files live | Build |
 |---|---|---|
-| You can write files and run commands, and the `cpln` CLI is installed and logged in | **Local:** a folder `./NAME` on the user's machine, theirs to keep and version | `cpln image build --remote --dir ./NAME --name NAME:v1 --org ORG`, then `deploy_app` with `image: //image/NAME:v1` |
-| No filesystem or commands (ChatGPT, Claude web and desktop), or no working CLI | **Stored:** on Control Plane through `mcp__cpln__write_app_files`, kept across sessions | `deploy_app` with the same `name` builds the stored files |
+| You run in a shell on the user's machine (a coding agent such as Claude Code, Codex, or Cursor), and the `cpln` CLI is installed and logged in | **Local:** a folder `./NAME` on the user's machine, theirs to keep and version | `cpln image build --remote --dir ./NAME --name NAME:v1 --org ORG`, then `deploy_app` with `image: //image/NAME:v1` |
+| A chat app (ChatGPT, Claude web and desktop), even one with a code sandbox, or no working CLI | **Stored:** on Control Plane through `mcp__cpln__write_app_files`, kept across sessions | `deploy_app` with the same `name` builds the stored files |
 
-With a filesystem and a working CLI, local is the default; stored is fine when the user asks for it. The CLI only builds: `ORG` is the org the tools use, and the deploy, every read, and every secret go through the tools. Never hand a CLI command to a user without a filesystem. Say which way you are taking.
+In a shell on the user's machine with a working CLI, local is the default; stored is fine when the user asks for it. The CLI only builds: `ORG` is the org the tools use, and the deploy, every read, and every secret go through the tools. A chat app's sandbox is not the user's machine: never look for, install, or run `cpln` there, and give the user a CLI command only when they ask for one or a step has no tool, such as building a folder they already have. Say which way you are taking.
 
 Other starting points: an existing image or a git repository goes straight to `deploy_app` (`image` or `repoUrl`); a folder the user already has is built with the CLI. A database or Redis the app needs comes from `mcp__cpln__add_database`, whose result lists the env values to pass to `deploy_app`; other infrastructure comes from the Template Catalog (`template-catalog` skill). An app the user asks for, for example a blog, a wiki, or a shop, is one you write; install a template instead only when they name one. Never build a database from source or inline an app into a base image.
 
@@ -42,7 +42,7 @@ A change to the workload's settings (scaling, env, exposure, probes) is `update_
 | `get_app_files` says | Source of truth | What to do |
 |---|---|---|
 | Files written through `write_app_files` | Control Plane's copy | Read the file, edit with `write_app_files` (`edits` need the exact current text), then `deploy_app`. To move the app local: download the archive and continue there |
-| Files uploaded by the CLI from a folder | The user's folder | With a filesystem: edit there, rebuild with `cpln image build --remote --dir PATH --name NAME:TAG --org ORG`, then `deploy_app` with the new `image`. Without: tell the user what to change; `write_app_files` refuses without `adopt: true` |
+| Files uploaded by the CLI from a folder | The user's folder | In a shell on their machine: edit there, rebuild with `cpln image build --remote --dir PATH --name NAME:TAG --org ORG`, then `deploy_app` with the new `image`. In a chat app: tell the user what to change and give them that build command; `write_app_files` refuses without `adopt: true` |
 | No files; images built from a repository | The repository | Change it there, then `deploy_app` with `repoUrl` |
 | No files; images pushed outside a build | Unknown | Ask the user where the code lives; never rewrite it |
 | No files, no images | A new app | Start the journey |

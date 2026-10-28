@@ -5,7 +5,7 @@ description: "Audit trail and compliance on Control Plane. Use when the user ask
 
 # Audit Trail & Compliance
 
-> **Tool availability:** `create_audit_context` and `edit_audit_context` need `?toolsets=full`.
+> **Tool availability:** `create_audit_context`, `edit_audit_context`, `create_identity`, `create_policy`, and `get_permissions` need `?toolsets=full`.
 
 Every mutation on every Control Plane resource — via Console, CLI, API, Terraform, Pulumi, or MCP — is recorded automatically in an append-only, tamper-proof audit trail; nothing to configure. Most tasks are answering **"who changed what, when"** with `mcp__cpln__query_audit_events`. Custom audit contexts exist for one purpose only: letting your own workloads write their own audit events.
 

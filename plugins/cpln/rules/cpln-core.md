@@ -3,11 +3,11 @@ description: Control Plane core rules for AI agents, loaded in every session. Re
 alwaysApply: true
 ---
 
-**Model**: org → `gvc` (locations; a workload runs in all) → `workload`. Org-wide: secrets, domains, policies, images, agents; gvc-scoped: workloads, identities, volume sets. Not Kubernetes: no namespaces, ingress, or canary weights.
+**Model**: org → `gvc` (locations; a workload runs in all) → `workload`. Org-wide: secrets, domains, policies, images, agents; gvc-scoped: workloads, identities, volume sets. Not Kubernetes: no namespaces/ingress; canary via routes.
 
 **Where**: org: the granted one, else ask (`list_orgs`). Gvc: the named one, else the one jobs made for apps; others: ask; none: a job makes one where the user picks. Never guess other names; after a not-found, never retry name variants.
 
-**Tools first**: these tools do all they cover, reads too; `cpln` only for a local folder's `image build`, `connect`, `exec`, `port-forward`, `cp`, CI/CD.
+**Tools first**: these tools do all they cover, reads too; `cpln` only for a local folder's `image build`, `connect`, `exec`, `port-forward`, `cp`, CI/CD; a chat app gives the user the command.
 
 **Destructive actions**: first say what is removed or broken, then act only on explicit approval. Cascades, gvc location changes, data loss, and production need a fresh yes.
 

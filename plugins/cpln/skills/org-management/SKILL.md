@@ -5,7 +5,7 @@ description: "Manages organizations, billing, users, and authentication on Contr
 
 # Organization & User Management
 
-> **Tool availability:** `update_org`, `configure_external_logging`, `invite_user_to_org`, `edit_group`, and `add_key_to_service_account` need `?toolsets=full`; reconnect with it or use the CLI.
+> **Tool availability:** `update_org`, `configure_external_logging`, `invite_user_to_org`, `edit_group`, `create_policy`, and `add_key_to_service_account` need `?toolsets=full`; reconnect with it or use the CLI.
 
 An **org** is the top-level isolation boundary: every GVC, workload, secret, policy, image, domain, user, group, and service account lives inside one, with no cross-org sharing. An org **cannot be renamed or deleted** once created (every DELETE on `/org` returns 405) and its name is **globally unique** across all of Control Plane — so the first job is choosing a name you can live with permanently.
 
@@ -40,7 +40,7 @@ Read with `mcp__cpln__get_resource` (kind `org`); change with `mcp__cpln__update
 | `observability.defaultAlertEmails` | Yes | Default Grafana alert recipients |
 | `security.threatDetection` | Yes | Forward detected threats to a syslog target (`enabled` + optional `minimumSeverity` + syslog host/port) |
 | `logging` / `extraLogging` | **No** | Use `mcp__cpln__configure_external_logging` — see **external-logging** |
-| `tracing` | **No** | Escape hatch: `mcp__cpln__get_resource_schema` (kind `org`), author the block, `cpln apply -f org.yaml` |
+| `tracing` | **No** | Escape hatch: `mcp__cpln__get_resource` (kind `org`, `schema: true`), author the block, `cpln apply -f org.yaml` |
 
 ## Billing
 
@@ -84,15 +84,15 @@ Profiles store CLI credentials and default context (org, GVC). A user can belong
 | Action | Command |
 |:---|:---|
 | Interactive login (creates `default` profile) | `cpln login [PROFILE]` |
-| Create / update profile (`create` is an alias of `update`) | `cpln profile update PROFILE --org ORG --gvc GVC --token TOKEN` |
+| Create / update profile (`create` is an alias of `update`) | `cpln profile update PROFILE --org ORG --gvc GVC` |
 | Set default | `cpln profile set-default PROFILE` |
-| List / show token | `cpln profile get` / `cpln profile token PROFILE` |
+| List / show token (the user runs `token` in their own terminal) | `cpln profile get` / `cpln profile token PROFILE` |
 
 **Token precedence:** `--token` flag, then `CPLN_TOKEN` env var, then the profile token. Env overrides: `CPLN_PROFILE`, `CPLN_TOKEN`, `CPLN_ORG`, `CPLN_GVC`. Prefer `CPLN_TOKEN` (or a profile) over `--token` in CI — flags leak into shell history and logs.
 
 > **Switching org clears the default GVC.** `cpln profile update --org NEWORG` without `--gvc`, or saving a service-account `--token` (which carries its own org) without `--gvc`, **unsets the profile's GVC** (the new org rarely has a same-named GVC). Re-pass `--gvc`. A user `--token` leaves the GVC intact.
 
-REST/API calls use `Authorization: Bearer TOKEN` against `https://api.cpln.io`; get a token from a service-account key or `cpln profile token`.
+REST/API calls use `Authorization: Bearer TOKEN` against `https://api.cpln.io`, with a service-account key the user keeps in `CPLN_TOKEN` or a `cpln profile token` they run in their own terminal; a token never goes into the chat.
 
 ## SSO / SAML
 
