@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-10-29
+
 ### Added
 
 - `run_volumeset_command` runs one volume set command (expand, shrink, snapshot, restore, or delete) and returns its command id for `get_command`, as `start_workload_cron` now does.
