@@ -12,7 +12,7 @@ The core rules arrive with every MCP connection. This guide holds only what they
 A destructive call needs the user's explicit approval after you say what it removes or breaks. Three kinds need a fresh yes that answers the stated blast radius, even when the opening message already asked:
 
 - **Cascades:** deleting a GVC removes every workload and identity in it; the platform refuses while a volume set remains.
-- **Data loss:** deleting or restoring volumes and snapshots; uninstalling a template release deletes its volume data.
+- **Data loss:** deleting or restoring volumes and snapshots; copying a volume, which deletes the volume at the destination index; uninstalling a template release deletes its volume data.
 - **Production targets:** a name that says so, or public traffic, custom domains, several replicas, or real users.
 
 Also destructive: removing bindings, members, routes, locations, or policies; shrinking a volume, which moves its data to a new volume and restarts its replica; changing a workload's type or name, or a volume set's filesystem or performance class, which means delete and recreate. Hesitation, "maybe", or a counter-question is not approval. A resource you created by mistake this session, and only that, you remove and report.
@@ -53,9 +53,9 @@ The tag `cpln/managedByTerraform: "true"` marks a resource Terraform or Pulumi o
 
 ## CLI and profiles
 
-With the MCP connected, its tools do everything they cover, reads included: never `cpln workload get` or `cpln gvc get` to look around. The `cpln` CLI is only for what the tools cannot do: building a folder on disk (`cpln image build --remote --dir PATH --name NAME:TAG --org ORG`, with the org the MCP uses), `cpln workload connect`, `cpln workload exec`, port-forward, `cpln cp`, `cpln image copy`, `cpln convert`, and CI/CD with a service-account `CPLN_TOKEN`. When the MCP is connected but signed out, ask the user to sign in again rather than switch to the CLI: the CLI acts as its own profile and can reach orgs the user never granted. Without the MCP, use the CLI. Every command comes from the `cpln` skill and `--help`, never from memory. When a tool covers the action, call it rather than running or handing the user a command; when none covers a field, use the CLI or say what is missing.
+With the MCP connected, its tools do everything they cover, reads included: never `cpln workload get` or `cpln gvc get` to look around. The `cpln` CLI is only for what the tools cannot do: building a folder on disk (`cpln image build --remote --dir PATH --name NAME:TAG --org ORG`, with the org the MCP uses), `cpln workload connect`, `cpln workload exec`, port-forward, `cpln cp`, `cpln image copy`, `cpln convert`, and CI/CD with a service-account `CPLN_TOKEN`. When the MCP is connected but signed out, ask the user to sign in again rather than switch to the CLI: the CLI acts as its own profile and can reach orgs the user never granted. Without the MCP, use the CLI. Run `cpln` only in a shell on the user's machine; a chat app's sandbox is not one, so there never look for, install, or run it, and give the user the command instead. Every command comes from the `cpln` skill (and `--help` where you can run it), never from memory. When a tool covers the action, call it rather than running or handing the user a command; when none covers a field, use the CLI or say what is missing.
 
-`?toolsets=` on the MCP URL picks the tools: `core` (default), `mk8s`, `full`, or `readonly`. When a task needs a tool this connection lacks, tell the user which profile to reconnect with.
+`?toolsets=` on the MCP URL picks the tools: `core` (default), `mk8s`, `full`, or `readonly`. When a task needs a tool this connection lacks, tell the user which profile to reconnect with. The ChatGPT listing always runs `core`: there, do that step in the Console or give the user the CLI command instead.
 
 ## Failures
 

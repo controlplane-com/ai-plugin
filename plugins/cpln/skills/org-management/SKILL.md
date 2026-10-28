@@ -84,15 +84,15 @@ Profiles store CLI credentials and default context (org, GVC). A user can belong
 | Action | Command |
 |:---|:---|
 | Interactive login (creates `default` profile) | `cpln login [PROFILE]` |
-| Create / update profile (`create` is an alias of `update`) | `cpln profile update PROFILE --org ORG --gvc GVC --token TOKEN` |
+| Create / update profile (`create` is an alias of `update`) | `cpln profile update PROFILE --org ORG --gvc GVC` |
 | Set default | `cpln profile set-default PROFILE` |
-| List / show token | `cpln profile get` / `cpln profile token PROFILE` |
+| List / show token (the user runs `token` in their own terminal) | `cpln profile get` / `cpln profile token PROFILE` |
 
 **Token precedence:** `--token` flag, then `CPLN_TOKEN` env var, then the profile token. Env overrides: `CPLN_PROFILE`, `CPLN_TOKEN`, `CPLN_ORG`, `CPLN_GVC`. Prefer `CPLN_TOKEN` (or a profile) over `--token` in CI — flags leak into shell history and logs.
 
 > **Switching org clears the default GVC.** `cpln profile update --org NEWORG` without `--gvc`, or saving a service-account `--token` (which carries its own org) without `--gvc`, **unsets the profile's GVC** (the new org rarely has a same-named GVC). Re-pass `--gvc`. A user `--token` leaves the GVC intact.
 
-REST/API calls use `Authorization: Bearer TOKEN` against `https://api.cpln.io`; get a token from a service-account key or `cpln profile token`.
+REST/API calls use `Authorization: Bearer TOKEN` against `https://api.cpln.io`, with a service-account key the user keeps in `CPLN_TOKEN` or a `cpln profile token` they run in their own terminal; a token never goes into the chat.
 
 ## SSO / SAML
 

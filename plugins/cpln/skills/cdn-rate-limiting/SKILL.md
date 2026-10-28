@@ -41,7 +41,7 @@ cpln apply --file rate-limiting.yaml --org ORG --gvc ratelimit
 
 The manifest assumes the GVC is named `ratelimit` (edit it if yours differs) and pins an older `envoyproxy/ratelimit` image tag; substitute a newer tag if desired.
 
-**As shipped, the manifest is a trial setup, not a production one:** both workloads run `minScale: 1` with `spot: true`. Because enforcement is fail-closed, the ratelimit stack is tier-1 infrastructure for every tagged workload — for production raise its `minScale` to 2+, set `spot: false`, and run the GVC in the same locations as the workloads it protects (every request pays the check's round trip). A Redis restart only resets counters; a ratelimit outage denies traffic.
+**As shipped, the manifest is a trial setup, not a production one:** both workloads run `minScale: 1`. Because enforcement is fail-closed, the ratelimit stack is tier-1 infrastructure for every tagged workload: for production raise its `minScale` to 2+ and run the GVC in the same locations as the workloads it protects (every request pays the check's round trip). A Redis restart only resets counters; a ratelimit outage denies traffic.
 
 ### 2. Configure the rules
 

@@ -28,6 +28,7 @@ egress                                                # outbound bytes/minute (a
 sum by (workload) (requests_per_second{response_class="500"})   # 5xx rate; response_class is "200".."500"
 histogram_quantile(0.95, sum by (le) (request_duration_ms_bucket))   # p95 latency (ms); no rate() wrapper
 sum by (gvc, workload) (increase(container_restarts[5m]))           # restarts in the last 5m
+increase(container_restarts[5m]) and on (uid, container_name) container_last_terminated_reason{reason="OOMKilled"}   # OOM-killed restarts
 ```
 
 ## Built-in metrics
@@ -38,7 +39,7 @@ Collected for every workload, no configuration. Names and types below are the re
 
 **Traffic** (per pod): `requests_per_second` and `requests_initiated_per_second` (pre-rated gauge, label `response_class`); `request_duration_ms_bucket` (latency histogram, keeps `le`).
 
-**Stability**: `container_restarts`, `workload_progress_failure`, `workload_rescheduled_replicas`, `cron_executions`, `domain_warnings` (cumulative counters); `cron_execution_rate` (pre-rated); `capacity_ai_updates`, `load_balancer` (gauge).
+**Stability**: `container_restarts`, `workload_progress_failure`, `workload_rescheduled_replicas`, `cron_executions`, `domain_warnings` (cumulative counters); `cron_execution_rate` (pre-rated); `capacity_ai_updates`, `load_balancer`, `container_last_terminated_reason` (gauge; `reason` label, e.g. `OOMKilled`).
 
 **Volume** (per volume set): `volume_set_capacity_bytes`, `volume_set_used_bytes`, `volume_set_free_bytes`, `volume_set_billable_bytes`, `volume_set_capacity_billable`, `volume_set_snapshots_billable`.
 

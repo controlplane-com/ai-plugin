@@ -22,8 +22,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 - `create_workload` and `update_workload` set `multiZone` and `capacityAIUpdateMinutes` for every location, which before took an override in each location.
 - `get_workload_logs` reads an mk8s cluster's own logs: `cluster` in place of `gvc`, narrowed by `namespace`, `pod`, `container`, `node`, and `job`. When nothing comes back from a cluster whose `logs` add-on is off, the result says so.
 - `get_resource` on an mk8s cluster with the `logs` or `metrics` add-on names the calls that read its logs and metrics.
+- `run_volumeset_command` takes `copyVolume`, which copies a volume to the same index in another location or volume set and replaces the volume there; skills list it with the destructive commands.
+- `create_secret` takes `defaults` with values `"user"` and a dictionary: starting values that are not secret, such as a host or port, filled into the Console form for the user to change.
+- `create_mk8s` and `update_mk8s` take a `*Drop` regex per metrics collector, dropping every series whose metric name matches it in full.
+- The metrics skill names `container_last_terminated_reason`, the reason each container last stopped, such as `OOMKilled`.
 
 ### Changed
+
+- Skills and the core rules run `cpln` only in a shell on the user's machine. A chat app such as ChatGPT never looks for, installs, or runs it, even in its code sandbox; it stores app files with `write_app_files` and gives the user a command to run only for a step no tool covers.
+- The mk8s skill gives the current version range, `1.26.0` through `1.36.5`.
+- `upgrade_template` and the Template Catalog skill start an upgrade from the values the release runs with, which the user reads in the Console, instead of a `cpln helm get values` command that would bring credentials into the chat.
+- `allow_workload_access` says that `remove: true` takes callers off the list, while a `same-gvc` or `same-org` rule still admits them.
+- Live credentials stay with the user: the agent never runs `cpln profile token` or prints an API token, the user runs those in their own terminal, and the Secret YAML from `cpln operator install --export` stays out of Git unless encrypted.
+- The KEDA Prometheus trigger authenticates with `authModes: bearer` and a dictionary secret (`bearerToken`) named in `authenticationRef`, never a token written into the workload spec.
+- Skills say the ChatGPT listing always runs `core`, so a step that needs another profile goes through the Console or a CLI command the user runs.
+- The rate limiting setup no longer mentions `spot`, which the platform removes from every workload.
 
 - The default `core` profile advertises 45 tools instead of 71: tools fold into the tool that covers their family (see Removed).
 - Tools few tasks need move from `core` to `full`: policies, identities, permissions, quota lists, promotion, events, replica and command lists, volume set creation, and the docs filesystem; the read tools among them stay on `readonly`.
@@ -38,6 +51,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 ### Fixed
 
 - `update_workload` `public: false` now closes the workload to the internet, and `public: true` opens it without replacing its other firewall rules.
+- `get_app_files` never shows the content of a file holding credentials, such as a `.env` with values uploaded from a folder; it returns the file's details instead.
 - `rollback_workload` finds the previous image even after a rollout has finished, from the last 30 days of changes.
 - Quota rejections (HTTP 429) are not retried, and their errors carry the quota hint instead of the rate limit hint.
 - An update that loses a write race with another change (HTTP 409 "Conflict: resource was changed") is retried once instead of failing with an "already exists" hint.
@@ -60,6 +74,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 - `configure_workload_local_options` (now `update_workload` with `localOptions` and `removeLocalOptions`, merged by location instead of replacing the list).
 - `configure_workload_rollout` and `configure_workload_security` (now `rolloutOptions`, `securityOptions`, and `removeSecurityOptions` on `create_workload` and `update_workload`).
 - `logs.events` on the `create_mk8s` and `update_mk8s` add-ons, which no mk8s log collector reads.
+- `recoveryPolicy` on `mount_volumeset_to_workload` and on container volumes in `create_workload` and `update_workload`, which the platform does not act on.
 
 ## [2.4.4] - 2026-10-01
 

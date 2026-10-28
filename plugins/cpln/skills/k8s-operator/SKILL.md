@@ -22,7 +22,7 @@ kubectl get pods -n controlplane -l app=operator
 cpln operator install --serviceaccount k8s-operator --org ORG
 ```
 
-`cpln operator install` configures **auth only** (the Helm step deploys the operator): it gets-or-creates the service account, adds it to a group (`--serviceaccount-group`, default `superusers` — any other group prints a warning), mints a **new key**, and applies a Secret named after the org in the `controlplane` namespace. Re-running with the same `--serviceaccount` is a no-op; a different name replaces the secret with a fresh key; an org-named secret the operator does not own aborts the install. `--export` prints the Secret YAML for Git instead of applying it — but still creates the service account and key on the platform.
+`cpln operator install` configures **auth only** (the Helm step deploys the operator): it gets-or-creates the service account, adds it to a group (`--serviceaccount-group`, default `superusers` — any other group prints a warning), mints a **new key**, and applies a Secret named after the org in the `controlplane` namespace. Re-running with the same `--serviceaccount` is a no-op; a different name replaces the secret with a fresh key; an org-named secret the operator does not own aborts the install. `--export` prints the Secret YAML instead of applying it, and still creates the service account and key on the platform. The YAML holds that key: the user runs it in their own terminal, and it stays out of Git unless encrypted (Sealed Secrets, SOPS).
 
 Manual equivalent (one secret per org; multiple orgs = multiple secrets):
 

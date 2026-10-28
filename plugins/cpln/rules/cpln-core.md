@@ -7,7 +7,7 @@ alwaysApply: true
 
 **Where**: org: the granted one, else ask (`list_orgs`). Gvc: the named one, else the one jobs made for apps; others: ask; none: a job makes one where the user picks. Never guess other names; after a not-found, never retry name variants.
 
-**Tools first**: these tools do all they cover, reads too; `cpln` only for a local folder's `image build`, `connect`, `exec`, `port-forward`, `cp`, CI/CD.
+**Tools first**: these tools do all they cover, reads too; `cpln` only for a local folder's `image build`, `connect`, `exec`, `port-forward`, `cp`, CI/CD; a chat app gives the user the command.
 
 **Destructive actions**: first say what is removed or broken, then act only on explicit approval. Cascades, gvc location changes, data loss, and production need a fresh yes.
 

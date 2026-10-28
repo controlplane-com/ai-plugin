@@ -48,7 +48,7 @@ Exactly one provider per cluster (the schema enforces XOR). For every provider e
 
 ## The cluster spec essentials
 
-- **`version`**: required, no default, a **closed enum** of specific patch versions (currently `1.26.0` through `1.35.3`). The set drifts as versions are added/retired; pull the live list from `get_resource` with `schema: true`, or just submit and let the typed tool's validation error name the valid values. Updating it is **upgrade-only**: mk8s rejects downgrades.
+- **`version`**: required, no default, a **closed enum** of specific patch versions (currently `1.26.0` through `1.36.5`). The set drifts as versions are added/retired; pull the live list from `get_resource` with `schema: true`, or just submit and let the typed tool's validation error name the valid values. Updating it is **upgrade-only**: mk8s rejects downgrades.
 - **`nodePools`** (per provider) — give at least one to get worker capacity. Common fields are `name`/`labels`/`taints`; the rest are provider-specific. Each pool's **`minSize`/`maxSize` drive the cluster autoscaler** (set `maxSize > minSize` to allow scale-up).
 - **`autoscaler`** (per provider) — defaults: `expander: [most-pods]`, `unneededTime: 10m`, `unreadyTime: 20m`, `utilizationThreshold: 0.7`. Usually leave it.
 - **`networking`** (per provider) — `serviceNetwork` (default `10.43.0.0/16`) and `podNetwork` (default `10.42.0.0/16`) must differ and are **unmodifiable after creation**; pick non-overlapping CIDRs up front. AWS and GCP additionally accept `podNetwork: vpc`.
