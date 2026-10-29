@@ -5,7 +5,7 @@ description: Deploys a Control Plane wormhole agent connecting workloads to priv
 
 # Agent Setup
 
-> **Tool availability:** the agent tools, the identity network-resource tools, `create_identity`, and `update_identity` need `?toolsets=full`; reconnect with it or use the CLI.
+> **Tool availability:** the agent tools and the identity network-resource tools need `?toolsets=full`; reconnect with it or use the CLI.
 
 A wormhole agent is a lightweight VM or container you run **inside the target network**. It opens a persistent **outbound** connection to Control Plane and tunnels workload traffic to any TCP/UDP endpoint on the private side — VPC, on-prem, data center, Azure VNet, cross-cloud, or a laptop. A workload reaches the endpoint by attaching an **identity** (gvc-scoped) that carries a `networkResources` entry pointing at the agent. No external egress firewall rule is needed.
 

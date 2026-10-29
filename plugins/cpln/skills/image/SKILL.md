@@ -100,7 +100,7 @@ Attach with `mcp__cpln__update_gvc` (`pullSecretLinks` is **merged** with existi
 
 `view` is read-only; `manage` implies all of the above.
 
-**Registry authorization is repository-granular.** When the registry checks a docker push or pull it evaluates the permission against `REPOSITORY:*` (tag wildcarded, no resource link), so a policy whose `targetLinks` list specific `NAME:TAG` images **never authorizes a docker push or pull**. Scope registry policies to all images, or use a `targetQuery` on the `repository` property (`mcp__cpln__create_policy` with `targetKind: image`, needs `?toolsets=full`; image queries support `name`, `id`, `tag`, `digest`, `repository`, `created`, `lastModified`). Tag-specific `targetLinks` only gate API operations on that image record (view/edit/delete).
+**Registry authorization is repository-granular.** When the registry checks a docker push or pull it evaluates the permission against `REPOSITORY:*` (tag wildcarded, no resource link), so a policy whose `targetLinks` list specific `NAME:TAG` images **never authorizes a docker push or pull**. Scope registry policies to all images, or use a `targetQuery` on the `repository` property (`mcp__cpln__create_policy` with `targetKind: image`; image queries support `name`, `id`, `tag`, `digest`, `repository`, `created`, `lastModified`). Tag-specific `targetLinks` only gate API operations on that image record (view/edit/delete).
 
 ## Tags, digests, and redeployment
 

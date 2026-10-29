@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
+### Changed
+
+- `create_identity`, `update_identity`, `create_policy`, and `update_policy` move from `full` to the default `core` profile, which now advertises 49 tools.
+
 ## [2.5.0] - 2026-10-29
 
 ### Added

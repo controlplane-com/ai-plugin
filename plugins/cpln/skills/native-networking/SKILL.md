@@ -5,7 +5,7 @@ description: "Connects Control Plane workloads to private VPCs, on-prem networks
 
 # Native Networking & Agent Connectivity
 
-> **Tool availability:** the agent tools, the identity network-resource tools, and `create_identity` need `?toolsets=full`; reconnect with it or use the CLI.
+> **Tool availability:** the agent tools and the identity network-resource tools need `?toolsets=full`; reconnect with it or use the CLI.
 
 A Control Plane workload reaches a private or cross-cloud endpoint through an **identity** (gvc-scoped) carrying one of two resource arrays. Attach that identity to the workload (`spec.identityLink`) — without the attachment, nothing routes. Both paths are wired **independently of the workload's external egress firewall**: you do *not* open an `outboundAllow*` rule to reach them. The two options:
 
