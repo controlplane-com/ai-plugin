@@ -5,7 +5,7 @@ description: "Manages organizations, billing, users, and authentication on Contr
 
 # Organization & User Management
 
-> **Tool availability:** `update_org`, `configure_external_logging`, `invite_user_to_org`, `edit_group`, `create_policy`, and `add_key_to_service_account` need `?toolsets=full`; reconnect with it or use the CLI.
+> **Tool availability:** `update_org`, `configure_external_logging`, `invite_user_to_org`, `edit_group`, and `add_key_to_service_account` need `?toolsets=full`; reconnect with it or use the CLI.
 
 An **org** is the top-level isolation boundary: every GVC, workload, secret, policy, image, domain, user, group, and service account lives inside one, with no cross-org sharing. An org **cannot be renamed or deleted** once created (every DELETE on `/org` returns 405) and its name is **globally unique** across all of Control Plane — so the first job is choosing a name you can live with permanently.
 

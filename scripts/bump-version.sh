@@ -8,10 +8,10 @@
 #      [Unreleased] section, commit "Bump version to X.Y.Z" on develop, push
 #      develop, and open the release pull request from develop to main.
 #   2. scripts/bump-version.sh <X.Y.Z> --finish
-#      Once that pull request merges with Rebase and merge: tag the release on
-#      main and push the tag, which triggers the release workflow, then move
-#      develop onto main's rewritten commits so the next release pull request
-#      holds only new work.
+#      Once that pull request merges (Squash and merge or Rebase and merge):
+#      tag the release on main and push the tag, which triggers the release
+#      workflow, then move develop onto main's new commits so the next release
+#      pull request holds only new work.
 #
 # Usage: scripts/bump-version.sh <X.Y.Z> [--finish] [--dry-run]
 #
@@ -95,6 +95,9 @@ branch="$(git rev-parse --abbrev-ref HEAD)"
 
 git diff --quiet && git diff --cached --quiet || fail "working tree has uncommitted changes; commit or stash first"
 
+git ls-remote --exit-code --heads "$REMOTE" "$RELEASE_BRANCH" >/dev/null \
+  || fail "$REMOTE has no $RELEASE_BRANCH branch; push yours back first: git push $REMOTE $RELEASE_BRANCH"
+
 git fetch --quiet --tags "$REMOTE" "$RELEASE_BRANCH" "$PRODUCTION_BRANCH"
 
 [ "$(git rev-parse HEAD)" = "$(git rev-parse "$REMOTE/$RELEASE_BRANCH")" ] \
@@ -113,11 +116,25 @@ if [ "$FINISH" -eq 1 ]; then
 
   release_commit="$(git rev-parse "$REMOTE/$PRODUCTION_BRANCH")"
 
+  # Squash and Rebase and merge both write new commits on main, so develop still
+  # holds the old ones. The newest develop commit with main's content is the one
+  # that merged; only the commits after it move onto main.
+  before="$(git rev-parse HEAD)"
+  if git merge-base --is-ancestor "$release_commit" HEAD; then
+    merged="$release_commit"
+  else
+    released_tree="$(git rev-parse "$release_commit^{tree}")"
+    merged="$(git log --format='%H %T' "$release_commit..HEAD" | awk -v tree="$released_tree" '$2 == tree && !found { print $1; found = 1 }')"
+  fi
+  [ -n "$merged" ] \
+    || fail "no $RELEASE_BRANCH commit has the content of $REMOTE/$PRODUCTION_BRANCH, so the merge changed something; nothing changed. Compare them: git diff $before $REMOTE/$PRODUCTION_BRANCH"
+  later="$(git rev-list --count "$merged..HEAD")"
+
   if [ "$DRY_RUN" -eq 1 ]; then
     cat <<EOF
 Dry run: every check passed. Finishing the release would:
   1. Tag $REMOTE/$PRODUCTION_BRANCH ($(git rev-parse --short "$release_commit")) as $TAG and push the tag, which triggers the release workflow.
-  2. Rebase $RELEASE_BRANCH onto $REMOTE/$PRODUCTION_BRANCH, dropping the commits the merge rewrote, and push it with --force-with-lease.
+  2. Move $RELEASE_BRANCH onto $REMOTE/$PRODUCTION_BRANCH: $(git rev-parse --short "$merged") is the commit that merged, and the $later after it are replayed. Then push $RELEASE_BRANCH with --force-with-lease.
 EOF
     exit 0
   fi
@@ -129,17 +146,14 @@ EOF
   fi
   echo "Pushed $TAG on $(git rev-parse --short "$release_commit"); the release workflow now publishes the GitHub Release."
 
-  # GitHub's Rebase and merge writes new commit ids, so develop still holds the
-  # old ones. Rebasing drops them as already applied and replays anything newer.
-  before="$(git rev-parse HEAD)"
-  realign_by_hand="git rebase $REMOTE/$PRODUCTION_BRANCH && git push --force-with-lease=$RELEASE_BRANCH:$before $REMOTE HEAD:refs/heads/$RELEASE_BRANCH"
-  if ! git rebase --quiet "$REMOTE/$PRODUCTION_BRANCH"; then
+  realign_by_hand="git rebase --onto $REMOTE/$PRODUCTION_BRANCH $merged && git push --force-with-lease=$RELEASE_BRANCH:$before $REMOTE HEAD:refs/heads/$RELEASE_BRANCH"
+  if ! git rebase --quiet --onto "$REMOTE/$PRODUCTION_BRANCH" "$merged"; then
     git rebase --abort
-    fail "$RELEASE_BRANCH does not rebase cleanly onto $REMOTE/$PRODUCTION_BRANCH (was the pull request squashed?); $TAG is released, and $RELEASE_BRANCH is unchanged. Realign it by hand: $realign_by_hand"
+    fail "the $later $RELEASE_BRANCH commits after the merge do not replay cleanly onto $REMOTE/$PRODUCTION_BRANCH; $TAG is released, and $RELEASE_BRANCH is unchanged. Realign it by hand: $realign_by_hand"
   fi
   if ! git diff --quiet "$before" HEAD; then
     git reset --quiet --hard "$before"
-    fail "rebasing $RELEASE_BRANCH onto $REMOTE/$PRODUCTION_BRANCH would change its content, so it is unchanged; $TAG is released. Compare them before realigning: git diff $before $REMOTE/$PRODUCTION_BRANCH"
+    fail "moving $RELEASE_BRANCH onto $REMOTE/$PRODUCTION_BRANCH would change its content, so it is unchanged; $TAG is released. Compare them before realigning: git diff $before $REMOTE/$PRODUCTION_BRANCH"
   fi
   git push --quiet --force-with-lease="$RELEASE_BRANCH:$before" "$REMOTE" "HEAD:refs/heads/$RELEASE_BRANCH" \
     || fail "the $RELEASE_BRANCH push was rejected; $TAG is released. Realign by hand: $realign_by_hand"
@@ -177,7 +191,7 @@ Dry run: every check passed. The release would:
   1. Bump $current to $VERSION in ${#MANIFESTS[@]} manifest fields and promote [Unreleased] ($unreleased_entries entries) to [$VERSION] - $TODAY.
   2. Commit "Bump version to $VERSION" on $RELEASE_BRANCH and push it.
   3. Open the pull request "Release $VERSION" from $RELEASE_BRANCH to $PRODUCTION_BRANCH with the [$VERSION] notes.
-After it merges with Rebase and merge, run: $0 $VERSION --finish
+After it merges, run: $0 $VERSION --finish
 EOF
   exit 0
 fi
@@ -240,7 +254,7 @@ awk -v heading="## [$VERSION]" '
   inside && /^## \[/ { exit }
   inside { print }
 ' CHANGELOG.md > "$notes"
-printf '\nMerge with **Rebase and merge**, then run `scripts/bump-version.sh %s --finish` on %s to tag the release and realign %s.\n' \
+printf '\nMerge with **Squash and merge** or **Rebase and merge**, then run `scripts/bump-version.sh %s --finish` on %s to tag the release and realign %s.\n' \
   "$VERSION" "$RELEASE_BRANCH" "$RELEASE_BRANCH" >> "$notes"
 
 if ! pr_url="$(gh pr create --base "$PRODUCTION_BRANCH" --head "$RELEASE_BRANCH" --title "Release $VERSION" --body-file "$notes")"; then
@@ -249,5 +263,5 @@ fi
 
 cat <<EOF
 Opened $pr_url
-Once it is approved and merged with Rebase and merge, run: $0 $VERSION --finish
+Once it is approved and merged, run: $0 $VERSION --finish
 EOF

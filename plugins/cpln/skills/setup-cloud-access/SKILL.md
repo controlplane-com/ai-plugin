@@ -5,7 +5,7 @@ description: Credential-free cloud access (Universal Cloud Identity) for a Contr
 
 # Cloud Access Setup (Universal Cloud Identity)
 
-> **Tool availability:** `create_cloud_account`, `update_cloud_account`, `how_to_create_cloud_account`, `create_identity`, and `update_identity` need `?toolsets=full`; `grant_cloud_access` is core.
+> **Tool availability:** `create_cloud_account`, `update_cloud_account`, and `how_to_create_cloud_account` need `?toolsets=full`; `grant_cloud_access`, `create_identity`, and `update_identity` are core.
 
 A workload reads cloud resources with **no embedded keys**: a GVC-scoped **identity** carries a per-provider cloud-access block that federates with the provider's IAM, and Control Plane vends short-lived credentials at runtime. Cloud SDKs (boto3, google-cloud, @azure/sdk) pick them up automatically — no SDK config.
 

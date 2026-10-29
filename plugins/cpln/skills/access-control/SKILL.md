@@ -5,7 +5,7 @@ description: "Primary skill for access control, policies, and RBAC on Control Pl
 
 # Access Control & Policies — Primary Skill
 
-> **Tool availability:** `create_policy`, `update_policy`, `get_permissions`, `create_group`, `edit_group`, `create_service_account`, `update_service_account`, `add_key_to_service_account`, and `invite_user_to_org` need `?toolsets=full`; reconnect with it or use the CLI. On core, `grant_workload_secret_access` (`remove: true` revokes) grants a workload secret access through its identity and a policy, creating either when missing; `grant_cloud_access` creates no policy: it makes sure the workload has an identity and sets that identity's cloud provider access.
+> **Tool availability:** `get_permissions`, `create_group`, `edit_group`, `create_service_account`, `update_service_account`, `add_key_to_service_account`, and `invite_user_to_org` need `?toolsets=full`; reconnect with it or use the CLI. On core, `grant_workload_secret_access` (`remove: true` revokes) grants a workload secret access through its identity and a policy, creating either when missing; `grant_cloud_access` creates no policy: it makes sure the workload has an identity and sets that identity's cloud provider access.
 
 A **policy** targets one resource kind and binds **permissions** to **principals** (users, groups, service accounts, workload identities). The common failure is a policy that **exists but grants nothing** — a wrong `targetKind`, permission name, or principal link fails with no error — so read the policy back after writing.
 

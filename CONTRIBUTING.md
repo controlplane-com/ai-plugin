@@ -41,7 +41,7 @@ For Markdown-only changes, review links, tables, frontmatter, and command exampl
 
 ## Branches
 
-- `develop` is where work lands: open pull requests against it. The test MCP server reads it, so a merged change reaches the test environment within the hour.
+- `develop` is where work lands: open pull requests against it. The test MCP server reads it, so a merged change reaches the test environment within the hour. A ruleset blocks deleting it, including from the merged release pull request's **Delete branch** button.
 - `main` is the released line. Installs, the marketplaces, and the production MCP server read it, and it changes only through the approved release pull request the release script opens.
 
 A fix that must ship fast is a normal pull request to `develop` plus a patch release, so `main` never diverges from `develop`.
@@ -87,13 +87,13 @@ Maintainers release from `develop` with one script in two steps, since `main` ta
    ```
    The script stops before changing anything when it is not on `develop`, the tree is dirty, `develop` is out of sync with `origin`, the tag exists, `main` holds commits `develop` lacks (the previous release was never finished), a release pull request is already open, `[Unreleased]` is empty, or the tool-mention check fails. Otherwise it bumps every manifest, promotes `[Unreleased]` to `[1.1.0] - YYYY-MM-DD`, commits `Bump version to 1.1.0`, pushes `develop`, and opens the pull request `Release 1.1.0` from `develop` to `main` with the `[1.1.0]` notes. It needs `gh` signed in. If the push is rejected, nothing changes on `origin`, and the script prints how to retry or undo.
 
-5. **Merge with Rebase and merge, then finish the release.** Once a teammate approves the pull request, merge it with **Rebase and merge** (`main` requires linear history), then:
+5. **Merge, then finish the release.** Once a teammate approves the pull request, merge it with **Squash and merge** or **Rebase and merge** (`main` requires linear history, so not a merge commit), then:
    ```bash
    git switch develop && git pull --ff-only
    ./scripts/bump-version.sh 1.1.0 --finish --dry-run
    ./scripts/bump-version.sh 1.1.0 --finish
    ```
-   The script stops unless `main` carries version `1.1.0` and the tag does not exist. It tags `main` as `v1.1.0` and pushes the tag. Rebase and merge gives the commits new ids on `main`, so it then rebases `develop` onto `main`, which drops the released commits and replays anything that landed on `develop` since, and pushes `develop` with `--force-with-lease`. It refuses to push when the rebase conflicts or would change `develop`'s content, and prints how to realign by hand. Anyone with a branch cut from the old `develop` rebases it onto the new one.
+   The script stops unless `main` carries version `1.1.0` and the tag does not exist. It tags `main` as `v1.1.0` and pushes the tag. Either merge writes new commits on `main`, so it then moves `develop` onto `main`: the newest `develop` commit with `main`'s content is the one that merged, only the commits after it are replayed, and `develop` is pushed with `--force-with-lease`. It stops before tagging when no `develop` commit has `main`'s content, refuses to push when the replay conflicts or would change `develop`'s content, and prints how to realign by hand. Anyone with a branch cut from the old `develop` rebases it onto the new one.
 
 6. **The release workflow takes over.** On the `v1.1.0` tag push, `.github/workflows/release.yml`:
    - Verifies all manifests carry version `1.1.0`, which catches drift if a manifest was hand-edited.

@@ -46,7 +46,7 @@ CLI-only (no MCP tool) and **still requires a running Docker daemon — `copy` h
 The target org pulls directly from the source org's registry. Four steps:
 
 1. **Source org — puller credentials**: `mcp__cpln__add_key_to_service_account` (needs `?toolsets=full`; creates the service account if missing; the key is shown **once**).
-2. **Source org, grant pull**: `mcp__cpln__create_policy` (needs `?toolsets=full`) with `targetKind: image`, `targetAll: true` (or `targetQuery` by repository), `addPermissions: ["pull"]`, `addServiceAccounts: [LINK]`; bindings go in the create call.
+2. **Source org, grant pull**: `mcp__cpln__create_policy` with `targetKind: image`, `targetAll: true` (or `targetQuery` by repository), `addPermissions: ["pull"]`, `addServiceAccounts: [LINK]`; bindings go in the create call.
 3. **Target org — docker secret**: have the user create a `docker` secret with this `dockerConfigJson` — offer a manifest scaffold (`data` is this JSON as one string; `setup-secret` skill); the username is the **literal string `<token>`** (the registry rejects anything else; the password is the service-account key):
 
 ```json
