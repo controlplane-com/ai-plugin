@@ -14,8 +14,10 @@ An IP set reserves one static public IPv4 address per location and attaches it t
 | Type | Scope | What it adds | Cost |
 |---|---|---|---|
 | Default (shared) | every workload | HTTP/HTTPS on 80/443, nothing to configure | included |
-| Direct | one workload | raw TCP/UDP on external ports 22-32768, static IPs, TLS passthrough | charged while enabled |
-| Dedicated | whole GVC | domain custom ports and TCP routing, wildcard and accept-all hosts, redirects, trusted proxies, static IPs | per location (multiZone adds cross-zone charges) |
+| Direct | one workload | raw TCP/UDP on external ports 22-32768, static IPs, TLS passthrough | charged per location while enabled |
+| Dedicated | whole GVC | domain custom ports and TCP routing, wildcard and accept-all hosts, redirects, trusted proxies, static IPs | charged per location (multiZone adds cross-zone charges) |
+
+Direct and dedicated load balancers are billed at the same rate, the dedicated load balancer line on the pricing page (per load balancer-month), on top of the workload's CPU, memory, and egress. The charge counts once per GVC in each location: however many direct load balancers its workloads run there, with or without the dedicated one, the GVC pays for one load balancer in that location. Only the direct load balancer carries UDP; the dedicated one routes TCP.
 
 Toggling the `direct` block (workload) or `dedicated` flag (GVC) requires the **`configureLoadBalancer` permission** on that resource — `edit` does not imply it (403 "Not allowed to change loadBalancer configuration"); `manage` covers it.
 

@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
+### Changed
+
+- The official MCP registry lists the server as `com.controlplane/mcp`, with the Control Plane icon, replacing `io.cpln/control-plane`.
+- The `ipset-load-balancing` skill states how direct and dedicated load balancers are billed: at the dedicated load balancer rate, once per GVC in each location.
+
 ## [2.5.1] - 2026-10-29
 
 ### Changed

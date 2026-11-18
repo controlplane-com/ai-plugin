@@ -50,14 +50,14 @@ A fix that must ship fast is a normal pull request to `develop` plus a patch rel
 
 This repo follows [Semantic Versioning](https://semver.org/). The version lives in several manifests that must stay aligned (the release script updates them all):
 
-| File                                          | Path                                          |
-| --------------------------------------------- | --------------------------------------------- |
-| `plugins/cpln/.claude-plugin/plugin.json`     | `.version`                                    |
-| `.claude-plugin/marketplace.json`             | `.plugins[0].version`                         |
-| `plugins/cpln/.codex-plugin/plugin.json`      | `.version`                                    |
-| `plugins/cpln/.cursor-plugin/plugin.json`     | `.version`                                    |
-| `.cursor-plugin/marketplace.json`             | `.metadata.version` and `.plugins[0].version` |
-| `plugins/cpln/plugin.json` (Antigravity CLI)  | `.version`                                    |
+| File                                         | Path                                          |
+| -------------------------------------------- | --------------------------------------------- |
+| `plugins/cpln/.claude-plugin/plugin.json`    | `.version`                                    |
+| `.claude-plugin/marketplace.json`            | `.plugins[0].version`                         |
+| `plugins/cpln/.codex-plugin/plugin.json`     | `.version`                                    |
+| `plugins/cpln/.cursor-plugin/plugin.json`    | `.version`                                    |
+| `.cursor-plugin/marketplace.json`            | `.metadata.version` and `.plugins[0].version` |
+| `plugins/cpln/plugin.json` (Antigravity CLI) | `.version`                                    |
 
 Pick the bump based on what changed since the last tag:
 
@@ -76,23 +76,28 @@ Maintainers release from `develop` with one script in two steps, since `main` ta
 2. **Deploy the MCP server to production first** when the release names MCP tools production does not serve yet. The server refuses fetched content that names a tool it lacks and keeps its bundled copy, so the wrong order degrades instead of breaking, but the new content waits for the deploy.
 
 3. **Update `develop` and run the [local checks](#local-checks).**
+
    ```bash
    git switch develop && git pull --ff-only
    ```
 
 4. **Rehearse, then open the release pull request.**
+
    ```bash
    ./scripts/bump-version.sh 1.1.0 --dry-run
    ./scripts/bump-version.sh 1.1.0
    ```
+
    The script stops before changing anything when it is not on `develop`, the tree is dirty, `develop` is out of sync with `origin`, the tag exists, `main` holds commits `develop` lacks (the previous release was never finished), a release pull request is already open, `[Unreleased]` is empty, or the tool-mention check fails. Otherwise it bumps every manifest, promotes `[Unreleased]` to `[1.1.0] - YYYY-MM-DD`, commits `Bump version to 1.1.0`, pushes `develop`, and opens the pull request `Release 1.1.0` from `develop` to `main` with the `[1.1.0]` notes. It needs `gh` signed in. If the push is rejected, nothing changes on `origin`, and the script prints how to retry or undo.
 
 5. **Merge, then finish the release.** Once a teammate approves the pull request, merge it with **Squash and merge** or **Rebase and merge** (`main` requires linear history, so not a merge commit), then:
+
    ```bash
    git switch develop && git pull --ff-only
    ./scripts/bump-version.sh 1.1.0 --finish --dry-run
    ./scripts/bump-version.sh 1.1.0 --finish
    ```
+
    The script stops unless `main` carries version `1.1.0` and the tag does not exist. It tags `main` as `v1.1.0` and pushes the tag. Either merge writes new commits on `main`, so it then moves `develop` onto `main`: the newest `develop` commit with `main`'s content is the one that merged, only the commits after it are replayed, and `develop` is pushed with `--force-with-lease`. It stops before tagging when no `develop` commit has `main`'s content, refuses to push when the replay conflicts or would change `develop`'s content, and prints how to realign by hand. Anyone with a branch cut from the old `develop` rebases it onto the new one.
 
 6. **The release workflow takes over.** On the `v1.1.0` tag push, `.github/workflows/release.yml`:
