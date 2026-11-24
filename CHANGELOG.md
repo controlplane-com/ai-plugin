@@ -6,8 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 
 ## [Unreleased]
 
+### Added
+
+- `get_repository_files` lists a GitHub or GitLab repository's files with its root README, and reads up to 40 files, so a deploy can be planned before `deploy_app` or `build_image` builds it. A private repository is read through the org's git connection, and the tool returns the one-time link when there is none. It is in the default `core` profile.
+- `get_pricing` answers what Control Plane costs when the user asks: the list price table, a monthly estimate for the CPU, memory, replicas, locations, volumes, egress, load balancers, snapshots, and logs, metrics, and traces storage given, and with `spend: true` the org's charges this month and billing's projected month total at its account's own rates. It is in the default `core` profile, which now advertises 51 tools. The `create-app`, `autoscaling-capacity`, and `org-management` skills point to it, and the `autoscaling-capacity` skill states that CPU and memory bill at the larger of the reservation and actual use.
+- `delete_resource` takes `names` to delete up to 50 resources of one kind and scope in one call. Each name is reported deleted or not deleted, with the reason, and a name that is invalid for the kind refuses the whole call before anything is deleted.
+
 ### Changed
 
+- The `create-app` and `image` skills read a repository with `get_repository_files` before deploying it.
+- The `domain` skill's CNAME example uses the production endpoint domain, and the skill tells the model to copy each record value from `status.dnsConfig` rather than write a target hostname itself. The earlier example showed the test environment's `t.cpln.app`, which a model passed to a production user.
 - The official MCP registry lists the server as `com.controlplane/mcp`, with the Control Plane icon, replacing `io.cpln/control-plane`.
 - The `ipset-load-balancing` skill states how direct and dedicated load balancers are billed: at the dedicated load balancer rate, once per GVC in each location.
 

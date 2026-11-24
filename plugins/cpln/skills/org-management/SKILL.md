@@ -52,6 +52,8 @@ Billing accounts (invoices, payment methods, spend alerts, org creation) are man
 | `billing_viewer` | Read-only billing access |
 | `org_creator` | Create orgs under the account |
 
+**Prices**, only when the user asks: `mcp__cpln__get_pricing` returns the list prices, a monthly estimate for the sizes and replicas given, and with `spend: true` the org's charges this month and the projected month total at its account's own rates (needs `readMetrics` on the org, or a billing role).
+
 ## Users
 
 **Invite** with `mcp__cpln__invite_user_to_org` (`email` required, `groupName` optional) or `cpln user invite --email EMAIL --group GROUP`. The user gets an onboarding email; **pending invites are viewable/cancellable only in the Console** (Users, then Pending Invites) — no MCP/CLI list exists. Up to 10 invites per API request; the Console also bulk-invites from a CSV.

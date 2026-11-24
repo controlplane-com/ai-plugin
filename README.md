@@ -7,6 +7,12 @@
   </a>
 </p>
 
+<p align="center">
+  <a href="https://glama.ai/mcp/connectors/com.controlplane/mcp">
+    <img src="https://glama.ai/mcp/connectors/com.controlplane/mcp/badges/score.svg" alt="Control Plane MCP connector: tool definition quality and endpoint health on Glama">
+  </a>
+</p>
+
 # Control Plane AI Plugin
 
 Run containerized workloads across AWS, GCP, Azure, OCI, and your own hardware under one API. It loads Control Plane's domain knowledge, production guardrails, and live MCP tools into Claude Code, Codex, and Antigravity CLI so your assistant can deploy, troubleshoot, secure, and migrate workloads with verified `cpln` commands.
@@ -56,7 +62,7 @@ Point any other MCP client at the hosted server:
 ```json
 {
   "mcpServers": {
-    "cpln": {
+    "controlplane": {
       "type": "http",
       "url": "https://mcp.cpln.io/mcp"
     }

@@ -1,13 +1,18 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.cpln/control-plane",
+  "name": "com.controlplane/mcp",
   "title": "Control Plane",
   "description": "Control Plane (controlplane.com): deploy and operate workloads across AWS, GCP, Azure, and more.",
-  "version": "1.0.2",
+  "version": "1.0.1",
   "websiteUrl": "https://controlplane.com",
   "repository": {
     "url": "https://github.com/controlplane-com/ai-plugin",
     "source": "github"
   },
+  "icons": [
+    { "src": "https://mcp.cpln.io/icons/icon-512.png", "mimeType": "image/png", "sizes": ["512x512"] },
+    { "src": "https://mcp.cpln.io/icons/icon-192.png", "mimeType": "image/png", "sizes": ["192x192"] },
+    { "src": "https://controlplane.com/images/logos/logomark.svg", "mimeType": "image/svg+xml", "sizes": ["any"] }
+  ],
   "remotes": [{ "type": "streamable-http", "url": "https://mcp.cpln.io/mcp" }]
 }

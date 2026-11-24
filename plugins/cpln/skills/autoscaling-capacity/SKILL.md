@@ -104,7 +104,7 @@ autoscaling:
 
 ## Capacity AI
 
-Right-sizes each container's **reserved** resources (what you're billed for) from usage history, between the `minCpu`/`minMemory` floor and the `cpu`/`memory` ceiling. **Every workload type supports it.** Standard, serverless, and cron enable it by default.
+Right-sizes each container's **reserved** resources (what you're billed for, or actual use when that is higher) from usage history, between the `minCpu`/`minMemory` floor and the `cpu`/`memory` ceiling. **Every workload type supports it.** Standard, serverless, and cron enable it by default.
 
 ```yaml
 spec:
@@ -129,7 +129,7 @@ spec:
 - **With Capacity AI off:** `cpu`/`memory` are the fixed allocation and `minCpu`/`minMemory` are ignored — except on **stateful**, where `minCpu`/`minMemory` become the static **reserved** request and `cpu`/`memory` stay the burst ceiling.
 - **Stateful `minCpu`/`minMemory` are bounded** unless Capacity AI is on in `defaultOptions` and in every `localOptions` entry: max/min ratio ≤ **4** AND gap ≤ **4000m** CPU / **4096Mi** memory.
 - **GPU:** `nvidia` model `t4` (quantity up to 4) or `a10g` (exactly 1); strict per-model CPU/memory minimums: fetch exact numbers with `mcp__cpln__get_resource` (`kind: workload`, `schema: true`).
-- **Cost:** billing follows reserved resources, so Capacity AI (or stateful `minCpu`) directly lowers cost.
+- **Cost:** CPU and memory bill per second at the larger of the reservation and actual use, so Capacity AI (or stateful `minCpu`) lowers cost when a workload uses less than its ceiling. `mcp__cpln__get_pricing` prices a size when the user asks.
 
 ## Troubleshooting
 

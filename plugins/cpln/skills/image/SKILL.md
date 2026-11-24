@@ -51,7 +51,7 @@ cpln image build --name my-app:v1.0 --remote --detach                          #
 
 ### Builds over MCP
 
-`deploy_app` and `build_image` build from a repository or from app files stored with `write_app_files` (the `create-app` skill); a folder on the user's machine needs the CLI. Every image the build service pushes carries provenance tags: `builder.cpln.io/source` (`app-files`, `folder`, or `repository`), `builder.cpln.io/repo`, `builder.cpln.io/build`, and `builder.cpln.io/digest`. An image without them was pushed outside a Control Plane build; `get_app_files` reads them to say where an app's code lives.
+`deploy_app` and `build_image` build from a repository or from app files stored with `write_app_files` (the `create-app` skill); a folder on the user's machine needs the CLI. `get_repository_files` reads a repository's files without building it, so a build can be planned first. Every image the build service pushes carries provenance tags: `builder.cpln.io/source` (`app-files`, `folder`, or `repository`), `builder.cpln.io/repo`, `builder.cpln.io/build`, and `builder.cpln.io/digest`. An image without them was pushed outside a Control Plane build; `get_app_files` reads them to say where an app's code lives.
 
 ### Local builds
 
