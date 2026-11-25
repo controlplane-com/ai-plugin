@@ -102,6 +102,7 @@ Core anti-hallucination reference. **Scope**: org = needs `--org`; gvc = needs `
 | **ipset** | org | Full + clone | `add-location`, `remove-location`, `update-location` |
 | **serviceaccount** (`sa`) | org | **No update**; clone | `add-key` (`--description` required), `remove-key` |
 | **mk8s** | org | **No create**; clone | `dashboard`, `health`, `join`, `kubeconfig` |
+| **sandbox** | gvc (the org's sandbox GVC unless `--gvc`) | dev and worker sandboxes, their sessions, and sandbox images; the groups changed after 3.19.0, so take every verb from `cpln sandbox --help` | a dev sandbox's desktop IDE or SSH connect, a session's interactive shell and file copy (the CLI-only parts) |
 | **user** | org | No create | `invite` (`--email`, optional `--group`) |
 | **org** | — | create (needs `--accountId`, `--invitee`); **no delete** | — |
 | **profile** | local | get, delete, update (creates if missing; alias `create`) | `login`, `set-default`, `token` |

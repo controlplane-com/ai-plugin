@@ -24,6 +24,7 @@
     "operating-guide": {},
     "org-management": {},
     "query-spec": {},
+    "sandbox": {},
     "setup-agent": {},
     "setup-cloud-access": {},
     "setup-secret": {},
@@ -35,6 +36,8 @@
     "workload-troubleshooting": {}
   },
   "toolSkills": {
+    "deploy_sandbox": "sandbox",
+    "run_session": "sandbox",
     "build_image": "image",
     "get_image_build": "image",
     "write_app_files": "create-app",
