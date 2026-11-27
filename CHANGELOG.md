@@ -20,6 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/) and this 
 - The `domain` skill's CNAME example uses the production endpoint domain, and the skill tells the model to copy each record value from `status.dnsConfig` rather than write a target hostname itself. The earlier example showed the test environment's `t.cpln.app`, which a model passed to a production user.
 - The official MCP registry lists the server as `com.controlplane/mcp`, with the Control Plane icon, replacing `io.cpln/control-plane`.
 - The `ipset-load-balancing` skill states how direct and dedicated load balancers are billed: at the dedicated load balancer rate, once per GVC in each location.
+- When a call turns scale to zero on, `create_workload` and `update_workload` fill in the recommended `scaleToZeroDelay: 30`, `timeoutSeconds: 60`, and on serverless `metric: concurrency`, so the first request after a sleep no longer times out while a replica starts. The `autoscaling-capacity`, `workload`, and `workload-troubleshooting` skills teach the same settings.
 
 ## [2.5.1] - 2026-10-29
 

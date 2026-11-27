@@ -65,7 +65,7 @@ Serverless gets TCP readiness and liveness on the container port; standard, stat
 
 ### Autoscaling misconfiguration
 
-Serverless has no `latency` or multi-metric scaling; standard and stateful have no `concurrency`; cron has no autoscaling. Scale to zero: serverless with `rps` or `concurrency`; standard and stateful only with `metric: keda`; never cron. 502 on scale-up is the readiness probe above. Detail: `autoscaling-capacity` skill.
+Serverless has no `latency` or multi-metric scaling; standard and stateful have no `concurrency`; cron has no autoscaling. Scale to zero: serverless with `rps` or `concurrency`; standard and stateful only with `metric: keda`; never cron. A first request that times out after a sleep waited while a replica started: set `timeoutSeconds: 60` and `scaleToZeroDelay: 30`. 502 on scale-up is the readiness probe above. Detail: `autoscaling-capacity` skill.
 
 ### Failures during deploys or scale-down
 

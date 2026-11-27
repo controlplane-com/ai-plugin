@@ -68,6 +68,17 @@ Each entry is evaluated independently; the highest replica count wins. Only `cpu
 ## Scale to zero
 
 - **Scale to zero by type:** serverless freely; standard and stateful only with `metric: keda` (anything else is rejected); cron never. Serverless reaches zero with `concurrency` or `rps`; `cpu` and `memory` ride an HPA that never drops to zero. The first request after idle pays a cold start.
+- **Recommended settings:** `scaleToZeroDelay: 30` and `timeoutSeconds: 60`, plus `metric: concurrency` on serverless. The first request after a sleep waits while a replica starts, and the platform default timeout of 5 seconds can end it first. `mcp__cpln__create_workload` and `mcp__cpln__update_workload` fill in whichever the call leaves out (an update keeps a stored timeout of 60 or more, and a stored `rps`) and name them in the result: tell the user what was set. In a manifest for `cpln apply`, write them yourself:
+
+```yaml
+spec:
+  defaultOptions:
+    autoscaling:
+      metric: concurrency   # serverless; standard and stateful use keda
+      minScale: 0
+      scaleToZeroDelay: 30
+    timeoutSeconds: 60
+```
 
 ## KEDA (event-driven, standard/stateful)
 
@@ -138,6 +149,7 @@ spec:
 | Not scaling up | Does the signal exist? `mcp__cpln__query_metrics` without, then with, a `query`; check `maxScale`; check replica readiness via `mcp__cpln__list_deployments` |
 | Not scaling down | Standard/stateful stabilization window = `scaleToZeroDelay` (default 300s); check `minScale` |
 | Scale-to-zero not happening | Serverless needs `concurrency`/`rps`; standard/stateful need `metric: keda`; check `scaleToZeroDelay` |
+| First request after a sleep times out | `timeoutSeconds` below 60: the request waits while a replica starts; apply the recommended scale to zero settings above |
 | KEDA not triggering | KEDA enabled on the GVC? Trigger auth secret listed in `gvc.spec.keda.secrets`? Source firewall allows `cpln://internal/keda`? |
 | Capacity AI not adjusting | Check the stored `spec.defaultOptions.capacityAI`; off with `metric: cpu` or `multi`; rejected with GPUs; a recent spec change pauses it; `capacityAIUpdateMinutes` throttle; on cron it only lands at the next execution |
 | Replicas stuck at `minScale` | The scaling metric never resolves — verify the PromQL/trigger returns data |

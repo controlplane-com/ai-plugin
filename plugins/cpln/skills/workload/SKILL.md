@@ -64,7 +64,7 @@ A workload is the unit of deployment: one to eight containers plus how they scal
 
 ## Autoscaling
 
-Match the metric to the traffic: `rps` or `concurrency` for HTTP, `cpu` or `memory` for compute, `latency` for SLO-driven APIs, `keda` for queues. On standard with Capacity AI on, an omitted metric resolves to `disabled`, so name it. Capacity AI is rejected with the `cpu` metric and with GPUs. The metric table, KEDA, and Capacity AI: `autoscaling-capacity` skill.
+Match the metric to the traffic: `rps` or `concurrency` for HTTP, `cpu` or `memory` for compute, `latency` for SLO-driven APIs, `keda` for queues. On standard with Capacity AI on, an omitted metric resolves to `disabled`, so name it. Capacity AI is rejected with the `cpu` metric and with GPUs. Scale to zero takes `scaleToZeroDelay: 30`, `timeoutSeconds: 60`, and on serverless `metric: concurrency`, because the first request after a sleep waits while a replica starts; `create_workload` and `update_workload` fill in whichever the call leaves out and say so in the result. The metric table, KEDA, and Capacity AI: `autoscaling-capacity` skill.
 
 ## Networking
 
